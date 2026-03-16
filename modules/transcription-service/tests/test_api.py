@@ -1,5 +1,6 @@
 """Tests for transcription service WebSocket API, _dedup_overlap, and no_speech_prob gate."""
 import json
+from collections import deque
 
 import numpy as np
 import pytest
@@ -179,3 +180,127 @@ class TestNoSpeechProbGateBoundary:
     def test_no_speech_prob_one_suppressed(self):
         """no_speech_prob=1.0 is well above the gate — must be suppressed."""
         assert self._gate_fires(1.0) is True
+
+
+class TestLowConfidenceFilter:
+    """Boundary tests for the two-tier confidence filter.
+
+    Tier 1: word_count <= 2 and confidence < 0.55 → suppress
+    Tier 2: confidence < 0.3 → suppress (any length)
+    """
+
+    def _should_filter(self, text: str, confidence: float) -> bool:
+        """Replicate the two-tier filter logic from _run_inference."""
+        word_count = len(text.split())
+        if word_count <= 2 and confidence < 0.55:
+            return True
+        if confidence < 0.3:
+            return True
+        return False
+
+    def test_short_low_confidence_filtered(self):
+        """1-word segment with confidence 0.4 → filtered (< 0.55 threshold)."""
+        assert self._should_filter("Thank", 0.4) is True
+
+    def test_short_at_threshold_passes(self):
+        """2-word segment with confidence 0.55 → passes (not < 0.55)."""
+        assert self._should_filter("Thank you", 0.55) is False
+
+    def test_short_just_below_threshold_filtered(self):
+        """2-word segment with confidence 0.54 → filtered."""
+        assert self._should_filter("Thank you", 0.54) is True
+
+    def test_long_segment_low_confidence_filtered(self):
+        """5-word segment with confidence 0.2 → filtered by tier 2 (< 0.3)."""
+        assert self._should_filter("This is a long sentence", 0.2) is True
+
+    def test_long_segment_moderate_confidence_passes(self):
+        """5-word segment with confidence 0.4 → passes (not short, not < 0.3)."""
+        assert self._should_filter("This is a long sentence", 0.4) is False
+
+    def test_three_word_segment_moderate_confidence_passes(self):
+        """3-word segment with confidence 0.4 → passes (word_count > 2, confidence >= 0.3)."""
+        assert self._should_filter("Thank you very", 0.4) is False
+
+    def test_very_low_confidence_any_length_filtered(self):
+        """Any segment with confidence 0.1 → filtered by tier 2."""
+        assert self._should_filter("The quick brown fox jumps over the lazy dog", 0.1) is True
+
+    def test_high_confidence_short_passes(self):
+        """1-word segment with confidence 0.9 → passes."""
+        assert self._should_filter("Yes", 0.9) is False
+
+
+class TestRepetitionFilter:
+    """Tests for the repetition filter that catches Whisper hallucinations.
+
+    The filter tracks the last 5 segment texts (normalized). If 2+ of the last 5
+    match the current segment, it's suppressed. This catches the characteristic
+    pattern where Whisper hallucinates the same phrase during silence.
+    """
+
+    def _simulate_filter(self, texts: list[str]) -> list[str]:
+        """Run the repetition filter over a sequence of texts.
+
+        Returns the list of texts that would NOT be filtered.
+        """
+        recent: deque[str] = deque(maxlen=5)
+        passed = []
+        for text in texts:
+            normalized = text.strip().lower()
+            repeat_count = sum(1 for t in recent if t == normalized)
+            if repeat_count >= 2:
+                continue  # filtered
+            recent.append(normalized)
+            passed.append(text)
+        return passed
+
+    def test_three_identical_segments_filters_third(self):
+        """Third identical segment in a row is filtered (2 repeats in window)."""
+        texts = ["Thank you.", "Thank you.", "Thank you."]
+        result = self._simulate_filter(texts)
+        assert result == ["Thank you.", "Thank you."]
+
+    def test_two_identical_segments_pass(self):
+        """Two identical segments are allowed — could be legitimate."""
+        texts = ["Thank you.", "Thank you."]
+        result = self._simulate_filter(texts)
+        assert result == ["Thank you.", "Thank you."]
+
+    def test_interleaved_different_text_resets(self):
+        """Different text between repeats prevents false positives."""
+        texts = ["Thank you.", "Good morning.", "Thank you.", "How are you?", "Thank you."]
+        result = self._simulate_filter(texts)
+        # Third "Thank you." is the 3rd occurrence in the window → filtered
+        assert len(result) == 4
+        assert result[-1] == "How are you?"
+
+    def test_window_size_five_evicts_old_entries(self):
+        """After 5 different texts, old entries are evicted from the window."""
+        texts = [
+            "Thank you.",  # enters window
+            "Hello.",
+            "World.",
+            "Goodbye.",
+            "See you.",  # window now full (5), "Thank you." about to be evicted
+            "New text.",  # "Thank you." evicted
+            "Thank you.",  # only 0 matches in window → passes
+            "Thank you.",  # 1 match in window → passes
+            "Thank you.",  # 2 matches in window → FILTERED
+        ]
+        result = self._simulate_filter(texts)
+        assert result[-1] == "Thank you."  # second "Thank you." passes
+        assert texts.count("Thank you.") == 4
+        assert result.count("Thank you.") == 3  # one filtered
+
+    def test_case_insensitive_matching(self):
+        """Normalization should be case-insensitive."""
+        texts = ["Thank You.", "thank you.", "THANK YOU."]
+        result = self._simulate_filter(texts)
+        assert len(result) == 2  # third is filtered
+
+    def test_diverse_text_all_passes(self):
+        """All different texts should pass through without filtering."""
+        texts = ["Hello.", "World.", "How are you?", "I am fine.", "Goodbye."]
+        result = self._simulate_filter(texts)
+        assert result == texts

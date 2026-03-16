@@ -14,7 +14,7 @@
 		onStartMeeting?: () => void;
 		onEndMeeting?: () => void;
 		/** I1: Callback to send config changes to the server via WebSocket */
-		onConfigChange?: (config: { model?: string; language?: string }) => void;
+		onConfigChange?: (config: { model?: string; language?: string; target_language?: string }) => void;
 		onStartDemo?: () => void;
 		onStopDemo?: () => void;
 		isDemoRunning?: boolean;
@@ -104,12 +104,26 @@
 		}
 	});
 
-	// Sync target language changes to store
+	// Reverse sync: when server sends language_detected, the store updates
+	// but the local select value must follow so the dropdown reflects reality.
+	$effect(() => {
+		const storeLang = loopbackStore.sourceLanguage;
+		const selectVal = storeLang ?? 'auto';
+		if (selectVal !== sourceLanguageValue) {
+			sourceLanguageValue = selectVal;
+			prevSourceLang = selectVal;
+		}
+	});
+
+	// Sync target language changes to store and notify server
 	$effect(() => {
 		const val = targetLanguageValue;
 		if (val === prevTargetLang) return;
 		prevTargetLang = val;
 		loopbackStore.targetLanguage = val;
+		if (loopbackStore.isCapturing) {
+			onConfigChange?.({ target_language: val });
+		}
 	});
 
 	// I1: Send model override to server when changed during active session

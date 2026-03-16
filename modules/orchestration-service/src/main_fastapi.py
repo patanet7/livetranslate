@@ -48,6 +48,9 @@ logging.getLogger("router_registration").setLevel(logging.WARNING)
 logging.getLogger("import_analysis").setLevel(logging.WARNING)
 logging.getLogger("route_conflicts").setLevel(logging.WARNING)
 logging.getLogger("startup_process").setLevel(logging.INFO)
+# Silence websocket protocol binary frame logging (floods logs with raw audio bytes)
+logging.getLogger("websockets").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.protocols").setLevel(logging.WARNING)
 
 # Add the src directory to the Python path
 src_path = Path(__file__).parent

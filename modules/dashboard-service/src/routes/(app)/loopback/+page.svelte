@@ -175,6 +175,15 @@
 
     // Send start_session with sample rate (null-safe fallback to 48000)
     ws.startSession(capture.sampleRate ?? 48000, 1, selectedDeviceId);
+
+    // Send initial config so server knows target language, source language,
+    // and model from the toolbar state at capture start (not just on change).
+    ws.sendMessage({
+      type: 'config',
+      target_language: loopbackStore.targetLanguage,
+      ...(loopbackStore.sourceLanguage ? { language: loopbackStore.sourceLanguage } : {}),
+    });
+
     loopbackStore.isCapturing = true;
   }
 
@@ -232,12 +241,13 @@
     demoHandle = null;
   }
 
-  /** I1/I2: Send config changes (model, language) to server via WebSocket */
-  function handleConfigChange(config: { model?: string; language?: string }) {
+  /** I1/I2: Send config changes (model, language, target_language) to server via WebSocket */
+  function handleConfigChange(config: { model?: string; language?: string; target_language?: string }) {
     ws?.sendMessage({
       type: 'config',
-      ...(config.model ? { model: config.model } : {}),
-      ...(config.language ? { language: config.language } : {}),
+      ...(config.model !== undefined ? { model: config.model } : {}),
+      ...(config.language !== undefined ? { language: config.language } : {}),
+      ...(config.target_language !== undefined ? { target_language: config.target_language } : {}),
     });
   }
 

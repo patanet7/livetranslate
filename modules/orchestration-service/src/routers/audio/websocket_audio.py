@@ -18,6 +18,7 @@ import asyncio
 import json
 import os
 import uuid
+from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +38,7 @@ from livetranslate_common.models.ws_messages import (
     SegmentMessage,
     ServiceStatusMessage,
     StartSessionMessage,
+    TranslationChunkMessage,
     TranslationMessage,
     parse_ws_message,
 )
@@ -194,6 +196,9 @@ async def websocket_audio_stream(websocket: WebSocket):
     _stable_text_buffer: str = ""
     _last_translated_stable: str = ""
 
+    # Track recent segment texts for repetition detection (defense-in-depth)
+    _recent_segment_texts: deque[str] = deque(maxlen=5)
+
     # Lock for draft translations — non-blocking, drop when busy.
     # Lock (not Semaphore) because Lock has .locked() for non-blocking check.
     _draft_lock = asyncio.Lock()
@@ -265,6 +270,18 @@ async def websocket_audio_stream(websocket: WebSocket):
         if not (translation_service and target_language and source_language != target_language):
             return
 
+        # Guard: skip translation for very short segments (1-2 chars) — likely noise
+        if len(msg.text.strip()) < 3:
+            return  # segment already forwarded to frontend above; just skip translation
+
+        # Guard: repetition detection (defense-in-depth, mirrors transcription filter)
+        seg_normalized = msg.text.strip().lower()
+        seg_repeat_count = sum(1 for t in _recent_segment_texts if t == seg_normalized)
+        _recent_segment_texts.append(seg_normalized)
+        if seg_repeat_count >= 2:
+            logger.debug("translation_skipped_repetition", seg_id=msg.segment_id, text=msg.text[:40])
+            return  # segment displayed but not translated
+
         # --- Draft path: bypass stable_text, translate msg.text directly ---
         if msg.is_draft:
             # Non-blocking check: drop if another draft is in-flight.
@@ -330,6 +347,17 @@ async def websocket_audio_stream(websocket: WebSocket):
             )
             session_tasks.add(task)
             task.add_done_callback(session_tasks.discard)
+
+            # Track draft text so the final path's stable_text dedup knows
+            # this content was already translated. Without this, the final
+            # path re-translates the overlapping prefix → duplicate in UI.
+            combined = _last_translated_stable + " " + msg.text
+            if len(combined) > 500:
+                combined = combined[-500:]
+                space_idx = combined.find(" ")
+                if space_idx != -1:
+                    combined = combined[space_idx + 1:]
+            _last_translated_stable = combined
             return
 
         # --- Final path: stable_text accumulation + sentence boundary detection ---
@@ -359,10 +387,22 @@ async def websocket_audio_stream(websocket: WebSocket):
             if incoming.strip():
                 _stable_text_buffer += (" " if _stable_text_buffer else "") + incoming.strip()
             # Check for sentence boundaries (period, question mark, exclamation)
-            if re.search(r"[.!?。！？]$", _stable_text_buffer.strip()):  # noqa: RUF001
+            # OR flush on is_final — conversational speech often lacks punctuation,
+            # and is_final means no more text is coming for this audio chunk.
+            should_flush = (
+                re.search(r"[.!?。！？]$", _stable_text_buffer.strip())  # noqa: RUF001
+                or msg.is_final
+            )
+            if should_flush and _stable_text_buffer.strip():
                 translate_text = _stable_text_buffer.strip()
                 # Accumulate translated text (keep last ~500 chars for substring dedup)
-                _last_translated_stable = (_last_translated_stable + " " + translate_text)[-500:]
+                combined = _last_translated_stable + " " + translate_text
+                if len(combined) > 500:
+                    combined = combined[-500:]
+                    space_idx = combined.find(" ")
+                    if space_idx != -1:
+                        combined = combined[space_idx + 1:]
+                _last_translated_stable = combined
                 _stable_text_buffer = ""
         elif msg.is_final:
             # Fallback: use is_final when stable_text is not populated
@@ -578,12 +618,25 @@ async def websocket_audio_stream(websocket: WebSocket):
                         ).model_dump_json()
                     )
 
-            # --- config (language, model changes from toolbar) ---
+            # --- config (language, model, target_language changes from toolbar) ---
             elif isinstance(msg, ConfigMessage):
                 if msg.language:
                     source_language = msg.language
                     if transcription_client and transcription_client.connected:
                         await transcription_client.send_config(language=msg.language)
+                if msg.target_language is not None:
+                    previous = target_language
+                    target_language = msg.target_language
+                    # Clear translation context — old target language examples
+                    # would confuse the LLM into producing wrong-language output.
+                    if translation_service and previous != target_language:
+                        translation_service.clear_context()
+                    logger.info(
+                        "target_language_updated",
+                        session_id=session_id,
+                        previous=previous,
+                        target_language=target_language,
+                    )
 
             # --- end_session ---
             elif isinstance(msg, EndSessionMessage):
@@ -740,13 +793,15 @@ async def _translate_and_send(
                 )
             ):
                 full_text += delta
-                sent = await safe_send(json.dumps({
-                    "type": "translation_chunk",
-                    "transcript_id": segment_id,
-                    "delta": delta,
-                    "source_lang": source_lang,
-                    "target_lang": target_lang,
-                }))
+                sent = await safe_send(
+                    TranslationChunkMessage(
+                        transcript_id=segment_id,
+                        delta=delta,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        is_draft=is_draft,
+                    ).model_dump_json()
+                )
                 if not sent:
                     return  # WebSocket dead, stop wasting LLM tokens
 

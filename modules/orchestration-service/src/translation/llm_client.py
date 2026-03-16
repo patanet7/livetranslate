@@ -101,18 +101,27 @@ class LLMClient:
                 for k, v in list(glossary_terms.items())[:50]
             }
 
-        # Direction-specific system prompts for better register + output
-        _SYSTEM_PROMPTS = {
-            ("zh", "en"): "Translate spoken Chinese to natural English. Output only the translation.",
-            ("en", "zh"): "Translate spoken English to natural Mandarin Chinese. Use simplified characters. Output only the translation.",
-            ("ja", "en"): "Translate spoken Japanese to natural English. Output only the translation.",
-            ("en", "ja"): "Translate spoken English to natural Japanese. Output only the translation.",
-            ("es", "en"): "Translate spoken Spanish to natural English. Output only the translation.",
-            ("en", "es"): "Translate spoken English to natural Spanish. Output only the translation.",
+        # Language display names for clear prompts (Qwen is Chinese-dominant
+        # and code-switches without explicit constraints)
+        _LANG_NAMES = {
+            "zh": "Chinese", "en": "English", "es": "Spanish",
+            "ja": "Japanese", "ko": "Korean", "fr": "French",
+            "de": "German", "pt": "Portuguese", "it": "Italian",
+            "ru": "Russian", "ar": "Arabic", "hi": "Hindi",
         }
-        system_prompt = _SYSTEM_PROMPTS.get(
-            (source_language, target_language),
-            f"Translate spoken {source_language} to natural {target_language}. Output only the translation.",
+        src_name = _LANG_NAMES.get(source_language, source_language)
+        tgt_name = _LANG_NAMES.get(target_language, target_language)
+
+        # Direction-specific overrides (e.g., "Use simplified characters" for zh)
+        _EXTRA_INSTRUCTIONS = {
+            ("en", "zh"): " Use simplified characters.",
+        }
+        extra = _EXTRA_INSTRUCTIONS.get((source_language, target_language), "")
+
+        system_prompt = (
+            f"Translate spoken {src_name} to natural {tgt_name}.{extra} "
+            f"Output ONLY the {tgt_name} translation. "
+            f"Never output {src_name} or any other language."
         )
 
         user_parts = []

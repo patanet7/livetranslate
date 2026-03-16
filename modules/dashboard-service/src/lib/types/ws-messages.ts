@@ -26,6 +26,7 @@ export interface ConfigMessage {
   type: 'config';
   model?: string;
   language?: string;
+  target_language?: string;
   initial_prompt?: string;
   glossary_terms?: string[];
 }

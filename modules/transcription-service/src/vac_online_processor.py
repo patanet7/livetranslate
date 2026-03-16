@@ -98,7 +98,7 @@ class VACOnlineASRProcessor:
         self,
         online_chunk_size: float = 1.2,
         vad_threshold: float = 0.5,
-        vad_min_speech_ms: int = 120,  # Phase 2: Configurable min speech duration
+        vad_min_speech_ms: int = 250,  # Raised from 120 to filter brief noise bursts
         vad_min_silence_ms: int = 500,  # Phase 2: Min silence (500ms matches SimulStreaming default)
         sliding_lid_window: float = 0.9,  # Phase 3: Sliding LID window size
         min_buffered_length: float = 1.0,

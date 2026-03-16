@@ -60,11 +60,12 @@ class EndMeetingMessage(BaseModel):
 
 
 class ConfigMessage(BaseModel):
-    """Runtime configuration update sent to the transcription service.
+    """Runtime configuration update sent to the orchestration service.
 
     Args:
         model: Model identifier override (None = keep current).
-        language: BCP-47 language code override (None = auto-detect).
+        language: BCP-47 source language code override (None = auto-detect).
+        target_language: BCP-47 target language for translation (None = keep current).
         initial_prompt: Prompt text to condition the model.
         glossary_terms: Domain-specific term hints for the decoder.
     """
@@ -72,6 +73,7 @@ class ConfigMessage(BaseModel):
     type: Literal["config"] = "config"
     model: str | None = None
     language: str | None = None
+    target_language: str | None = None
     initial_prompt: str | None = None
     glossary_terms: list[str] | None = None
 
