@@ -244,8 +244,10 @@ class ServiceHealthMonitor:
                 "health_endpoint": "/health",
             },
             "translation": {
-                "url": os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003"),
-                "health_endpoint": "/api/health",
+                # Translation is now built into orchestration — health check targets
+                # the LLM server (vLLM/Ollama) since that's the actual dependency.
+                "url": os.getenv("LLM_BASE_URL", os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:8006/v1")).rstrip("/v1").rstrip("/"),
+                "health_endpoint": "/health",
             },
         }
 
