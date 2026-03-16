@@ -190,7 +190,7 @@ class TestTranslationConfigDraftFields:
 
     def test_default_draft_max_tokens(self):
         config = TranslationConfig(base_url="http://localhost:11434/v1", model="test")
-        assert config.draft_max_tokens == 160
+        assert config.draft_max_tokens == 256
 
     def test_default_draft_timeout_s(self):
         config = TranslationConfig(base_url="http://localhost:11434/v1", model="test")
