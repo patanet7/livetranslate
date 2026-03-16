@@ -3,82 +3,12 @@
 Text Analysis Utilities
 
 Utility functions for analyzing transcription text:
-- Hallucination detection
 - Text stability tracking
 - Stability scoring
 
-Extracted from whisper_service.py for better modularity and testability.
+Hallucination detection has been consolidated into
+transcription.hallucination_filter.HallucinationFilter.
 """
-
-
-def detect_hallucination(text: str, confidence: float) -> bool:
-    """
-    Improved hallucination detection that only flags obvious cases
-    and considers model confidence in the decision.
-
-    Args:
-        text: Transcribed text to analyze
-        confidence: Model confidence score (0.0-1.0)
-
-    Returns:
-        True if text is likely a hallucination, False otherwise
-    """
-    if not text or len(text.strip()) < 2:
-        return True
-
-    text_lower = text.lower().strip()
-
-    # Only flag very obvious hallucination patterns
-    obvious_noise_patterns = [
-        # Very short repetitive patterns
-        "aaaa",
-        "bbbb",
-        "cccc",
-        "dddd",
-        "eeee",
-        # Common Whisper artifacts (but be more selective)
-        "mbc 뉴스",
-        "김정진입니다",
-        "thanks for watching our channel",
-    ]
-
-    # Check for obvious noise only
-    for pattern in obvious_noise_patterns:
-        if pattern in text_lower:
-            return True
-
-    # Check for excessive repetition (stricter criteria)
-    words = text_lower.split()
-    if len(words) > 5:
-        # Only flag if more than 80% of words are the same
-        unique_words = set(words)
-        repetition_ratio = len(unique_words) / len(words)
-        if repetition_ratio < 0.2:  # Less than 20% unique words (was 10%)
-            return True
-
-    # Check for single character repetition
-    if len(text_lower) > 10 and len(set(text_lower.replace(" ", ""))) < 3:
-        return True
-
-    # Don't flag educational content about language learning
-    educational_phrases = [
-        "english phrase",
-        "language",
-        "learning",
-        "practice",
-        "exercise",
-        "get in shape",
-        "happened to you",
-        "trying to think",
-        "word",
-        "vocabulary",
-    ]
-
-    for phrase in educational_phrases:
-        if phrase in text_lower:
-            return False  # Definitely not hallucination
-
-    return False
 
 
 def find_stable_word_prefix(text_history: list[tuple[str, float]], current_text: str) -> str:

@@ -26,6 +26,7 @@ from livetranslate_common.logging import get_logger
 from backends.manager import BackendManager
 from language_detection import LanguageDetector
 from registry import ModelRegistry
+from transcription.hallucination_filter import HallucinationFilter
 from vac_online_processor import VACOnlineProcessor
 
 logger = get_logger()
@@ -275,6 +276,8 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
         # Track previous segment text for overlap dedup + context passing
         _prev_segment_text: str = ""
         _stability_tracker: SimpleStabilityTracker | None = None
+        # Consolidated hallucination filter (replaces inline confidence + repetition gates)
+        _hallucination_filter = HallucinationFilter()
         # Track session-level sample count for absolute timestamps
         _session_samples_consumed: int = 0
         # Segment counter for matching draft→final pairs
@@ -419,9 +422,11 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     )
                     return
 
-                # Filter hallucinated low-confidence short segments
-                if result.confidence < 0.4 and len(result.text.split()) <= 3:
-                    logger.debug("low_confidence_filtered", text=result.text, confidence=result.confidence)
+                # Consolidated hallucination filter: compression_ratio, BoH phrases,
+                # confidence tiers, intra-word repetition, cross-segment repetition
+                suppressed, reason = _hallucination_filter.should_suppress(result)
+                if suppressed:
+                    logger.debug("hallucination_filtered", reason=reason, text=result.text[:60])
                     return
 
                 result_data = result.model_dump(include={
@@ -568,6 +573,12 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                     # Final pass: full stride of new audio accumulated
                     if state.vac_processor.ready_for_inference():
+                        # RMS energy gate: skip inference on near-silence that passed VAD
+                        # Catches noise bursts (keyboard typing, door slams) that fool VAD
+                        if not state.vac_processor._has_speech():
+                            logger.debug("rms_skip_inference", session_id=session_id)
+                            state.vac_processor.get_inference_audio()  # consume buffer, discard
+                            continue
                         _segment_counter += 1
                         had_draft = (_draft_sent_for_segment == _segment_counter)
                         _draft_sent_for_segment = None
@@ -591,6 +602,10 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         state.vac_processor.ready_for_draft()
                         and _draft_sent_for_segment != _segment_counter + 1
                     ):
+                        # RMS energy gate for draft path
+                        if not state.vac_processor._has_speech():
+                            logger.debug("rms_skip_draft", session_id=session_id)
+                            continue
                         next_seg_id = _segment_counter + 1
                         _draft_sent_for_segment = next_seg_id
                         snapshot = state.vac_processor.get_inference_audio_snapshot()

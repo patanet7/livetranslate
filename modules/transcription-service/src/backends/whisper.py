@@ -321,6 +321,7 @@ class WhisperBackend:
                 "temperature": (0.0,),
                 "no_speech_threshold": 0.6,
                 "word_timestamps": True,
+                "condition_on_previous_text": False,
             }
             transcribe_kwargs.update(kwargs)
             segs_iter, info = model.transcribe(
@@ -354,6 +355,16 @@ class WhisperBackend:
 
         detected_language = info.language if info.language else (language or "en")
 
+        # Aggregate compression_ratio and no_speech_prob across segments (max = worst case)
+        max_compression_ratio = max(
+            (getattr(seg, "compression_ratio", None) or 0.0 for seg in segments_list),
+            default=None,
+        )
+        max_no_speech_prob = max(
+            (getattr(seg, "no_speech_prob", None) or 0.0 for seg in segments_list),
+            default=None,
+        )
+
         return TranscriptionResult(
             text=full_text,
             language=detected_language,
@@ -361,7 +372,8 @@ class WhisperBackend:
             segments=seg_models,
             is_final=True,
             is_draft=False,
-            no_speech_prob=getattr(info, "no_speech_prob", None),
+            compression_ratio=max_compression_ratio if segments_list else None,
+            no_speech_prob=max_no_speech_prob if segments_list else getattr(info, "no_speech_prob", None),
         )
 
     async def transcribe_stream(
@@ -399,6 +411,7 @@ class WhisperBackend:
                 "temperature": (0.0,),
                 "no_speech_threshold": 0.6,
                 "word_timestamps": True,
+                "condition_on_previous_text": False,
             }
             transcribe_kwargs.update(kwargs)
             segs_iter, info = model.transcribe(
@@ -418,6 +431,16 @@ class WhisperBackend:
         accumulated_text = ""
         accumulated_segments: list[Segment] = []
         confidence_sum = 0.0
+
+        # Aggregate compression_ratio across all segments (max = worst case)
+        max_compression_ratio = max(
+            (getattr(seg, "compression_ratio", None) or 0.0 for seg in segments_list),
+            default=None,
+        )
+        max_no_speech_prob = max(
+            (getattr(seg, "no_speech_prob", None) or 0.0 for seg in segments_list),
+            default=None,
+        )
 
         for seg in segments_list:
             seg_text = seg.text.strip()
@@ -440,7 +463,8 @@ class WhisperBackend:
                 segments=list(accumulated_segments),
                 is_final=False,
                 is_draft=True,
-                no_speech_prob=getattr(info, "no_speech_prob", None),
+                compression_ratio=max_compression_ratio if segments_list else None,
+                no_speech_prob=max_no_speech_prob if segments_list else getattr(info, "no_speech_prob", None),
             )
 
     def supports_language(self, lang: str) -> bool:

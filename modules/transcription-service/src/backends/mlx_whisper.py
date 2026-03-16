@@ -210,8 +210,9 @@ class MLXWhisperBackend:
         full_text = result.get("text", "").strip()
         detected_language = result.get("language", language or "en")
 
+        raw_segments = result.get("segments", [])
         seg_models = []
-        for seg in result.get("segments", []):
+        for seg in raw_segments:
             avg_logprob = seg.get("avg_logprob", -1.0)
             seg_models.append(
                 Segment(
@@ -226,6 +227,10 @@ class MLXWhisperBackend:
             float(np.mean([s.confidence for s in seg_models])) if seg_models else 0.0
         )
 
+        # Aggregate compression_ratio and no_speech_prob across segments (max = worst case)
+        compression_ratios = [seg.get("compression_ratio") for seg in raw_segments if seg.get("compression_ratio") is not None]
+        no_speech_probs = [seg.get("no_speech_prob") for seg in raw_segments if seg.get("no_speech_prob") is not None]
+
         return TranscriptionResult(
             text=full_text,
             language=detected_language,
@@ -233,6 +238,8 @@ class MLXWhisperBackend:
             segments=seg_models,
             is_final=True,
             is_draft=False,
+            compression_ratio=max(compression_ratios) if compression_ratios else None,
+            no_speech_prob=max(no_speech_probs) if no_speech_probs else None,
         )
 
     async def transcribe_stream(

@@ -1,23 +1,15 @@
 """Tests for translation LLM client — calls Ollama/vLLM directly.
 
 Unit tests use no server. Integration tests hit the local vllm-mlx LLM
-instance (:8006 from `just dev`) or Ollama on thomas-pc via Tailscale.
+instance (:8006 from `just dev`). Override via LLM_BASE_URL / LLM_MODEL env vars.
 """
-import os
-
 import pytest
-from translation.config import TranslationConfig
 from translation.llm_client import LLMClient
 
 
 @pytest.fixture
-def config():
-    return TranslationConfig(
-        base_url=os.getenv("LLM_BASE_URL", "http://localhost:8006/v1"),
-        model=os.getenv("LLM_MODEL", "mlx-community/Qwen3-4B-4bit"),
-        temperature=0.7,
-        timeout_s=15,
-    )
+def config(llm_config):
+    return llm_config
 
 
 class TestLLMClientUnit:

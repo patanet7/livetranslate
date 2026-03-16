@@ -3,10 +3,11 @@
 Unit Tests for WhisperService Helper Methods
 
 Tests helper methods that don't require model loading:
-- detect_hallucination() (from transcription.text_analysis)
 - find_stable_word_prefix() (from transcription.text_analysis)
 - calculate_text_stability_score() (from transcription.text_analysis)
 - _segments_len() (WhisperService method)
+
+Hallucination detection tests moved to test_hallucination_filter.py.
 
 Following TDD principle: Test current behavior BEFORE refactoring
 NO MOCKS - Testing actual implementation behavior
@@ -23,7 +24,6 @@ import numpy as np
 import pytest
 from transcription.text_analysis import (
     calculate_text_stability_score,
-    detect_hallucination,
     find_stable_word_prefix,
 )
 from whisper_service import (
@@ -31,72 +31,6 @@ from whisper_service import (
     TranscriptionResult,
     WhisperService,
 )
-
-
-class TestHallucinationDetection:
-    """Test hallucination detection logic"""
-
-    def test_empty_text_is_hallucination(self):
-        """Empty or whitespace-only text should be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        assert detect_hallucination("", 0.8) is True
-        assert detect_hallucination("   ", 0.8) is True
-        assert detect_hallucination("\n", 0.8) is True
-
-    def test_short_text_is_hallucination(self):
-        """Very short text (< 2 chars after strip) should be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        assert detect_hallucination("a", 0.8) is True
-        assert detect_hallucination(" b ", 0.8) is True
-
-    def test_repetitive_characters_are_hallucination(self):
-        """Repetitive character patterns should be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        assert detect_hallucination("aaaa", 0.8) is True
-        assert detect_hallucination("bbbb", 0.8) is True
-        assert detect_hallucination("cccc hello world", 0.8) is True
-
-    def test_whisper_artifacts_are_hallucination(self):
-        """Known Whisper hallucination patterns should be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        assert detect_hallucination("mbc 뉴스", 0.8) is True
-        assert detect_hallucination("김정진입니다", 0.8) is True
-        assert detect_hallucination("thanks for watching our channel", 0.8) is True
-
-    def test_excessive_word_repetition(self):
-        """Text with >80% word repetition should be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        # 10 words, only 1 unique (10% unique = below 20% threshold)
-        repetitive = "the the the the the the the the the the"
-        assert detect_hallucination(repetitive, 0.8) is True
-
-    def test_educational_content_not_hallucination(self):
-        """Educational phrases should NOT be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        assert detect_hallucination("Let's practice this English phrase", 0.8) is False
-        assert detect_hallucination("This is a language learning exercise", 0.8) is False
-        assert detect_hallucination("Try to get in shape with vocabulary", 0.8) is False
-
-    def test_normal_speech_not_hallucination(self):
-        """Normal speech should NOT be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        assert detect_hallucination("Hello world, how are you today?", 0.8) is False
-        assert detect_hallucination("The quick brown fox jumps over the lazy dog", 0.9) is False
-        assert detect_hallucination("I would like to order a coffee please", 0.7) is False
-
-    def test_single_character_repetition(self):
-        """Text with very few unique characters should be flagged"""
-        WhisperService(config={"orchestration_mode": True})
-
-        # Long text but only 2 unique characters (excluding spaces)
-        assert detect_hallucination("aaa bbb aaa bbb aaa", 0.8) is True
 
 
 class TestStabilityTracking:

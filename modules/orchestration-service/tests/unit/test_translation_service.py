@@ -1,6 +1,7 @@
 """Tests for TranslationService — combines LLM client, context, and backpressure.
 
-Integration tests hit the real Ollama server on thomas-pc via Tailscale.
+Integration tests hit the local vllm-mlx LLM server.
+Override via LLM_BASE_URL / LLM_MODEL env vars.
 NO MOCKING — all tests are behavioral/integration tests per project rules.
 Mark with @pytest.mark.integration for CI filtering.
 """
@@ -14,14 +15,11 @@ from livetranslate_common.models import TranslationRequest, TranslationResponse
 
 
 @pytest.fixture
-def config():
-    return TranslationConfig(
-        base_url="http://thomas-pc:11434/v1",
-        model="qwen3.5:7b",
-        context_window_size=3,
-        max_queue_depth=5,
-        timeout_s=10,
-    )
+def config(llm_config):
+    llm_config.context_window_size = 3
+    llm_config.max_queue_depth = 5
+    llm_config.timeout_s = 10
+    return llm_config
 
 
 @pytest.mark.integration
@@ -40,7 +38,7 @@ class TestTranslationServiceIntegration:
 
             assert response.translated_text is not None
             assert len(response.translated_text) > 0
-            assert response.model_used == "qwen3.5:7b"
+            assert response.model_used == config.model
             assert response.latency_ms >= 0
 
             # Context should now contain this pair
@@ -160,25 +158,25 @@ class TestBackpressure:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_queue_completes_all_when_not_full(self, config):
-        """Queue fewer items than max depth — all should complete."""
+        """Queue fewer items than max depth — all should complete.
+
+        Runs sequentially because vllm-mlx crashes on concurrent Metal GPU
+        requests (see justfile: split inference to avoid GPU crash).
+        """
         config.max_queue_depth = 5
         service = TranslationService(config)
         try:
-            tasks = []
+            completed = []
             for i in range(2):
-                task = asyncio.create_task(
-                    service.enqueue_translation(
-                        TranslationRequest(
-                            text=f"句子{i}",
-                            source_language="zh",
-                            target_language="en",
-                        )
+                result = await service.enqueue_translation(
+                    TranslationRequest(
+                        text=f"句子{i}",
+                        source_language="zh",
+                        target_language="en",
                     )
                 )
-                tasks.append(task)
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            completed = [r for r in results if isinstance(r, TranslationResponse)]
+                if isinstance(result, TranslationResponse):
+                    completed.append(result)
             assert len(completed) == 2
         finally:
             await service.close()
