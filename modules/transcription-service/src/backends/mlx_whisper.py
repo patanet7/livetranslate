@@ -200,6 +200,10 @@ class MLXWhisperBackend:
             }
             if language:
                 transcribe_kwargs["language"] = language
+            # Pass previous segment text as decoder prompt for context continuity
+            initial_prompt = kwargs.get("initial_prompt")
+            if initial_prompt:
+                transcribe_kwargs["initial_prompt"] = initial_prompt
 
             result = mlx_whisper.transcribe(mono, **transcribe_kwargs)
             return result

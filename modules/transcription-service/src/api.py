@@ -434,6 +434,19 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     )
                     return
 
+                # Trim Whisper degeneration tails ("Yeah. Yeah. Yeah..." x20)
+                # before the hallucination filter — preserves the real prefix.
+                from transcription.hallucination_filter import trim_trailing_repetition
+                trimmed_text = trim_trailing_repetition(result.text)
+                if trimmed_text != result.text:
+                    logger.debug(
+                        "trailing_repetition_trimmed",
+                        original_len=len(result.text),
+                        trimmed_len=len(trimmed_text),
+                        trimmed_preview=trimmed_text[:60],
+                    )
+                    result = result.model_copy(update={"text": trimmed_text})
+
                 # Consolidated hallucination filter: compression_ratio, BoH phrases,
                 # confidence tiers, intra-word repetition, cross-segment repetition
                 suppressed, reason = _hallucination_filter.should_suppress(result)
