@@ -21,6 +21,7 @@ export interface CaptionEntry {
   isFinal: boolean;
   isDraft: boolean;        // True for fast first-pass captions
   translation: string | null;
+  translationIsDraft: boolean;   // true when current translation came from a draft
   translationComplete: boolean;  // false until final TranslationMessage arrives
   timestamp: number;
 }
@@ -86,6 +87,7 @@ function createLoopbackStore() {
       isFinal: msg.is_final,
       isDraft: msg.is_draft ?? false,
       translation: existingIdx >= 0 ? captions[existingIdx].translation : null,
+      translationIsDraft: existingIdx >= 0 ? captions[existingIdx].translationIsDraft : false,
       translationComplete: existingIdx >= 0 ? captions[existingIdx].translationComplete : false,
       timestamp: existingIdx >= 0 ? captions[existingIdx].timestamp : Date.now(),
     };
@@ -126,6 +128,16 @@ function createLoopbackStore() {
   function appendTranslationChunk(msg: TranslationChunkMessage) {
     const caption = captions.find(c => c.segmentId === msg.transcript_id);
     if (!caption) return;
+
+    // Guard: ignore chunks after translation is already complete
+    if (caption.translationComplete) return;
+
+    // Guard: first final chunk arriving on a draft translation — clear draft text
+    if (caption.translationIsDraft) {
+      caption.translation = '';
+      caption.translationIsDraft = false;
+    }
+
     caption.translation = caption.translation === null ? msg.delta : caption.translation + msg.delta;
   }
 
@@ -136,8 +148,18 @@ function createLoopbackStore() {
 
     const caption = captions.find(c => c.segmentId === msg.transcript_id);
     if (!caption) return;
+
+    const isDraft = !!(msg.is_draft ?? false);
+
+    // Last-writer-wins guard 1: translationComplete blocks all further updates
+    if (caption.translationComplete) return;
+
+    // Last-writer-wins guard 2: don't downgrade — draft can't overwrite final
+    if (isDraft && !caption.translationIsDraft && caption.translation !== null) return;
+
     caption.translation = msg.text;
-    caption.translationComplete = true;
+    caption.translationIsDraft = isDraft;
+    caption.translationComplete = !isDraft;
   }
 
   function startMeeting(sessionId: string, startedAt: string) {

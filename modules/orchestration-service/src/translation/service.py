@@ -43,12 +43,17 @@ class TranslationService:
     async def translate(
         self,
         request: TranslationRequest,
+        skip_context: bool = False,
     ) -> TranslationResponse:
         """Translate text synchronously (blocking until complete).
 
         Accepts a TranslationRequest (from Plan 0 shared contracts) instead
         of bare parameters. Context from the request is merged with the
         rolling context window.
+
+        Args:
+            skip_context: If True, skip writing to the rolling context window.
+                Safety net for draft translations that should never pollute context.
 
         Used for direct translation. For queued translation with
         backpressure, use enqueue_translation().
@@ -68,7 +73,8 @@ class TranslationService:
         latency_ms = (time.monotonic() - start) * 1000
 
         # Only add to context on success, keyed by speaker
-        self._get_context_window(request.speaker_name).add(request.text, translated)
+        if not skip_context:
+            self._get_context_window(request.speaker_name).add(request.text, translated)
 
         return TranslationResponse(
             translated_text=translated,

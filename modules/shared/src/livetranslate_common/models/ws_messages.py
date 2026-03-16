@@ -185,6 +185,7 @@ class TranslationChunkMessage(BaseModel):
         transcript_id: Matches ``segment_id`` on ``SegmentMessage``.
         source_lang: BCP-47 source language code.
         target_lang: BCP-47 target language code.
+        is_draft: True for draft (fast, rough) translation chunks.
     """
 
     type: Literal["translation_chunk"] = "translation_chunk"
@@ -192,6 +193,7 @@ class TranslationChunkMessage(BaseModel):
     delta: str
     source_lang: str
     target_lang: str
+    is_draft: bool = False
 
 
 class TranslationMessage(BaseModel):
@@ -218,6 +220,7 @@ class TranslationMessage(BaseModel):
     target_lang: str
     transcript_id: int
     context_used: int = 0
+    is_draft: bool = False
 
 
 class MeetingStartedMessage(BaseModel):

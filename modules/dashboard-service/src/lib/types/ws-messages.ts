@@ -76,6 +76,7 @@ export interface TranslationChunkMessage {
   delta: string;
   source_lang: string;
   target_lang: string;
+  is_draft?: boolean;
 }
 
 export interface TranslationMessage {
@@ -86,6 +87,7 @@ export interface TranslationMessage {
   /** Matches segment_id on SegmentMessage. BIGSERIAL in DB — safe up to 2^53 in JS number. */
   transcript_id: number;
   context_used: number;
+  is_draft?: boolean;
 }
 
 export interface MeetingStartedMessage {

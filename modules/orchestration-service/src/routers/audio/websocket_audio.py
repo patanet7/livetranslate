@@ -194,6 +194,9 @@ async def websocket_audio_stream(websocket: WebSocket):
     _stable_text_buffer: str = ""
     _last_translated_stable: str = ""
 
+    # Semaphore(1) for draft translations — non-blocking, drop when busy
+    _draft_semaphore = asyncio.Semaphore(1)
+
     async def safe_send(msg: str) -> bool:
         """Send a text frame with disconnect protection.
 
@@ -257,14 +260,79 @@ async def websocket_audio_stream(websocket: WebSocket):
         if not await safe_send(msg.model_dump_json()):
             return  # frontend disconnected
 
-        # Don't translate drafts — wait for the refined final pass
-        if msg.is_draft:
-            return
-
-        # Translation trigger: prefer stable_text accumulation, fall back to is_final
+        # Translation trigger: need translation_service + language pair
         if not (translation_service and target_language and source_language != target_language):
             return
 
+        # --- Draft path: bypass stable_text, translate msg.text directly ---
+        if msg.is_draft:
+            logger.debug(
+                "translation_trigger",
+                session_id=session_id,
+                seg_id=msg.segment_id,
+                translate_text=msg.text[:80],
+                is_draft=True,
+            )
+
+            async def _draft_translate(sem, svc, seg_id, text, lang, tgt, spk, cfg):
+                """Draft translation with semaphore + timeout.
+
+                Atomic non-blocking acquire: try with timeout=0 to avoid TOCTOU
+                race between checking _value and calling acquire().
+                """
+                try:
+                    await asyncio.wait_for(sem.acquire(), timeout=0)
+                except asyncio.TimeoutError:
+                    logger.debug(
+                        "draft_translation_dropped",
+                        session_id=session_id,
+                        seg_id=seg_id,
+                        is_draft=True,
+                    )
+                    return
+                try:
+                    await asyncio.wait_for(
+                        _translate_and_send(
+                            safe_send,
+                            svc,
+                            segment_id=seg_id,
+                            text=text,
+                            source_lang=lang,
+                            target_lang=tgt,
+                            speaker_name=spk,
+                            pipeline=pipeline,
+                            is_draft=True,
+                        ),
+                        timeout=cfg.draft_timeout_s,
+                    )
+                except asyncio.TimeoutError:
+                    logger.debug(
+                        "draft_translation_timeout",
+                        session_id=session_id,
+                        seg_id=seg_id,
+                        is_draft=True,
+                        timeout_s=cfg.draft_timeout_s,
+                    )
+                finally:
+                    sem.release()
+
+            task = asyncio.create_task(
+                _draft_translate(
+                    _draft_semaphore,
+                    translation_service,
+                    msg.segment_id,
+                    msg.text,
+                    msg.language,
+                    target_language,
+                    msg.speaker_id,
+                    translation_service.config,
+                )
+            )
+            session_tasks.add(task)
+            task.add_done_callback(session_tasks.discard)
+            return
+
+        # --- Final path: stable_text accumulation + sentence boundary detection ---
         translate_text = ""
         if msg.stable_text:
             import re
@@ -309,6 +377,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 stable_text=msg.stable_text[:40] if msg.stable_text else "",
                 last_translated=_last_translated_stable[:40] if _last_translated_stable else "",
                 buffer_len=len(_stable_text_buffer),
+                is_draft=False,
             )
             task = asyncio.create_task(
                 _translate_and_send(
@@ -320,6 +389,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     target_lang=target_language,
                     speaker_name=msg.speaker_id,
                     pipeline=pipeline,
+                    is_draft=False,
                 )
             )
             session_tasks.add(task)
@@ -607,26 +677,66 @@ async def _translate_and_send(
     target_lang: str,
     speaker_name: str | None,
     pipeline: "MeetingPipeline | None" = None,
+    is_draft: bool = False,
 ) -> None:
-    """Translate a segment via streaming and forward tokens to the frontend.
+    """Translate a segment and forward to the frontend.
 
-    Streams translation_chunk messages as tokens arrive, then sends a
-    final TranslationMessage with the cleaned canonical translation.
-    Falls back to non-streaming translate() if streaming fails.
-    Persists to DB when in meeting mode.
+    Draft path (is_draft=True):
+      - Non-streaming LLMClient.translate() with draft_max_tokens, max_retries=0
+      - No context window write, no DB persistence
+      - Sends TranslationMessage(is_draft=True)
+
+    Final path (is_draft=False):
+      - Streaming translate_stream() with max_tokens from config
+      - Writes to context window, persists to DB in meeting mode
+      - Sends translation_chunk messages + TranslationMessage(is_draft=False)
     """
     import time as _time
 
     try:
-        context = translation_service.get_context(speaker_name)
         start = _time.monotonic()
 
+        if is_draft:
+            # --- Draft: non-streaming, fail-fast, no context ---
+            translation = await translation_service._client.translate(
+                text=text,
+                source_language=source_lang,
+                target_language=target_lang,
+                max_tokens=translation_service.config.draft_max_tokens,
+                max_retries=0,
+            )
+            latency_ms = (_time.monotonic() - start) * 1000
+
+            logger.info(
+                "translation_complete",
+                segment_id=segment_id,
+                is_draft=True,
+                latency_ms=round(latency_ms, 1),
+                input_len=len(text),
+                output_len=len(translation),
+            )
+
+            await safe_send(
+                TranslationMessage(
+                    text=translation,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    transcript_id=segment_id,
+                    context_used=0,
+                    is_draft=True,
+                ).model_dump_json()
+            )
+            return
+
+        # --- Final: streaming with context ---
+        context = translation_service.get_context(speaker_name)
         full_text = ""
         translation = ""
         try:
             async for delta in _strip_think_and_stream(
                 translation_service._client.translate_stream(
                     text, source_lang, target_lang, context,
+                    max_tokens=translation_service.config.max_tokens,
                 )
             ):
                 full_text += delta
@@ -640,10 +750,10 @@ async def _translate_and_send(
                 if not sent:
                     return  # WebSocket dead, stop wasting LLM tokens
 
-            # Final canonical message (after _extract_translation cleanup)
             logger.debug(
                 "stream_complete",
                 segment_id=segment_id,
+                is_draft=False,
                 full_text_len=len(full_text),
                 full_text_preview=full_text[:100],
             )
@@ -652,9 +762,9 @@ async def _translate_and_send(
             logger.warning(
                 "translation_stream_fallback",
                 segment_id=segment_id,
+                is_draft=False,
                 error=str(stream_exc),
             )
-            # Fallback: non-streaming translate
             from livetranslate_common.models import TranslationRequest
 
             request = TranslationRequest(
@@ -668,8 +778,17 @@ async def _translate_and_send(
 
         latency_ms = (_time.monotonic() - start) * 1000
 
-        # Add to context window (only from final cleaned text, never partial)
+        # Add to context window (finals only — never drafts)
         translation_service._get_context_window(speaker_name).add(text, translation)
+
+        logger.info(
+            "translation_complete",
+            segment_id=segment_id,
+            is_draft=False,
+            latency_ms=round(latency_ms, 1),
+            input_len=len(text),
+            output_len=len(translation),
+        )
 
         await safe_send(
             TranslationMessage(
@@ -678,14 +797,15 @@ async def _translate_and_send(
                 target_lang=target_lang,
                 transcript_id=segment_id,
                 context_used=len(context),
+                is_draft=False,
             ).model_dump_json()
         )
 
-        # Persist to DB when in meeting mode
+        # Persist to DB when in meeting mode (finals only)
         if pipeline and pipeline.is_meeting and pipeline.session_manager:
             try:
                 await pipeline.session_manager.save_translation(
-                    chunk_id=None,  # chunk persistence is separate
+                    chunk_id=None,
                     translated_text=translation,
                     source_language=source_lang,
                     target_language=target_lang,
@@ -696,6 +816,7 @@ async def _translate_and_send(
                 logger.warning(
                     "translation_persist_failed",
                     segment_id=segment_id,
+                    is_draft=False,
                     error=str(persist_exc),
                 )
 
@@ -703,6 +824,7 @@ async def _translate_and_send(
         logger.warning(
             "translation_failed",
             segment_id=segment_id,
+            is_draft=is_draft,
             error=str(exc),
         )
 

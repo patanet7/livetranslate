@@ -1,11 +1,12 @@
 <script lang="ts">
   import { loopbackStore, type CaptionEntry } from '$lib/stores/loopback.svelte';
+  import { paragraphTranslation, translationPhase } from './paragraph-helpers';
+  import TranslationText from './TranslationText.svelte';
 
   // Allow undefined before mount
   let captionsEndOriginal: HTMLElement | undefined;
   let captionsEndTranslation: HTMLElement | undefined;
 
-  /** Gap threshold (ms) to start a new paragraph. */
   /** Gap threshold to start a new paragraph. Must exceed stride time (~4.5-6s)
    *  plus inference latency (~1-2s). 10s means: silence > 10s = new paragraph. */
   const PARAGRAPH_GAP_MS = 10000;
@@ -56,19 +57,6 @@
     }
   });
 
-  /** Combine translations from all captions in a paragraph. */
-  function paragraphTranslation(captions: CaptionEntry[]): string {
-    return captions
-      .map(c => c.translation)
-      .filter(Boolean)
-      .join(' ');
-  }
-
-  /** Does this paragraph have any captions still waiting for translation? */
-  function hasPendingTranslation(captions: CaptionEntry[]): boolean {
-    return captions.some(c => !c.isDraft && !c.translationComplete);
-  }
-
   /** CJK languages don't use spaces between words. */
   function isCjk(lang: string): boolean {
     return ['zh', 'ja', 'ko'].includes(lang);
@@ -118,6 +106,7 @@
     <div class="panel-content" role="log" aria-live="polite" aria-label="Translations">
       {#each paragraphs as para (para.id)}
         {@const trans = paragraphTranslation(para.captions)}
+        {@const phase = translationPhase(para.captions)}
         <div
           class="paragraph"
           style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
@@ -128,8 +117,7 @@
             </span>
           {/if}
           <span class="para-text">
-            {#if trans}{trans}{/if}
-            {#if hasPendingTranslation(para.captions)}<span class="translating-indicator"></span>{/if}
+            <TranslationText text={trans} {phase} />
           </span>
         </div>
       {/each}
@@ -193,20 +181,5 @@
     opacity: 0.45;
     font-style: italic;
     transition: opacity 0.3s ease;
-  }
-  .translating-indicator {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    margin-left: 6px;
-    border-radius: 50%;
-    background: var(--color-translation, #90ee90);
-    opacity: 0.7;
-    animation: pulse-dot 1.2s ease-in-out infinite;
-    vertical-align: middle;
-  }
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 0.3; transform: scale(0.8); }
-    50% { opacity: 1; transform: scale(1.2); }
   }
 </style>

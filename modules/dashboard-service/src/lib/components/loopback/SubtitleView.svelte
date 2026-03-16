@@ -1,5 +1,6 @@
 <script lang="ts">
   import { loopbackStore } from '$lib/stores/loopback.svelte';
+  import TranslationText from './TranslationText.svelte';
 
   interface Props {
     fontSize?: number;   // Base font size in px (default: 16). Translation text is fontSize + 2.
@@ -50,9 +51,12 @@
     {#each recentCaptions as caption (caption.id)}
       <div class="subtitle-line" style="background: rgba(0, 0, 0, {clampedOpacity})">
         <div class="original" style="font-size: {fontSize}px"><span class="caption-text" class:is-draft={caption.isDraft}>{caption.stableText}{#if caption.unstableText}<span class="unstable"> {caption.unstableText}</span>{/if}</span></div>
-        {#if caption.translation}
-          <div class="translation" style="font-size: {fontSize + 2}px">{caption.translation}</div>
-        {/if}
+        <div class="translation" style="font-size: {fontSize + 2}px">
+          <TranslationText
+            text={caption.translation ?? ''}
+            phase={caption.translationComplete ? 'complete' : caption.translationIsDraft ? 'draft' : caption.translation ? 'streaming' : 'waiting'}
+          />
+        </div>
       </div>
     {/each}
     {#if loopbackStore.interimText}
