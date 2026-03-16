@@ -1,46 +1,24 @@
-"""Conftest for unit tests — overrides Docker-dependent session fixtures.
+"""Conftest for unit tests.
 
-The parent conftest.py has autouse session fixtures that require Docker
-(testcontainers for Postgres and Redis). Unit tests don't need databases,
-so this conftest overrides those fixture dependencies with lightweight stubs
-to allow unit tests to run without Docker.
+Inherits testcontainer fixtures (Postgres, Redis) from the parent conftest.py
+so that integration tests in this directory work correctly.
+
+LLM config is centralised here — all test files use the `llm_config` fixture
+instead of hardcoding URLs.
 """
+import os
+
 import pytest
 
-
-@pytest.fixture(scope="session")
-def postgres_container():
-    """Override: unit tests don't need a real Postgres container."""
-    return None
+from translation.config import TranslationConfig
 
 
-@pytest.fixture(scope="session")
-def redis_container():
-    """Override: unit tests don't need a real Redis container."""
-
-    class _Stub:
-        def get_container_host_ip(self):
-            return "localhost"
-
-        def get_exposed_port(self, port):
-            return port
-
-    return _Stub()
-
-
-@pytest.fixture(scope="session")
-def database_url(postgres_container):
-    """Override: return a placeholder URL — unit tests don't hit the DB."""
-    return "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
-
-
-@pytest.fixture(scope="session")
-def run_migrations(database_url):
-    """Override: unit tests skip migrations."""
-    return None
-
-
-@pytest.fixture(scope="session")
-def verify_database_connection(database_url, run_migrations):
-    """Override: unit tests skip DB connectivity check."""
-    return False
+@pytest.fixture
+def llm_config():
+    """Shared LLM config — reads from env vars, defaults to local vllm-mlx."""
+    return TranslationConfig(
+        base_url=os.getenv("LLM_BASE_URL", "http://localhost:8006/v1"),
+        model=os.getenv("LLM_MODEL", "mlx-community/Qwen3-4B-4bit"),
+        temperature=0.7,
+        timeout_s=15,
+    )

@@ -144,3 +144,29 @@ class TestTranscriptionResultNoSpeechProbDefault:
         result = TranscriptionResult(text="hi", language="en", confidence=0.8)
         restored = TranscriptionResult.model_validate_json(result.model_dump_json())
         assert restored.no_speech_prob is None
+
+
+class TestCompressionRatioField:
+    """Verify compression_ratio field defaults and contract."""
+
+    def test_compression_ratio_defaults_to_none(self) -> None:
+        result = TranscriptionResult(text="x", language="en", confidence=0.5)
+        assert result.compression_ratio is None
+
+    def test_compression_ratio_can_be_set_to_float(self) -> None:
+        result = TranscriptionResult(
+            text="hello", language="en", confidence=0.9, compression_ratio=2.4
+        )
+        assert result.compression_ratio == pytest.approx(2.4)
+
+    def test_compression_ratio_survives_roundtrip(self) -> None:
+        result = TranscriptionResult(
+            text="hello", language="en", confidence=0.9, compression_ratio=1.8
+        )
+        restored = TranscriptionResult.model_validate_json(result.model_dump_json())
+        assert restored.compression_ratio == pytest.approx(1.8)
+
+    def test_compression_ratio_none_survives_roundtrip(self) -> None:
+        result = TranscriptionResult(text="hi", language="en", confidence=0.8)
+        restored = TranscriptionResult.model_validate_json(result.model_dump_json())
+        assert restored.compression_ratio is None

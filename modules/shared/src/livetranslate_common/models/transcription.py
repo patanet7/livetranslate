@@ -64,6 +64,7 @@ class TranscriptionResult(BaseModel):
     should_translate: bool = False
     context_text: str = ""
     no_speech_prob: float | None = None
+    compression_ratio: float | None = None
 
 
 class ModelInfo(BaseModel):

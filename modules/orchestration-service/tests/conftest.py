@@ -810,8 +810,11 @@ def run_migrations(database_url):
     from alembic import command
     from alembic.config import Config
 
-    alembic_ini = Path(__file__).parent.parent / "alembic.ini"
+    service_root = Path(__file__).parent.parent
+    alembic_ini = service_root / "alembic.ini"
     cfg = Config(str(alembic_ini))
+    # script_location in alembic.ini is relative — resolve to absolute path
+    cfg.set_main_option("script_location", str(service_root / "alembic"))
     async_url = database_url
     if database_url.startswith("postgresql://"):
         async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)

@@ -157,7 +157,10 @@ class VLLMWhisperBackend:
             sf.write(f.name, mono, 16000)
             f.seek(0)
 
-            data = {"model": self._whisper_model}
+            data = {
+                "model": self._whisper_model,
+                "response_format": "verbose_json",
+            }
             if language:
                 data["language"] = language
 
@@ -170,13 +173,14 @@ class VLLMWhisperBackend:
 
         result = response.json()
 
-        # Parse OpenAI Whisper API response format
+        # Parse OpenAI Whisper API verbose_json response format
         text = result.get("text", "").strip()
         detected_language = result.get("language", language or "en")
 
-        # Build segments from response (if available)
+        # Build segments from response (verbose_json includes segments with metadata)
+        raw_segments = result.get("segments", [])
         segments = []
-        for seg in result.get("segments", []):
+        for seg in raw_segments:
             segments.append(
                 Segment(
                     text=seg.get("text", "").strip(),
@@ -190,6 +194,10 @@ class VLLMWhisperBackend:
             float(np.mean([s.confidence for s in segments])) if segments else 0.5
         )
 
+        # Aggregate compression_ratio and no_speech_prob across segments (max = worst case)
+        compression_ratios = [seg.get("compression_ratio") for seg in raw_segments if seg.get("compression_ratio") is not None]
+        no_speech_probs = [seg.get("no_speech_prob") for seg in raw_segments if seg.get("no_speech_prob") is not None]
+
         return TranscriptionResult(
             text=text,
             language=detected_language,
@@ -197,6 +205,8 @@ class VLLMWhisperBackend:
             segments=segments,
             is_final=True,
             is_draft=False,
+            compression_ratio=max(compression_ratios) if compression_ratios else None,
+            no_speech_prob=max(no_speech_probs) if no_speech_probs else None,
         )
 
     async def transcribe_stream(
