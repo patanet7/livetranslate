@@ -100,9 +100,9 @@ class TestTranslateAndSendDraft:
         capture = MessageCapture()
 
         try:
-            # Manually add a known context entry
-            service._get_context_window(None).add("previous", "anterior")
-            assert len(service.get_context()) == 1
+            # Manually add a known context entry via the directional store
+            service.context_store.add("en", "es", "previous", "anterior")
+            assert len(service.get_context("en", "es")) == 1
 
             from routers.audio.websocket_audio import _translate_and_send
 
@@ -121,7 +121,7 @@ class TestTranslateAndSendDraft:
             pass
 
         # Context should still have exactly 1 entry (the manual one), not 2
-        assert len(service.get_context()) == 1
+        assert len(service.get_context("en", "es")) == 1
         await service.close()
 
     @pytest.mark.asyncio
@@ -150,7 +150,7 @@ class TestTranslateAndSendDraft:
 
         # With bad URL, translate fails → context stays empty (success-only write)
         # This is existing behavior — just verify it still works
-        assert len(service.get_context()) == 0
+        assert len(service.get_context("en", "es")) == 0
         await service.close()
 
 

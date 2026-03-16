@@ -41,8 +41,8 @@ class TestTranslationServiceIntegration:
             assert response.model_used == config.model
             assert response.latency_ms >= 0
 
-            # Context should now contain this pair
-            ctx = service.get_context()
+            # Context should now contain this pair (keyed by direction)
+            ctx = service.get_context("zh", "en")
             assert len(ctx) == 1
             assert ctx[0].text == "你好世界"
             assert ctx[0].translation == response.translated_text
@@ -67,12 +67,12 @@ class TestTranslationServiceIntegration:
                 text="他说你好",
                 source_language="zh",
                 target_language="en",
-                context=service.get_context(),
+                context=service.get_context("zh", "en"),
             )
             resp2 = await service.translate(req2)
             assert resp2.translated_text is not None
 
-            ctx = service.get_context()
+            ctx = service.get_context("zh", "en")
             assert len(ctx) == 2
         finally:
             await service.close()
@@ -98,7 +98,7 @@ class TestTranslationServiceIntegration:
             with pytest.raises(RuntimeError):
                 await service.translate(request)
 
-            assert len(service.get_context()) == 0
+            assert len(service.get_context("zh", "en")) == 0
         finally:
             await service.close()
 
@@ -182,10 +182,10 @@ class TestBackpressure:
             await service.close()
 
 
-class TestPerSpeakerContext:
+class TestPerDirectionContext:
     @pytest.mark.asyncio
-    async def test_per_speaker_context_isolation(self, config):
-        """Different speakers should have isolated context windows."""
+    async def test_per_direction_context_isolation(self, config):
+        """Different language directions should have isolated context windows."""
         bad_config = TranslationConfig(
             base_url="http://localhost:1",
             model="test",
@@ -195,27 +195,27 @@ class TestPerSpeakerContext:
         )
         service = TranslationService(bad_config)
         try:
-            # Manually add context for two speakers
-            service._get_context_window("Alice").add("Hello", "你好")
-            service._get_context_window("Bob").add("Goodbye", "再见")
+            # Manually add context for two directions
+            service.context_store.add("en", "zh", "Hello", "你好")
+            service.context_store.add("zh", "en", "再见", "Goodbye")
 
-            alice_ctx = service.get_context("Alice")
-            bob_ctx = service.get_context("Bob")
-            none_ctx = service.get_context()
+            en_zh_ctx = service.get_context("en", "zh")
+            zh_en_ctx = service.get_context("zh", "en")
+            empty_ctx = service.get_context("ja", "en")
 
-            assert len(alice_ctx) == 1
-            assert alice_ctx[0].text == "Hello"
-            assert len(bob_ctx) == 1
-            assert bob_ctx[0].text == "Goodbye"
-            assert len(none_ctx) == 0  # default speaker has no context
+            assert len(en_zh_ctx) == 1
+            assert en_zh_ctx[0].text == "Hello"
+            assert len(zh_en_ctx) == 1
+            assert zh_en_ctx[0].text == "再见"
+            assert len(empty_ctx) == 0
 
-            # Clear Alice's context
-            service.clear_context("Alice")
-            assert len(service.get_context("Alice")) == 0
-            assert len(service.get_context("Bob")) == 1  # Bob untouched
+            # Clear one direction
+            service.clear_context("en", "zh")
+            assert len(service.get_context("en", "zh")) == 0
+            assert len(service.get_context("zh", "en")) == 1  # other direction untouched
 
             # Clear all
             service.clear_context()
-            assert len(service.get_context("Bob")) == 0
+            assert len(service.get_context("zh", "en")) == 0
         finally:
             await service.close()

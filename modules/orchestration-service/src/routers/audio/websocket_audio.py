@@ -48,6 +48,7 @@ from meeting.downsampler import downsample_to_16k
 
 if TYPE_CHECKING:
     from meeting.pipeline import MeetingPipeline
+    from translation.context_store import DirectionalContextStore
     from translation.service import TranslationService
 
 logger = get_logger()
@@ -187,6 +188,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     pipeline = None
     transcription_client = None
     translation_service = None
+    context_store: DirectionalContextStore | None = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -196,7 +198,6 @@ async def websocket_audio_stream(websocket: WebSocket):
     source_language: str | None = None
     target_language: str | None = TARGET_LANGUAGE
     interpreter_languages: tuple[str, str] | None = None
-    _last_translation_direction: str | None = None  # "a→b" or "b→a" for context clearing
 
     # Accumulator for stable text across segments (for sentence-level translation)
     _stable_text_buffer: str = ""
@@ -229,7 +230,7 @@ async def websocket_audio_stream(websocket: WebSocket):
 
     async def handle_transcription_segment(data: dict) -> None:
         """Transform transcription result → SegmentMessage → forward to frontend."""
-        nonlocal segment_counter, source_language, _stable_text_buffer, _last_translated_stable, _last_translation_direction
+        nonlocal segment_counter, source_language, _stable_text_buffer, _last_translated_stable
 
         # Preserve transcription service's segment_id for draft→final matching.
         # The transcription service sends draft (seg_id=N) then final (seg_id=N)
@@ -281,15 +282,8 @@ async def websocket_audio_stream(websocket: WebSocket):
                 effective_target = lang_a
             else:
                 effective_target = None  # detected language matches neither — skip
-            # Clear context when translation direction flips (A→B vs B→A)
-            if effective_target:
-                direction = f"{msg.language}→{effective_target}"
-                if _last_translation_direction and direction != _last_translation_direction:
-                    if translation_service:
-                        translation_service.clear_context()
-                        _stable_text_buffer = ""
-                        _last_translated_stable = ""
-                _last_translation_direction = direction
+            # Direction flip is a no-op — DirectionalContextStore uses
+            # per-(source, target) keys, so each direction has independent context.
         else:
             effective_target = target_language
 
@@ -331,7 +325,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 is_draft=True,
             )
 
-            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg):
+            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg, ctx_store):
                 """Draft translation with lock + timeout."""
                 await lock.acquire()
                 try:
@@ -346,6 +340,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                             speaker_name=spk,
                             pipeline=pipeline,
                             is_draft=True,
+                            context_store=ctx_store,
                         ),
                         timeout=cfg.draft_timeout_s,
                     )
@@ -370,6 +365,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     effective_target,
                     msg.speaker_id,
                     translation_service.config,
+                    context_store,
                 )
             )
             session_tasks.add(task)
@@ -473,6 +469,8 @@ async def websocket_audio_stream(websocket: WebSocket):
                     speaker_name=msg.speaker_id,
                     pipeline=pipeline,
                     is_draft=False,
+                    context_store=context_store,
+                    interpreter_mode=interpreter_languages is not None,
                 )
             )
             session_tasks.add(task)
@@ -590,7 +588,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     await transcription_client.connect()
 
                     # Optionally init translation service + warm up LLM
-                    translation_service = _try_create_translation_service()
+                    translation_service, context_store = _try_create_translation_service()
                     if translation_service:
                         # Skip warm-up if already warmed at startup (lifespan)
                         already_warm = getattr(websocket.app.state, "translation_service_warmed", False)
@@ -675,10 +673,10 @@ async def websocket_audio_stream(websocket: WebSocket):
                 if msg.target_language is not None:
                     previous = target_language
                     target_language = msg.target_language
-                    # Clear translation context — old target language examples
+                    # Clear only the affected direction — old target language examples
                     # would confuse the LLM into producing wrong-language output.
-                    if translation_service and previous != target_language:
-                        translation_service.clear_context()
+                    if context_store and previous and previous != target_language and source_language:
+                        context_store.clear_direction(source_language, previous)
                     logger.info(
                         "target_language_updated",
                         session_id=session_id,
@@ -689,13 +687,12 @@ async def websocket_audio_stream(websocket: WebSocket):
                 if msg.interpreter_languages is not None:
                     if len(msg.interpreter_languages) == 2:
                         interpreter_languages = (msg.interpreter_languages[0], msg.interpreter_languages[1])
-                        _last_translation_direction = None
                         # Force auto-detect so Whisper identifies each segment's language
                         source_language = None
                         if transcription_client and transcription_client.connected:
                             await transcription_client.send_config(language=None)
-                        if translation_service:
-                            translation_service.clear_context()
+                        # No context clearing needed — DirectionalContextStore uses
+                        # per-(source, target) keys, isolation is automatic.
                         logger.info(
                             "interpreter_mode_enabled",
                             session_id=session_id,
@@ -705,7 +702,6 @@ async def websocket_audio_stream(websocket: WebSocket):
                     else:
                         # Empty list or invalid — disable interpreter mode
                         interpreter_languages = None
-                        _last_translation_direction = None
                         logger.info("interpreter_mode_disabled", session_id=session_id)
 
             # --- end_session ---
@@ -778,17 +774,23 @@ async def websocket_audio_stream(websocket: WebSocket):
         logger.info("ws_audio_cleaned_up", session_id=session_id)
 
 
-def _try_create_translation_service() -> TranslationService | None:
-    """Create a TranslationService if LLM config is available."""
+def _try_create_translation_service() -> tuple[TranslationService | None, DirectionalContextStore | None]:
+    """Create a TranslationService + DirectionalContextStore if LLM config is available."""
     try:
         from translation.config import TranslationConfig
+        from translation.context_store import DirectionalContextStore
         from translation.service import TranslationService
 
         config = TranslationConfig.from_env()
-        return TranslationService(config)
+        store = DirectionalContextStore(
+            max_entries=config.context_window_size,
+            max_tokens=config.max_context_tokens,
+            cross_direction_max_tokens=config.cross_direction_max_tokens,
+        )
+        return TranslationService(config, context_store=store), store
     except Exception as exc:
         logger.debug("translation_service_unavailable", reason=str(exc))
-        return None
+        return None, None
 
 
 async def _translate_and_send(
@@ -801,6 +803,8 @@ async def _translate_and_send(
     speaker_name: str | None,
     pipeline: MeetingPipeline | None = None,
     is_draft: bool = False,
+    context_store: DirectionalContextStore | None = None,
+    interpreter_mode: bool = False,
 ) -> None:
     """Translate a segment and forward to the frontend.
 
@@ -852,7 +856,13 @@ async def _translate_and_send(
             return
 
         # --- Final: streaming with context ---
-        context = translation_service.get_context(speaker_name)
+        context = (
+            context_store.get(source_lang, target_lang) if context_store
+            else translation_service.get_context(source_lang, target_lang)
+        )
+        cross_context = None
+        if interpreter_mode and context_store:
+            cross_context = context_store.get_cross_direction(source_lang, target_lang)
         full_text = ""
         translation = ""
         try:
@@ -860,6 +870,7 @@ async def _translate_and_send(
                 translation_service._client.translate_stream(
                     text, source_lang, target_lang, context,
                     max_tokens=translation_service.config.max_tokens,
+                    cross_context=cross_context,
                 )
             ):
                 full_text += delta
@@ -904,7 +915,10 @@ async def _translate_and_send(
         latency_ms = (_time.monotonic() - start) * 1000
 
         # Add to context window (finals only — never drafts)
-        translation_service._get_context_window(speaker_name).add(text, translation)
+        if context_store:
+            context_store.add(source_lang, target_lang, text, translation)
+        else:
+            translation_service.context_store.add(source_lang, target_lang, text, translation)
 
         logger.info(
             "translation_complete",

@@ -15,30 +15,29 @@ from livetranslate_common.logging import get_logger
 from livetranslate_common.models import TranslationContext, TranslationRequest, TranslationResponse
 
 from translation.config import TranslationConfig
-from translation.context import RollingContextWindow
+from translation.context_store import DirectionalContextStore
 from translation.llm_client import LLMClient
 
 logger = get_logger()
 
 
 class TranslationService:
-    def __init__(self, config: TranslationConfig):
+    def __init__(
+        self,
+        config: TranslationConfig,
+        context_store: DirectionalContextStore | None = None,
+    ):
         self.config = config
         self._client = LLMClient(config)
-        self._contexts: dict[str | None, RollingContextWindow] = {}
+        self.context_store = context_store or DirectionalContextStore(
+            max_entries=config.context_window_size,
+            max_tokens=config.max_context_tokens,
+            cross_direction_max_tokens=config.cross_direction_max_tokens,
+        )
         self._queue: asyncio.Queue[tuple] = asyncio.Queue(maxsize=config.max_queue_depth)
         self._processing = False
         self._process_task: asyncio.Task | None = None
         self._concurrency = asyncio.Semaphore(min(config.max_queue_depth, 3))
-
-    def _get_context_window(self, speaker: str | None = None) -> RollingContextWindow:
-        """Get or create a context window for a speaker."""
-        if speaker not in self._contexts:
-            self._contexts[speaker] = RollingContextWindow(
-                max_entries=self.config.context_window_size,
-                max_tokens=self.config.max_context_tokens,
-            )
-        return self._contexts[speaker]
 
     async def translate(
         self,
@@ -58,8 +57,10 @@ class TranslationService:
         Used for direct translation. For queued translation with
         backpressure, use enqueue_translation().
         """
-        # Merge: use request context if provided, otherwise use per-speaker rolling window
-        context = request.context if request.context else self._get_context_window(request.speaker_name).get_context()
+        # Merge: use request context if provided, otherwise use directional rolling window
+        context = request.context if request.context else self.context_store.get(
+            request.source_language, request.target_language,
+        )
         start = time.monotonic()
 
         translated = await self._client.translate(
@@ -72,9 +73,12 @@ class TranslationService:
 
         latency_ms = (time.monotonic() - start) * 1000
 
-        # Only add to context on success, keyed by speaker
+        # Only add to context on success, keyed by direction
         if not skip_context:
-            self._get_context_window(request.speaker_name).add(request.text, translated)
+            self.context_store.add(
+                request.source_language, request.target_language,
+                request.text, translated,
+            )
 
         return TranslationResponse(
             translated_text=translated,
@@ -131,14 +135,26 @@ class TranslationService:
                 if not future.done():
                     future.set_exception(e)
 
-    def get_context(self, speaker: str | None = None) -> list[TranslationContext]:
-        return self._get_context_window(speaker).get_context()
+    def get_context(
+        self,
+        source_lang: str = "",
+        target_lang: str = "",
+        speaker: str | None = None,
+    ) -> list[TranslationContext]:
+        """Get context for a direction. Speaker param is ignored (backward compat)."""
+        return self.context_store.get(source_lang, target_lang)
 
-    def clear_context(self, speaker: str | None = None) -> None:
-        if speaker is None:
-            self._contexts.clear()
-        elif speaker in self._contexts:
-            self._contexts[speaker].clear()
+    def clear_context(
+        self,
+        source_lang: str = "",
+        target_lang: str = "",
+        speaker: str | None = None,
+    ) -> None:
+        """Clear context. If both langs empty, clear all. Otherwise clear one direction."""
+        if not source_lang and not target_lang:
+            self.context_store.clear_all()
+        else:
+            self.context_store.clear_direction(source_lang, target_lang)
 
     async def close(self) -> None:
         if self._process_task and not self._process_task.done():

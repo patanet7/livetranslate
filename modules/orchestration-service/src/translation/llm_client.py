@@ -86,6 +86,7 @@ class LLMClient:
         context: list[TranslationContext],
         glossary_terms: dict[str, str] | None = None,
         is_draft: bool = False,
+        cross_context: list[TranslationContext] | None = None,
     ) -> list[dict]:
         """Build LLM messages for translation.
 
@@ -159,6 +160,20 @@ class LLMClient:
                 tgt = ctx.translation.replace("\n", " ")
                 user_parts.append(f"[{src_name}] {src}")
                 user_parts.append(f"[{tgt_name}] {tgt}")
+            user_parts.append("")
+
+        # Cross-direction context: recent entries from the opposite direction
+        # (interpreter mode — helps with referent tracking across speakers).
+        # Labels are swapped: cross-context entries come from the opposite
+        # direction (tgt→src), so ctx.text is in target_language and
+        # ctx.translation is in source_language.
+        if cross_context:
+            user_parts.append("[Recent context (other speaker):]")
+            for ctx in cross_context:
+                src = ctx.text.replace("\n", " ")
+                tgt = ctx.translation.replace("\n", " ")
+                user_parts.append(f"[{tgt_name}] {src}")
+                user_parts.append(f"[{src_name}] {tgt}")
             user_parts.append("")
 
         # Text to translate: compact format for drafts, labeled for finals
@@ -267,6 +282,7 @@ class LLMClient:
         context: list[TranslationContext] | None = None,
         glossary_terms: dict[str, str] | None = None,
         max_tokens: int | None = None,
+        cross_context: list[TranslationContext] | None = None,
     ) -> AsyncIterator[str]:
         """Stream translation tokens from the LLM.
 
@@ -277,6 +293,7 @@ class LLMClient:
         messages = self._build_messages(
             text, source_language, target_language,
             context or [], glossary_terms,
+            cross_context=cross_context,
         )
 
         async with self._client.stream(

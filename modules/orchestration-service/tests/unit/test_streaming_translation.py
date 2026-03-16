@@ -290,6 +290,6 @@ class TestTranslationServiceSkipContext:
                 await service.translate(request, skip_context=True)
 
             # Context should be empty (translate failed, AND skip_context=True)
-            assert len(service.get_context()) == 0
+            assert len(service.get_context("en", "es")) == 0
         finally:
             await service.close()
