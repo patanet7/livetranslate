@@ -53,6 +53,89 @@ def _has_cjk(text: str) -> bool:
     return False
 
 
+def trim_trailing_repetition(text: str, min_repeats: int = 5) -> str:
+    """Collapse Whisper degeneration tails while keeping the real prefix.
+
+    Whisper sometimes transcribes real speech then gets stuck in a token loop
+    (e.g., "...graph is different. Yeah. Yeah. Yeah. Yeah. Yeah...").
+    This trims the repeated tail, keeping one instance of the repeated unit.
+
+    Handles both single-word ("Yeah. Yeah. Yeah.") and multi-word
+    ("Thank you. Thank you. Thank you.") repeating units, as well as
+    CJK text where tokens are delimited by punctuation rather than spaces.
+    """
+    if not text:
+        return text
+
+    # Try CJK sentence-level repetition (split on CJK sentence-ending punctuation)
+    if _has_cjk(text):
+        import re
+        # Split on CJK sentence-ending punctuation, keeping delimiters
+        tokens = re.split(r'(?<=[。！？])', text)
+        tokens = [t for t in tokens if t]  # remove empty
+        if len(tokens) >= min_repeats:
+            trimmed = _trim_token_tail(tokens, min_repeats)
+            if trimmed is not None:
+                return "".join(trimmed)
+        return text
+
+    # Word-level: try single-word repeating unit first, then multi-word
+    words = text.split()
+    if len(words) < min_repeats:
+        return text
+
+    # Single-word trailing repetition (most common: "Yeah. Yeah. Yeah.")
+    trimmed = _trim_token_tail(words, min_repeats)
+    if trimmed is not None:
+        return " ".join(trimmed)
+
+    # Multi-word repeating unit (e.g., "Thank you. Thank you. Thank you.")
+    # Try unit sizes 2 and 3
+    for unit_size in (2, 3):
+        if len(words) < unit_size * min_repeats:
+            continue
+        # Check if trailing words form repeating units
+        tail_units = []
+        i = len(words)
+        while i >= unit_size:
+            candidate = tuple(w.lower() for w in words[i - unit_size:i])
+            if not tail_units or candidate == tail_units[0]:
+                tail_units.append(candidate)
+                i -= unit_size
+            else:
+                break
+        if len(tail_units) >= min_repeats:
+            # Keep prefix + one unit
+            prefix_end = i + unit_size  # i is where repeats start, keep one unit
+            return " ".join(words[:prefix_end])
+
+    return text
+
+
+def _trim_token_tail(tokens: list, min_repeats: int) -> list | None:
+    """If the last `min_repeats`+ tokens are identical, trim to prefix + 1.
+
+    Returns trimmed list or None if no trailing repetition found.
+    """
+    if len(tokens) < min_repeats:
+        return None
+    last = tokens[-1].lower().strip()
+    if not last:
+        return None
+    # Count identical trailing tokens
+    count = 0
+    for i in range(len(tokens) - 1, -1, -1):
+        if tokens[i].lower().strip() == last:
+            count += 1
+        else:
+            break
+    if count >= min_repeats:
+        # Keep everything before the repeats + one instance
+        prefix_end = len(tokens) - count + 1
+        return tokens[:prefix_end]
+    return None
+
+
 class HallucinationFilter:
     """Stateful filter consolidating all hallucination detection gates.
 

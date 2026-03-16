@@ -163,6 +163,11 @@ class VLLMWhisperBackend:
             }
             if language:
                 data["language"] = language
+            # Pass previous segment text as decoder prompt (OpenAI API `prompt` param).
+            # Gives Whisper context continuity without condition_on_previous_text loop.
+            initial_prompt = kwargs.get("initial_prompt")
+            if initial_prompt:
+                data["prompt"] = initial_prompt
 
             response = await self._client.post(
                 "/v1/audio/transcriptions",

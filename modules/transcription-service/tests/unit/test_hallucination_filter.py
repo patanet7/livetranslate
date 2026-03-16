@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from livetranslate_common.models.transcription import TranscriptionResult
 
-from transcription.hallucination_filter import HallucinationFilter
+from transcription.hallucination_filter import HallucinationFilter, trim_trailing_repetition
 
 
 def _result(
@@ -214,6 +214,61 @@ class TestGateOrdering:
         # Deque should be empty — unique text should pass
         suppressed, _ = f.should_suppress(_result(text="Unique sentence here"))
         assert suppressed is False
+
+
+class TestTrimTrailingRepetition:
+    """trim_trailing_repetition: collapse degeneration tails, keep real prefix."""
+
+    def test_collapses_long_trailing_repeat(self):
+        """Classic Whisper degeneration: real prefix + 'Yeah.' x20."""
+        text = (
+            "That's true. Yeah. So like the proportion of the graph is different. "
+            + "Yeah. " * 20
+        ).strip()
+        result = trim_trailing_repetition(text)
+        assert result == "That's true. Yeah. So like the proportion of the graph is different. Yeah."
+
+    def test_no_repetition_unchanged(self):
+        """Normal text with no trailing repetition passes through."""
+        text = "The quick brown fox jumps over the lazy dog."
+        assert trim_trailing_repetition(text) == text
+
+    def test_short_natural_repetition_kept(self):
+        """'yeah yeah yeah' (3 repeats) is natural speech, not degeneration."""
+        text = "I agree yeah yeah yeah"
+        assert trim_trailing_repetition(text) == text
+
+    def test_exactly_at_threshold_trimmed(self):
+        """5 identical trailing words should trigger trimming."""
+        text = "Hello world. Ok. Ok. Ok. Ok. Ok."
+        result = trim_trailing_repetition(text)
+        assert result == "Hello world. Ok."
+
+    def test_entire_text_is_repetition(self):
+        """If the whole text is one word repeated, keep just one."""
+        text = "Yeah. " * 15
+        result = trim_trailing_repetition(text.strip())
+        assert result == "Yeah."
+
+    def test_two_word_repeating_phrase(self):
+        """Multi-word repeating unit: 'Thank you. Thank you. Thank you...'"""
+        text = "That was great. " + "Thank you. " * 10
+        result = trim_trailing_repetition(text.strip())
+        assert result == "That was great. Thank you."
+
+    def test_empty_string(self):
+        assert trim_trailing_repetition("") == ""
+
+    def test_single_word(self):
+        assert trim_trailing_repetition("Hello") == "Hello"
+
+    def test_preserves_cjk_trailing_repetition(self):
+        """CJK degeneration: real Chinese prefix + repeated suffix."""
+        text = "这是一个很好的观点。对。对。对。对。对。对。对。"
+        result = trim_trailing_repetition(text)
+        # Should keep prefix + one instance of repeated token
+        assert "对。对。对。对。" not in result
+        assert result.startswith("这是一个很好的观点。")
 
 
 class TestReset:
