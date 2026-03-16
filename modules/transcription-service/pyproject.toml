@@ -65,7 +65,7 @@ dependencies = [
 [project.optional-dependencies]
 onnx = [
     # ONNX runtime for OpenVINO/ONNX model support (not needed for PyTorch)
-    "onnxruntime>=1.18.0,<1.22.0",
+    "onnxruntime>=1.18.0,<1.25.0",
 ]
 mlx = [
     # MLX Whisper for Apple Silicon (M1/M2/M3/M4) local development
