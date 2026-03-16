@@ -432,8 +432,8 @@ async def get_ui_config():
         # Dynamic configuration (from services)
         "translation_models": translation_models,
         "translation_service_available": translation_service_available,
-        "prompt_templates": prompt_templates,
-        "prompts_available": prompts_available,
+        "prompt_templates": [],
+        "prompts_available": False,
         # Override metadata
         "has_overrides": bool(overrides),
         "enabled_language_count": len(languages),

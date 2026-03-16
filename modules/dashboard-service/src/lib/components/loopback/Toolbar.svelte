@@ -14,10 +14,12 @@
 		onStartMeeting?: () => void;
 		onEndMeeting?: () => void;
 		/** I1: Callback to send config changes to the server via WebSocket */
-		onConfigChange?: (config: { model?: string; language?: string; target_language?: string }) => void;
+		onConfigChange?: (config: { model?: string; language?: string | null; target_language?: string; interpreter_languages?: [string, string] | null }) => void;
 		onStartDemo?: () => void;
 		onStopDemo?: () => void;
 		isDemoRunning?: boolean;
+		/** True while draining pending translations after stop */
+		isDraining?: boolean;
 		/** RMS audio level from capture (0-1) for VU meter */
 		audioLevel?: number;
 	}
@@ -34,6 +36,7 @@
 		onStartDemo,
 		onStopDemo,
 		isDemoRunning = false,
+		isDraining = false,
 		audioLevel = 0,
 	}: Props = $props();
 
@@ -75,6 +78,7 @@
 		{ value: 'split', label: 'Split' },
 		{ value: 'subtitle', label: 'Subtitle' },
 		{ value: 'transcript', label: 'Transcript' },
+		{ value: 'interpreter', label: 'Interpreter' },
 	];
 
 	let showEndMeetingDialog = $state(false);
@@ -83,6 +87,11 @@
 	let sourceLanguageValue = $state(loopbackStore.sourceLanguage ?? 'auto');
 	let targetLanguageValue = $state(loopbackStore.targetLanguage);
 	let modelOverride = $state('auto');
+	let interpreterLangAValue = $state(loopbackStore.interpreterLangA);
+	let interpreterLangBValue = $state(loopbackStore.interpreterLangB);
+
+	// Whether interpreter mode is active (derived for template conditionals)
+	let isInterpreterMode = $derived(loopbackStore.displayMode === 'interpreter');
 
 	// Track previous values to avoid writing to the store on initial render.
 	// Effects run immediately during component initialization and writing to
@@ -98,20 +107,10 @@
 		prevSourceLang = val;
 		const lang = val === 'auto' ? null : val;
 		loopbackStore.sourceLanguage = lang;
-		// I2: Send config change to server if capturing
-		if (loopbackStore.isCapturing && lang) {
+		// I2: Send config change to server if capturing.
+		// Send null too — resets server to auto-detect when switching back from explicit language.
+		if (loopbackStore.isCapturing) {
 			onConfigChange?.({ language: lang });
-		}
-	});
-
-	// Reverse sync: when server sends language_detected, the store updates
-	// but the local select value must follow so the dropdown reflects reality.
-	$effect(() => {
-		const storeLang = loopbackStore.sourceLanguage;
-		const selectVal = storeLang ?? 'auto';
-		if (selectVal !== sourceLanguageValue) {
-			sourceLanguageValue = selectVal;
-			prevSourceLang = selectVal;
 		}
 	});
 
@@ -133,6 +132,51 @@
 		prevModel = val;
 		if (loopbackStore.isCapturing && val !== 'auto') {
 			onConfigChange?.({ model: val });
+		}
+	});
+
+	// Sync interpreter language A/B to store and send config when changed
+	let prevInterpA = $state(untrack(() => interpreterLangAValue));
+	let prevInterpB = $state(untrack(() => interpreterLangBValue));
+
+	$effect(() => {
+		const a = interpreterLangAValue;
+		const b = interpreterLangBValue;
+		if (a === prevInterpA && b === prevInterpB) return;
+		// Swap guard: if user picks same language for both, swap them
+		if (a === b) {
+			if (a !== prevInterpA) {
+				// A was changed to match B — swap B to old A
+				interpreterLangBValue = prevInterpA;
+			} else {
+				// B was changed to match A — swap A to old B
+				interpreterLangAValue = prevInterpB;
+			}
+			return; // the swap will re-trigger this effect
+		}
+		prevInterpA = a;
+		prevInterpB = b;
+		loopbackStore.interpreterLangA = a;
+		loopbackStore.interpreterLangB = b;
+		if (isInterpreterMode && loopbackStore.isCapturing) {
+			onConfigChange?.({ language: undefined, interpreter_languages: [a, b] });
+		}
+	});
+
+	// When entering/leaving interpreter mode, send appropriate config
+	let prevDisplayMode = $state(untrack(() => loopbackStore.displayMode));
+	$effect(() => {
+		const mode = loopbackStore.displayMode;
+		if (mode === prevDisplayMode) return;
+		const wasInterpreter = prevDisplayMode === 'interpreter';
+		prevDisplayMode = mode;
+		if (!loopbackStore.isCapturing) return;
+		if (mode === 'interpreter') {
+			// Entering interpreter mode — send interpreter_languages, force auto-detect
+			onConfigChange?.({ language: undefined, interpreter_languages: [interpreterLangAValue, interpreterLangBValue] });
+		} else if (wasInterpreter) {
+			// Leaving interpreter mode — clear interpreter state, restore target language
+			onConfigChange?.({ interpreter_languages: null, target_language: loopbackStore.targetLanguage });
 		}
 	});
 
@@ -164,35 +208,67 @@
 		</Select.Root>
 	</div>
 
-	<!-- Source Language -->
-	<div class="toolbar-group">
-		<span class="toolbar-label">Source</span>
-		<Select.Root type="single" bind:value={sourceLanguageValue}>
-			<Select.Trigger class="toolbar-select">
-				{SOURCE_LANGUAGES.find((l) => l.value === sourceLanguageValue)?.label ?? 'Auto Detect'}
-			</Select.Trigger>
-			<Select.Content>
-				{#each SOURCE_LANGUAGES as lang (lang.value)}
-					<Select.Item value={lang.value} label={lang.label}>{lang.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
-	</div>
+	{#if isInterpreterMode}
+		<!-- Interpreter: Language A -->
+		<div class="toolbar-group">
+			<span class="toolbar-label">Language A</span>
+			<Select.Root type="single" bind:value={interpreterLangAValue}>
+				<Select.Trigger class="toolbar-select">
+					{TARGET_LANGUAGES.find((l) => l.value === interpreterLangAValue)?.label ?? interpreterLangAValue}
+				</Select.Trigger>
+				<Select.Content>
+					{#each TARGET_LANGUAGES as lang (lang.value)}
+						<Select.Item value={lang.value} label={lang.label}>{lang.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		</div>
 
-	<!-- Target Language -->
-	<div class="toolbar-group">
-		<span class="toolbar-label">Target</span>
-		<Select.Root type="single" bind:value={targetLanguageValue}>
-			<Select.Trigger class="toolbar-select">
-				{TARGET_LANGUAGES.find((l) => l.value === targetLanguageValue)?.label ?? 'English'}
-			</Select.Trigger>
-			<Select.Content>
-				{#each TARGET_LANGUAGES as lang (lang.value)}
-					<Select.Item value={lang.value} label={lang.label}>{lang.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
-	</div>
+		<!-- Interpreter: Language B -->
+		<div class="toolbar-group">
+			<span class="toolbar-label">Language B</span>
+			<Select.Root type="single" bind:value={interpreterLangBValue}>
+				<Select.Trigger class="toolbar-select">
+					{TARGET_LANGUAGES.find((l) => l.value === interpreterLangBValue)?.label ?? interpreterLangBValue}
+				</Select.Trigger>
+				<Select.Content>
+					{#each TARGET_LANGUAGES as lang (lang.value)}
+						<Select.Item value={lang.value} label={lang.label}>{lang.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		</div>
+	{:else}
+		<!-- Source Language -->
+		<div class="toolbar-group">
+			<span class="toolbar-label">Source</span>
+			<Select.Root type="single" bind:value={sourceLanguageValue}>
+				<Select.Trigger class="toolbar-select">
+					{SOURCE_LANGUAGES.find((l) => l.value === sourceLanguageValue)?.label ?? 'Auto Detect'}
+				</Select.Trigger>
+				<Select.Content>
+					{#each SOURCE_LANGUAGES as lang (lang.value)}
+						<Select.Item value={lang.value} label={lang.label}>{lang.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		</div>
+
+		<!-- Target Language -->
+		<div class="toolbar-group">
+			<span class="toolbar-label">Target</span>
+			<Select.Root type="single" bind:value={targetLanguageValue}>
+				<Select.Trigger class="toolbar-select">
+					{TARGET_LANGUAGES.find((l) => l.value === targetLanguageValue)?.label ?? 'English'}
+				</Select.Trigger>
+				<Select.Content>
+					{#each TARGET_LANGUAGES as lang (lang.value)}
+						<Select.Item value={lang.value} label={lang.label}>{lang.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		</div>
+	{/if}
 
 	<!-- Model Override -->
 	<div class="toolbar-group">
@@ -214,27 +290,15 @@
 		<span class="toolbar-label">Display</span>
 		<!-- I5: Use radiogroup semantics for display mode switcher -->
 		<div class="display-mode-switcher" role="radiogroup" aria-label="Display mode">
-			<button
-				class="display-mode-btn"
-				class:active={loopbackStore.displayMode === 'split'}
-				role="radio"
-				aria-checked={loopbackStore.displayMode === 'split'}
-				onclick={() => { loopbackStore.displayMode = 'split'; }}
-			>Split</button>
-			<button
-				class="display-mode-btn"
-				class:active={loopbackStore.displayMode === 'subtitle'}
-				role="radio"
-				aria-checked={loopbackStore.displayMode === 'subtitle'}
-				onclick={() => { loopbackStore.displayMode = 'subtitle'; }}
-			>Subtitle</button>
-			<button
-				class="display-mode-btn"
-				class:active={loopbackStore.displayMode === 'transcript'}
-				role="radio"
-				aria-checked={loopbackStore.displayMode === 'transcript'}
-				onclick={() => { loopbackStore.displayMode = 'transcript'; }}
-			>Transcript</button>
+			{#each DISPLAY_MODES as mode (mode.value)}
+				<button
+					class="display-mode-btn"
+					class:active={loopbackStore.displayMode === mode.value}
+					role="radio"
+					aria-checked={loopbackStore.displayMode === mode.value}
+					onclick={() => { loopbackStore.displayMode = mode.value; }}
+				>{mode.label}</button>
+			{/each}
 		</div>
 	</div>
 
@@ -274,6 +338,10 @@
 		{#if isDemoRunning}
 			<Button variant="destructive" size="sm" onclick={onStopDemo}>
 				Stop Demo
+			</Button>
+		{:else if isDraining}
+			<Button variant="ghost" size="sm" disabled>
+				<span class="drain-spinner"></span> Finishing...
 			</Button>
 		{:else if loopbackStore.isCapturing}
 			<Button variant="destructive" size="sm" onclick={onStopCapture}>
@@ -449,5 +517,21 @@
 	.counter-sep {
 		color: var(--text-muted, #94a3b8);
 		font-size: 0.5625rem;
+	}
+
+	.drain-spinner {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid var(--text-muted, #94a3b8);
+		border-top-color: transparent;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+		margin-right: 4px;
+		vertical-align: middle;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 </style>

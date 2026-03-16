@@ -12,6 +12,7 @@
   import SplitView from '$lib/components/loopback/SplitView.svelte';
   import SubtitleView from '$lib/components/loopback/SubtitleView.svelte';
   import TranscriptView from '$lib/components/loopback/TranscriptView.svelte';
+  import InterpreterView from '$lib/components/loopback/InterpreterView.svelte';
 
   let devices = $state<MediaDeviceInfo[]>([]);
   let selectedDeviceId = $state('');
@@ -21,6 +22,7 @@
   let audioLevel = $state(0);
   let demoHandle = $state<DemoHandle | null>(null);
   let isDemoRunning = $derived(demoHandle !== null);
+  let isDraining = $state(false);
 
   let capture: AudioCapture | null = null;
   let ws: LoopbackWebSocket | null = null;
@@ -62,9 +64,12 @@
         }
         break;
       // M6: Handle language_detected and backend_switched messages
+      // Note: language_detected is informational — it must NOT overwrite
+      // sourceLanguage (the user's dropdown selection). Otherwise auto-detect
+      // gets locked to the first detected language on the next session start.
       case 'language_detected':
         if (typeof msg.language === 'string') {
-          loopbackStore.sourceLanguage = msg.language;
+          loopbackStore.detectedLanguage = msg.language;
         }
         break;
       case 'backend_switched':
@@ -178,11 +183,18 @@
 
     // Send initial config so server knows target language, source language,
     // and model from the toolbar state at capture start (not just on change).
-    ws.sendMessage({
-      type: 'config',
-      target_language: loopbackStore.targetLanguage,
-      ...(loopbackStore.sourceLanguage ? { language: loopbackStore.sourceLanguage } : {}),
-    });
+    if (loopbackStore.displayMode === 'interpreter') {
+      ws.sendMessage({
+        type: 'config',
+        interpreter_languages: [loopbackStore.interpreterLangA, loopbackStore.interpreterLangB],
+      });
+    } else {
+      ws.sendMessage({
+        type: 'config',
+        target_language: loopbackStore.targetLanguage,
+        ...(loopbackStore.sourceLanguage ? { language: loopbackStore.sourceLanguage } : {}),
+      });
+    }
 
     loopbackStore.isCapturing = true;
   }
@@ -193,16 +205,19 @@
     if (stopping) return;
     stopping = true;
     try {
-      if (ws && loopbackStore.isCapturing) {
-        ws.sendMessage({ type: 'end_session' });
-      }
-
       if (capture) {
         await capture.stop();
         capture = null;
       }
 
-      if (ws) {
+      if (ws && loopbackStore.isCapturing) {
+        // Drain: send end_session and wait for server to finish sending
+        // pending translations before closing the WebSocket.
+        isDraining = true;
+        await ws.drainAndDisconnect(5000);
+        isDraining = false;
+        ws = null;
+      } else if (ws) {
         ws.disconnect();
         ws = null;
       }
@@ -212,6 +227,7 @@
       audioLevel = 0;
       stopElapsedTimer();
     } finally {
+      isDraining = false;
       stopping = false;
     }
   }
@@ -241,13 +257,14 @@
     demoHandle = null;
   }
 
-  /** I1/I2: Send config changes (model, language, target_language) to server via WebSocket */
-  function handleConfigChange(config: { model?: string; language?: string; target_language?: string }) {
+  /** I1/I2: Send config changes (model, language, target_language, interpreter_languages) to server via WebSocket */
+  function handleConfigChange(config: { model?: string; language?: string | null; target_language?: string; interpreter_languages?: [string, string] | null }) {
     ws?.sendMessage({
       type: 'config',
-      ...(config.model !== undefined ? { model: config.model } : {}),
       ...(config.language !== undefined ? { language: config.language } : {}),
+      ...(config.model !== undefined ? { model: config.model } : {}),
       ...(config.target_language !== undefined ? { target_language: config.target_language } : {}),
+      ...(config.interpreter_languages !== undefined ? { interpreter_languages: config.interpreter_languages } : {}),
     });
   }
 
@@ -328,6 +345,7 @@
     onStartDemo={startDemo}
     onStopDemo={stopDemo}
     {isDemoRunning}
+    {isDraining}
   />
 
   {#if captureError}
@@ -350,8 +368,8 @@
         <span class="elapsed">{elapsedTime}</span>
       </div>
       <div class="meeting-bar-right">
-        {#if loopbackStore.sourceLanguage}
-          <span class="lang-badge">{loopbackStore.sourceLanguage}</span>
+        {#if loopbackStore.detectedLanguage}
+          <span class="lang-badge">{loopbackStore.detectedLanguage}</span>
         {/if}
         {#if loopbackStore.isRecording}
           <span class="chunks-badge">{loopbackStore.recordingChunks} chunks</span>
@@ -365,6 +383,8 @@
       <SplitView />
     {:else if loopbackStore.displayMode === 'subtitle'}
       <SubtitleView />
+    {:else if loopbackStore.displayMode === 'interpreter'}
+      <InterpreterView />
     {:else}
       <TranscriptView />
     {/if}

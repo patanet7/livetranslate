@@ -306,10 +306,16 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                         msg_type = msg.get("type")
                         if msg_type == "config":
-                            state.language = msg.get("language")
-                            state.lock_language = msg.get("lock_language", False)
-                            state.initial_prompt = msg.get("initial_prompt")
-                            state.glossary_terms = msg.get("glossary_terms")
+                            # Only update fields that are present in the message.
+                            # Missing keys mean "don't change"; null means "clear/reset".
+                            if "language" in msg:
+                                state.language = msg.get("language")
+                            if "lock_language" in msg:
+                                state.lock_language = msg.get("lock_language", False)
+                            if "initial_prompt" in msg:
+                                state.initial_prompt = msg.get("initial_prompt")
+                            if "glossary_terms" in msg:
+                                state.glossary_terms = msg.get("glossary_terms")
                         elif msg_type == "end":
                             await audio_queue.put(None)  # sentinel
                             return
@@ -364,11 +370,14 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                 # Language selection:
                 # - If user set a language AND lock_language=True → force it (no switching)
-                # - Otherwise → use detected language, fall back to user hint
+                # - If user set a language (no lock) → use detected, fall back to hint
+                # - If no language set (auto-detect) → None lets Whisper detect per-chunk
                 if state.language and getattr(state, "lock_language", False):
                     whisper_lang = state.language
-                else:
+                elif state.language:
                     whisper_lang = state.lang_detector.current_language or state.language
+                else:
+                    whisper_lang = None  # true auto-detect: no hint to Whisper
                 try:
                     result = await asyncio.wait_for(
                         transcription_backend.transcribe(
@@ -408,9 +417,12 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                             "confidence": result.confidence,
                         }))
 
-                # Language consistency filter: discard wrong-script hallucinations
+                # Language consistency filter: discard wrong-script hallucinations.
+                # Only active when lock_language=True (single-language mode).
+                # In auto-detect or hint mode, language switches are expected.
                 if (
-                    state.language
+                    getattr(state, "lock_language", False)
+                    and state.language
                     and result.language != state.language
                     and result.confidence < 0.7
                 ):

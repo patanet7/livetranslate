@@ -7,7 +7,7 @@
 
 import type { SegmentMessage, InterimMessage, TranslationMessage, TranslationChunkMessage } from '$lib/types/ws-messages';
 
-export type DisplayMode = 'split' | 'subtitle' | 'transcript';
+export type DisplayMode = 'split' | 'subtitle' | 'transcript' | 'interpreter';
 
 export interface CaptionEntry {
   id: number;
@@ -51,7 +51,10 @@ function createLoopbackStore() {
   let isRecording = $state(false);
   let recordingChunks = $state(0);
   let sourceLanguage = $state<string | null>(null);
+  let detectedLanguage = $state<string | null>(null);
   let targetLanguage = $state('en');
+  let interpreterLangA = $state('zh');
+  let interpreterLangB = $state('en');
   let chunksSent = $state(0);
   let segmentsReceived = $state(0);
   let translationsReceived = $state(0);
@@ -114,9 +117,10 @@ function createLoopbackStore() {
       captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
     }
 
-    // Auto-detect source language on first segment
-    if (!sourceLanguage) {
-      sourceLanguage = msg.language;
+    // Update detected language from segment data (display only — does NOT
+    // change the user's source language dropdown selection).
+    if (msg.language) {
+      detectedLanguage = msg.language;
     }
   }
 
@@ -211,8 +215,14 @@ function createLoopbackStore() {
     set recordingChunks(v: number) { recordingChunks = v; },
     get sourceLanguage() { return sourceLanguage; },
     set sourceLanguage(v: string | null) { sourceLanguage = v; },
+    get detectedLanguage() { return detectedLanguage; },
+    set detectedLanguage(v: string | null) { detectedLanguage = v; },
     get targetLanguage() { return targetLanguage; },
     set targetLanguage(v: string) { targetLanguage = v; },
+    get interpreterLangA() { return interpreterLangA; },
+    set interpreterLangA(v: string) { interpreterLangA = v; },
+    get interpreterLangB() { return interpreterLangB; },
+    set interpreterLangB(v: string) { interpreterLangB = v; },
     get chunksSent() { return chunksSent; },
     set chunksSent(v: number) { chunksSent = v; },
     get segmentsReceived() { return segmentsReceived; },

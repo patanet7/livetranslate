@@ -21,7 +21,7 @@ class TranslationConfig(BaseSettings):
     max_context_tokens: int = 500
     max_queue_depth: int = 10
     max_tokens: int = 512
-    draft_max_tokens: int = 160
+    draft_max_tokens: int = 256
     draft_timeout_s: int = 4
 
     @property
