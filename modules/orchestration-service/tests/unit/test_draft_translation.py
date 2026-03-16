@@ -155,30 +155,25 @@ class TestTranslateAndSendDraft:
 
 
 # ---------------------------------------------------------------------------
-# Draft semaphore: non-blocking drop
+# Draft lock: non-blocking drop
 # ---------------------------------------------------------------------------
-class TestDraftSemaphore:
+class TestDraftLock:
     @pytest.mark.asyncio
-    async def test_semaphore_drops_when_busy(self):
-        """When draft semaphore is held, subsequent drafts should be dropped."""
-        sem = asyncio.Semaphore(1)
+    async def test_lock_drops_when_busy(self):
+        """When draft lock is held, .locked() returns True for non-blocking check."""
+        lock = asyncio.Lock()
 
-        # Hold the semaphore
-        await sem.acquire()
+        await lock.acquire()
+        assert lock.locked(), "Lock should be busy"
 
-        # Try non-blocking acquire — should fail
-        acquired = sem._value > 0
-        assert not acquired, "Semaphore should be busy"
-
-        # Release
-        sem.release()
-        assert sem._value > 0, "Semaphore should be free after release"
+        lock.release()
+        assert not lock.locked(), "Lock should be free after release"
 
     @pytest.mark.asyncio
-    async def test_draft_timeout_releases_semaphore(self):
-        """Draft timeout should release the semaphore cleanly."""
-        sem = asyncio.Semaphore(1)
-        await sem.acquire()
+    async def test_draft_timeout_releases_lock(self):
+        """Draft timeout should release the lock cleanly."""
+        lock = asyncio.Lock()
+        await lock.acquire()
 
         async def slow_task():
             await asyncio.sleep(10)  # Simulate slow LLM
@@ -186,6 +181,6 @@ class TestDraftSemaphore:
         try:
             await asyncio.wait_for(slow_task(), timeout=0.1)
         except asyncio.TimeoutError:
-            sem.release()  # This is what the draft path should do
+            lock.release()  # This is what the draft path should do
 
-        assert sem._value > 0, "Semaphore must be released after timeout"
+        assert not lock.locked(), "Lock must be released after timeout"

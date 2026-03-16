@@ -194,8 +194,9 @@ async def websocket_audio_stream(websocket: WebSocket):
     _stable_text_buffer: str = ""
     _last_translated_stable: str = ""
 
-    # Semaphore(1) for draft translations — non-blocking, drop when busy
-    _draft_semaphore = asyncio.Semaphore(1)
+    # Lock for draft translations — non-blocking, drop when busy.
+    # Lock (not Semaphore) because Lock has .locked() for non-blocking check.
+    _draft_lock = asyncio.Lock()
 
     async def safe_send(msg: str) -> bool:
         """Send a text frame with disconnect protection.
@@ -266,6 +267,18 @@ async def websocket_audio_stream(websocket: WebSocket):
 
         # --- Draft path: bypass stable_text, translate msg.text directly ---
         if msg.is_draft:
+            # Non-blocking check: drop if another draft is in-flight.
+            # Safe because no await between this check and create_task below
+            # (single-threaded asyncio — no concurrent coroutine can acquire between).
+            if _draft_lock.locked():
+                logger.debug(
+                    "draft_translation_dropped",
+                    session_id=session_id,
+                    seg_id=msg.segment_id,
+                    is_draft=True,
+                )
+                return
+
             logger.debug(
                 "translation_trigger",
                 session_id=session_id,
@@ -274,22 +287,9 @@ async def websocket_audio_stream(websocket: WebSocket):
                 is_draft=True,
             )
 
-            async def _draft_translate(sem, svc, seg_id, text, lang, tgt, spk, cfg):
-                """Draft translation with semaphore + timeout.
-
-                Atomic non-blocking acquire: try with timeout=0 to avoid TOCTOU
-                race between checking _value and calling acquire().
-                """
-                try:
-                    await asyncio.wait_for(sem.acquire(), timeout=0)
-                except asyncio.TimeoutError:
-                    logger.debug(
-                        "draft_translation_dropped",
-                        session_id=session_id,
-                        seg_id=seg_id,
-                        is_draft=True,
-                    )
-                    return
+            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg):
+                """Draft translation with lock + timeout."""
+                await lock.acquire()
                 try:
                     await asyncio.wait_for(
                         _translate_and_send(
@@ -314,11 +314,11 @@ async def websocket_audio_stream(websocket: WebSocket):
                         timeout_s=cfg.draft_timeout_s,
                     )
                 finally:
-                    sem.release()
+                    lock.release()
 
             task = asyncio.create_task(
                 _draft_translate(
-                    _draft_semaphore,
+                    _draft_lock,
                     translation_service,
                     msg.segment_id,
                     msg.text,
