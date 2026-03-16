@@ -1,0 +1,416 @@
+{
+  "language": "zh",
+  "target_language": "en",
+  "audio": "/Users/thomaspatane/GitHub/personal/livetranslate/modules/transcription-service/tests/fixtures/audio/meeting_zh.wav",
+  "timestamp": "20260315_195556",
+  "translation_model": "mlx-community/Qwen3-4B-4bit",
+  "vac_config": {
+    "prebuffer_s": 0.5,
+    "stride_s": 6.0,
+    "overlap_s": 1.5
+  },
+  "results": [
+    {
+      "language": "zh",
+      "target_language": "en",
+      "context_size": 0,
+      "audio_file": "/Users/thomaspatane/GitHub/personal/livetranslate/modules/transcription-service/tests/fixtures/audio/meeting_zh.wav",
+      "reference_transcription": "大家好，欢迎参加今天的会议。今天我们要讨论第三季度的销售报告。 好的，谢谢。根据数据显示，我们第三季度的总收入达到了两千五百万美元，比去年同期增长了百分之十五。 这个增长率非常不错。能详细说一下各个地区的表现吗？ 当然可以。亚太地区表现最好，增长了百分之二十二。北美地区增长了百分之十。欧洲地区基本持平。 我注意到人工智能产品的销售额增长特别快。这个趋势能持续吗？ 我们预计下个季度人工智能相关产品将继续保持强劲增长。客户对实时翻译和语音识别的需求越来越大。",
+      "reference_translation": "Hello everyone, welcome to today's meeting. Today we'll be discussing the third quarter sales report. Okay, thank you. According to the data, our total revenue for the third quarter reached twenty-five million dollars, an increase of fifteen percent compared to the same period last year. That growth rate is very impressive. Could you go into more detail about the performance in each region? Of course. The Asia-Pacific region performed the best, growing by twenty-two percent. North America grew by ten percent. Europe remained essentially flat. I noticed that sales of artificial intelligence products have been growing particularly fast. Can this trend continue? We expect that AI-related products will continue to maintain strong growth next quarter. Customer demand for real-time translation and speech recognition is increasing.",
+      "transcription_error_rate": 0.0947867298578199,
+      "transcription_metric": "cer",
+      "translation_bleu": 0.0123,
+      "ttft_s": 4.028041707999364,
+      "ttc_s": 9.562622124998597,
+      "transcription_latency_stats": {
+        "p50": 1.963,
+        "p90": 2.138,
+        "p95": 2.138,
+        "p99": 2.138,
+        "mean": 2.106,
+        "max": 4.028,
+        "samples": 10
+      },
+      "translation_latency_stats": {
+        "p50": 8.079,
+        "p90": 14.832,
+        "p95": 14.832,
+        "p99": 14.832,
+        "mean": 10.298,
+        "max": 26.239,
+        "samples": 10
+      },
+      "e2e_latency_stats": {
+        "p50": 9.906,
+        "p90": 16.928,
+        "p95": 16.928,
+        "p99": 16.928,
+        "mean": 12.404,
+        "max": 28.376,
+        "samples": 10
+      },
+      "segments": [
+        {
+          "index": 0,
+          "audio_end_wall_s": 0.00010645799920894206,
+          "transcription": "大家好",
+          "transcription_latency_s": 4.027928958996199,
+          "translation": "<think>\nOkay, the user wants me to translate \"大家好\" from Chinese to English. Let me start by breaking down the phrase. \"大家\" is a common Chinese term that translates to \"everyone\" or \"all of you.\" The word \"好\" usually means \"good\" or \"hello.\" So putting it together, \"大家好\" is a greeting that means \"Hello, everyone!\" or \"Hi, everyone!\" \n\nI need to make sure the translation is natural. In English, \"Hello, everyone!\" is the most straightforward and commonly used phrase. Alternatively, \"Hi, everyone!\" is also correct. But since \"大家好\" is a formal greeting, maybe \"Hello, everyone!\" is more appropriate here. \n\nWait, sometimes \"Hello, everyone!\" is used in both formal and informal contexts. But the original Chinese is pretty neutral. Let me check if there's a more precise translation. In some cases, \"Hello, everyone!\" is the standard translation. Alternatively, \"Hi, everyone!\" is also correct. \n\nI think the user just wants the direct translation. So \"Hello, everyone!\" is the correct answer. Let me confirm. Yes, \"大家好\" is commonly translated as \"Hello, everyone!\" So the answer should be that.\n</think>\n\nHello, everyone!",
+          "translation_latency_s": 5.534568417002447,
+          "e2e_latency_s": 9.562497375998646
+        },
+        {
+          "index": 1,
+          "audio_end_wall_s": 9.563177916003042,
+          "transcription": "大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告",
+          "transcription_latency_s": 1.9649862910009688,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese text to English. Let me read the original carefully. The text is: \"大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告\". \n\nFirst, I'll break it down. \"大家好\" is a common greeting, which translates to \"Hello everyone\" or \"Hello, everyone\". Then \"欢迎参加今天的会议\" is \"welcome to today's meeting\". Next, \"今天我们要讨论第三季度的销售报告\" – \"today, we will discuss the third quarter sales report\".\n\nI need to make sure the translation is natural. \"Hello everyone, welcome to today's meeting. Today, we will discuss the third quarter sales report.\" That sounds right. Let me check for any possible errors. \"第三季度\" is definitely \"third quarter\". \"销售报告\" is \"sales report\". The structure seems correct. No need for explanations, just the translation. Alright, that should be it.\n</think>\n\nHello everyone, welcome to today's meeting. Today, we will discuss the third quarter sales report.",
+          "translation_latency_s": 4.179644292002195,
+          "e2e_latency_s": 6.144630583003163
+        },
+        {
+          "index": 2,
+          "audio_end_wall_s": 15.70813870800339,
+          "transcription": "好的,谢谢根据数据显示,我们第三季度的总收入达到了2500",
+          "transcription_latency_s": 1.9346460410015425,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by reading the original text carefully. The sentence is: \"好的,谢谢根据数据显示,我们第三季度的总收入达到了2500\". \n\nFirst, I'll break it down. \"好的\" is \"Okay\" or \"Alright\". Then \"谢谢\" is \"Thank you\". Next part is \"根据数据显示\" which translates to \"According to the data shows\" or more naturally, \"Based on the data, it shows that...\". \n\nThe main part is \"我们第三季度的总收入达到了2500\". \"我们\" is \"we\", \"第三季度\" is \"the third quarter\", \"总收入\" is \"total revenue\", and \"达到了2500\" would be \"reached 2500\". But wait, 2500 is a number. Is it 2500 units? The original might be missing a unit, but since it's in the translation, I should keep it as is. \n\nPutting it all together: \"Okay, thank you. Based on the data, our total revenue for the third quarter reached 2500.\" \n\nWait, the original has \"谢谢\" after \"好的\". So maybe it's \"Okay, thank you. Based on the data, our total revenue for the third quarter reached 2500.\" \n\nBut let me check the structure again. The original is: 好的,谢谢根据数据显示,我们第三季度的总收入达到了2500. \n\nSo the structure is: Okay, thank you. According to the data, our total revenue for the third quarter reached 2500. \n\nBut maybe the \"谢谢\" is a bit out of place. Maybe it's \"Okay, thank you. Based on the data, our total revenue for the third quarter reached 2500.\" \n\nAlternatively, maybe the user is saying \"Okay, thank you. According to the data, our total revenue for the third quarter reached 2500.\" \n\nI think that's the correct translation. Let me make sure there are no typos. The number 2500 is in Chinese, so in English, it's 2500. The term \"total revenue\" is correct. \"Third quarter\" is correct. \n\nI think that's the accurate translation. The user might be presenting a report or a statement, so the translation should be formal and clear.\n</think>\n\nOkay, thank you. Based on the data, our total revenue for the third quarter reached 2500.",
+          "translation_latency_s": 10.013102749995596,
+          "e2e_latency_s": 11.947748790997139
+        },
+        {
+          "index": 3,
+          "audio_end_wall_s": 27.656200625002384,
+          "transcription": "收入达到了2500万美元,比去年同期增长了15%。",
+          "transcription_latency_s": 1.8269638339988887,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by reading the original text carefully. The sentence is: \"收入达到了2500万美元,比去年同期增长了15%。\" \n\nFirst, I'll break it down. \"收入\" is \"revenue\". \"达到了\" is \"reached\". Then \"2500万美元\" is \"25 million U.S. dollars\" or \"25 million USD\". The next part is \"比去年同期增长了15%\". \"比去年同期\" translates to \"compared to the same period last year\" or \"compared to last year's same period\". \"增长了15%\" is \"increased by 15%\".\n\nPutting it all together: \"Revenue reached 25 million U.S. dollars, an increase of 15% compared to the same period last year.\" Wait, but sometimes \"revenue reached\" can be followed by the figure, then the percentage increase. Maybe \"Revenue reached 25 million U.S. dollars, a 15% increase compared to the same period last year.\" That sounds more concise. Let me check if \"reached\" is the right verb here. Yes, because it's saying the revenue hit that figure. Also, \"compared to the same period last year\" is correct. Alternatively, \"compared to last year's same period\" is also correct. But \"the same period last year\" is more straightforward. \n\nI should make sure the numbers are correctly formatted. 2500万美元 is 25 million, so 25 million USD. The percentage is 15%. The structure is: Revenue reached X, a Y% increase compared to last year's same period. That should be accurate. Let me double-check the translation for any possible errors. Yes, that seems right. The user specified to output only the translation, no explanation, so I'll present that.\n</think>\n\nRevenue reached 25 million U.S. dollars, a 15% increase compared to the same period last year.",
+          "translation_latency_s": 8.078998832999787,
+          "e2e_latency_s": 9.905962666998676
+        },
+        {
+          "index": 4,
+          "audio_end_wall_s": 37.562473541001964,
+          "transcription": "这个增长率非常不错能详细说一下各个地区的表现吗当然可以",
+          "transcription_latency_s": 1.9634060830067028,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by reading the original text carefully.\n\nThe first part is \"这个增长率非常不错\". \"这个\" is \"this\", \"增长率\" is \"growth rate\", and \"非常不错\" translates to \"very good\" or \"quite nice\". So putting it together, it's something like \"This growth rate is very good\" or \"This growth rate is quite nice\".\n\nNext, \"能详细说一下各个地区的表现吗\". \"能详细说一下\" is \"can you elaborate\" or \"can you explain in detail\". \"各个地区\" is \"each region\" or \"various regions\". \"的表现\" is \"performance\" or \"results\". So this part might be \"Can you elaborate on the performance of each region?\" or \"Can you explain the performance of each region in detail?\"\n\nThen the last part is \"当然可以\". That's straightforward: \"Of course\" or \"Certainly\".\n\nPutting it all together, the translation should be natural. Maybe start with \"This growth rate is very good. Can you elaborate on the performance of each region? Of course.\" Alternatively, \"This growth rate is quite nice. Can you explain the performance of each region in detail? Of course.\"\n\nI need to make sure the translation is accurate and flows well in English. Also, the user specified to output only the translation, no explanation, so I have to be concise. Let me check again for any possible errors. \"各个地区\" is definitely \"each region\" or \"various regions\". \"表现\" here is about performance or results. The structure seems correct. Yeah, that should do it.\n</think>\n\nThis growth rate is very good. Can you elaborate on the performance of each region? Of course.",
+          "translation_latency_s": 6.870983958004217,
+          "e2e_latency_s": 8.83439004101092
+        },
+        {
+          "index": 5,
+          "audio_end_wall_s": 46.39719495800091,
+          "transcription": "当然可以亚太地区表现最好增长了22%北美地区增长了",
+          "transcription_latency_s": 2.0368298340035835,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me first read the original text carefully. The Chinese text is: \"当然可以亚太地区表现最好增长了22%北美地区增长了\". \n\nBreaking it down, the first part is \"当然可以\", which translates to \"Of course can\" or \"Certainly can\". But in the context of a report or data, maybe \"Certainly\" is better. Then \"亚太地区表现最好增长了22%\", which is \"Asia-Pacific region performed best with a 22% growth\". Wait, \"表现最好\" could be \"performed best\" or \"had the best performance\". Then \"北美地区增长了\" is \"North America region grew\".\n\nPutting it all together: \"Certainly, the Asia-Pacific region had the best performance with a 22% growth, while the North America region grew...\" But the original might be a bit more concise. Let me check the structure again. The original says \"亚太地区表现最好增长了22%北美地区增长了\". So maybe it's structured as \"The Asia-Pacific region had the best growth of 22%, while the North America region grew...\".\n\nWait, the original might have a structure where the first part is about the Asia-Pacific region having the best growth at 22%, and then the North America region's growth. But the original is a bit fragmented. Maybe the correct translation is: \"Certainly, the Asia-Pacific region had the best growth at 22%, while the North America region also saw growth.\" But the exact wording might need to be adjusted. Also, \"表现最好\" could be \"performed best\" or \"had the best performance\". \n\nAlternatively, the translation could be: \"Certainly, the Asia-Pacific region performed best with a 22% growth, while the North America region also experienced growth.\" But I need to make sure the numbers and regions are correctly translated. Also, the original seems to have a list of regions with their growth rates, so the translation should reflect that. \n\nAnother possible translation: \"Certainly, the Asia-Pacific region had the highest growth of 22%, while the North America region also saw growth.\" That seems accurate. I should check for any possible errors. The user said to output only the translation, no explanation, so I need to make sure the translation is correct and concise.\n</think>\n\nCertainly, the Asia-Pacific region had the highest growth of 22%, while the North America region also saw growth.",
+          "translation_latency_s": 9.633533665997675,
+          "e2e_latency_s": 11.670363500001258
+        },
+        {
+          "index": 6,
+          "audio_end_wall_s": 58.067905625001,
+          "transcription": "北美地区增长了10%欧洲地区基本持平",
+          "transcription_latency_s": 1.827800582999771,
+          "translation": "<think>\nOkay, the user wants me to translate the given Chinese text into English. Let me start by reading the original sentence carefully. The text is: \"北美地区增长了10%欧洲地区基本持平\". \n\nFirst, I need to break down each part. \"北美地区\" translates to \"North American region\" or more commonly, \"North America\". But in business contexts, \"North America\" is often used. Then \"增长了10%\" is straightforward: \"grew by 10%\". \n\nNext part: \"欧洲地区基本持平\". \"欧洲地区\" is \"Europe region\" or \"Europe\". \"基本持平\" means \"essentially flat\" or \"basically stable\". So putting that together, it would be \"Europe remained essentially stable\" or \"Europe's growth was basically stable\". \n\nNow, checking the structure. The original sentence has two parts, separated by a comma. In English, it's common to use \"while\" or \"whereas\" to contrast the two regions. So maybe \"North America grew by 10%, while Europe remained essentially stable.\" \n\nWait, the original uses \"增长了\" for North America and \"基本持平\" for Europe. So the translation should reflect that. Also, the term \"地区\" is translated as \"region\", but in some contexts, especially in business reports, \"region\" might be omitted if it's clear. However, since the original specifies \"地区\", it's better to include \"region\" for clarity.\n\nAnother point: \"基本持平\" could also be translated as \"remained flat\" or \"showed no significant change\". But \"essentially stable\" sounds more natural in a business context. \n\nLet me check if the numbers are correctly placed. The 10% is for North America, and Europe is \"basically flat\". So the translation should be: \"North America grew by 10%, while Europe remained essentially stable.\" \n\nAlternatively, \"North America's growth increased by 10%, while Europe's growth remained essentially flat.\" But the original says \"增长了10%\", which is \"grew by 10%\", so the first version is better. \n\nI think that's the accurate translation. Let me confirm once more. The original sentence is stating that North America's growth was 10%, and Europe's growth was flat. So the translation should be: \"North America grew by 10%, while Europe remained essentially stable.\" Yes, that's correct.\n</think>\n\nNorth America grew by 10%, while Europe remained essentially stable.",
+          "translation_latency_s": 9.894586542002799,
+          "e2e_latency_s": 11.72238712500257
+        },
+        {
+          "index": 7,
+          "audio_end_wall_s": 69.79065324999829,
+          "transcription": "我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?",
+          "transcription_latency_s": 2.0961880830000155,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence to English. Let me start by understanding the original text. The sentence is: \"我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?\" \n\nFirst, I'll break it down. The user is asking if the trend of rapid sales growth for AI products can continue. The key parts here are \"注意到\" which is \"notice\" or \"realize\", \"人工智能产品\" is \"AI products\", \"销售额增长特别快\" translates to \"sales growth is particularly fast\", and \"这个趋势能持续吗?\" is \"can this trend continue?\"\n\nPutting it together, the translation should be something like \"I notice whether the trend of rapid sales growth for AI products can continue?\" But maybe \"realize\" is better than \"notice\" here because the user is acknowledging a trend. Also, \"particularly fast\" might be better as \"particularly rapid\" to match the adverb form. \n\nWait, the original says \"特别快\", which is \"particularly fast\" or \"very fast\". But in the context of a trend, \"rapid\" might be more natural. So \"the trend of rapid sales growth for AI products can continue?\" \n\nBut the user's sentence structure is a question. So the correct translation would be \"I realize whether the trend of rapid sales growth for AI products can continue?\" Or maybe \"I notice whether the trend of rapid sales growth for AI products can continue?\" \n\nAlternatively, the user might be phrasing it as \"Can this trend of rapid sales growth for AI products continue?\" But the original starts with \"我注意到...\", which is \"I notice...\". So the translation should start with \"I notice whether...\" but in English, sometimes questions start with the verb. However, the user's sentence is a statement followed by a question. Wait, the original is a question. Let me check again.\n\nThe original sentence is a question: \"I notice whether the trend of rapid sales growth for AI products can continue?\" Or maybe \"I notice that the trend of rapid sales growth for AI products can continue?\" But the structure is more like \"I notice whether this trend can continue?\" \n\nAlternatively, the user might be asking if the trend can continue. So maybe \"I notice whether the trend of rapid sales growth for AI products can continue?\" \n\nBut perhaps a more natural phrasing in English would be \"Can the trend of rapid sales growth for AI products continue?\" But the original starts with \"I notice...\", so the translation should include that. \n\nSo the correct translation would be: \"I notice whether the trend of rapid sales growth for AI products can continue?\" \n\nAlternatively, maybe \"I wonder if the trend of rapid sales growth for AI products can continue?\" But the original uses \"注意到\", which is \"notice\" or \"realize\". \n\nAnother way: \"I realize whether the trend of rapid sales growth for AI products can continue?\" \n\nBut maybe the user is more likely to say \"I wonder if...\" but the original is \"注意到\", which is \"notice\". So the translation should be \"I notice whether the trend of rapid sales growth for AI products can continue?\" \n\nAlternatively, \"I notice that the trend of rapid sales will continue?\" But the original is a question about whether it can continue. \n\nI think the most accurate translation is: \"I notice whether the trend of rapid sales growth for AI products can continue?\" \n\nBut maybe \"I wonder if the trend of rapid sales growth for AI products can continue?\" is more natural. However, the user specified to translate the Chinese text directly, so \"注意到\" is \"notice\", so the translation should be as literal as possible. \n\nTherefore, the correct translation is: \"I notice whether the trend of rapid sales growth for AI products can continue?\"\n</think>\n\nI notice whether the trend of rapid sales growth for AI products can continue?",
+          "translation_latency_s": 14.831581958002062,
+          "e2e_latency_s": 16.927770041002077
+        },
+        {
+          "index": 8,
+          "audio_end_wall_s": 86.71866612500162,
+          "transcription": "我们预计下个季度人工智能相关产品将继续保持强劲增长客户",
+          "transcription_latency_s": 2.1376497079982073,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence to English. Let me read the original text again: \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\". Hmm, the structure here is a bit tricky. The main parts are \"我们预计\" which is \"we expect\", \"下个季度\" is \"next quarter\", \"人工智能相关产品\" is \"AI-related products\", \"将继续保持强劲增长\" is \"will continue to maintain strong growth\", and then \"客户\" is \"customers\". But wait, the sentence structure in Chinese might be a bit off. Let me check again.\n\nThe original sentence seems to be saying that they expect AI-related products to continue their strong growth in the next quarter, and the last part is \"客户\", which is \"customers\". But maybe the original sentence is missing a verb or a connection. Wait, maybe the original is \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" but that doesn't make sense. Or maybe the sentence is incomplete? Or perhaps the user made a typo? Let me think again.\n\nWait, the original text is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\". The last word is \"客户\", which is \"customers\". But the sentence structure is a bit unclear. Maybe it's supposed to be \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" but that seems incomplete. Alternatively, maybe the sentence is \"我们预计下个季度，人工智能相关产品将继续保持强劲增长，客户...\" but that still doesn't make sense. Wait, maybe the original is missing a part. Or maybe \"客户\" is part of the sentence, like \"客户增长\" but the user wrote \"客户\" at the end.\n\nAlternatively, maybe the sentence is supposed to be \"We expect that AI-related products will continue to maintain strong growth in the next quarter, customers...\" but that doesn't make sense. Maybe the original is a translation error. Let me try to parse it again. The user wrote: \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\". So, the structure is: \"We expect that in the next quarter, AI-related products will continue to maintain strong growth, customers...\" which is grammatically incorrect. Maybe it's supposed to be \"We expect that AI-related products will continue to maintain strong growth in the next quarter, and customers...\" but that's not correct either. Alternatively, maybe the original sentence is missing a verb, like \"客户增长\" (customer growth), but the user wrote \"客户\" at the end.\n\nAlternatively, maybe the original is a fragment, and the user intended to say that customers will see growth, but the translation is off. Alternatively, perhaps the correct translation is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, with customers...\" but that's speculative. Alternatively, maybe the original sentence is missing a part, and the user made a typo. For example, maybe it's supposed to be \"客户增长\" (customer growth), but the user wrote \"客户\".\n\nAlternatively, maybe the correct translation is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, customers...\" but that's not grammatically correct. Maybe the original Chinese is \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" which is a fragment. Maybe the user intended to say that customers will be the ones experiencing the growth, so maybe \"We expect that AI-related products will continue to maintain strong growth in the next quarter, with customers...\" but that's not clear.\n\nAlternatively, maybe the original sentence is missing a verb, and the user made a mistake. Maybe the correct translation is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, and customers...\" but that's not correct. Alternatively, maybe the correct translation is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, with customers...\" but that's not correct either.\n\nAlternatively, maybe the original is \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" which is a fragment. Maybe the user is trying to say that customers will be the ones benefiting from the growth, but the sentence is incomplete. In that case, the translation might need to be adjusted. However, given the information, the best possible translation would be: \"We expect that AI-related products will continue to maintain strong growth in the next quarter, customers...\" but that's not a complete sentence. Alternatively, maybe the original is missing a part, and the correct translation is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, and customers...\" but that's not correct. \n\nAlternatively, perhaps the original Chinese sentence is structured as \"我们预计下个季度，人工智能相关产品将继续保持强劲增长，客户...\" which is missing a verb. Maybe the intended sentence is \"We expect that in the next quarter, AI-related products will continue to maintain strong growth, and customers will...\" but the user only provided part of the sentence. \n\nGiven the ambiguity, but the user's instruction is to translate the given text as is, I'll proceed with the direct translation, even if the sentence is incomplete. So, translating the given text: \"We expect that in the next quarter, AI-related products will continue to maintain strong growth, customers...\" but that's not a proper sentence. Alternatively, maybe the original is a mistranslation, and the correct sentence is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, with customers...\" but that's still not correct. Alternatively, the original might have a typo, and the intended sentence is \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" which is missing a verb. \n\nGiven the user's instruction, I'll translate the given text as is, even if it's grammatically incorrect. So the translation would be: \"We expect that in the next quarter, AI-related products will continue to maintain strong growth, customers...\" but that's not a proper sentence. Alternatively, maybe the user intended \"客户\" to be part of the sentence, but it's unclear. \n\nAlternatively, perhaps the original is \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" which is a fragment, and the correct translation is \"We expect that AI-related products will continue to maintain strong growth in the next quarter, customers...\" but that's not a complete sentence. However, the user might have intended the translation to be \"We expect that AI-related products will continue to maintain strong growth in the next quarter, with customers...\" but that's speculative. \n\nIn any case, the user's instruction is to translate the given text, so I'll proceed with the direct translation, even if the sentence is incomplete.\n</think>\n\nWe expect that AI-related products will continue to maintain strong growth in the next quarter, customers...",
+          "translation_latency_s": 26.238516333003645,
+          "e2e_latency_s": 28.376166041001852
+        },
+        {
+          "index": 9,
+          "audio_end_wall_s": 124.04811858299945,
+          "transcription": "客户对实时翻译和语音识别的需求越来越大。",
+          "transcription_latency_s": 1.2485014170015347,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence to English. Let me start by understanding the original text. The sentence is: \"客户对实时翻译和语音识别的需求越来越大。\" \n\nFirst, I'll break it down. \"客户\" is \"customers\" or \"clients\". Then \"对...的需求\" is \"demand for...\". The next part is \"实时翻译\" which is \"real-time translation\" and \"语音识别\" is \"speech recognition\". The structure here is that the demand for these two technologies is increasing.\n\nSo putting it together: \"Customers' demand for real-time translation and speech recognition is growing.\" Wait, but the original says \"需求越来越大\", which is \"the demand is increasing\" or \"is getting larger\". Maybe \"is growing\" is more natural here. \n\nAlternatively, \"The demand from customers for real-time translation and speech recognition is increasing.\" But the original structure is \"客户对...的需求越来越大\", so the subject is \"the demand from customers for...\". \n\nAnother way could be \"Customers are increasingly demanding real-time translation and speech recognition.\" But the original uses \"需求越来越大\", which is more about the demand itself increasing. So maybe \"The demand for real-time translation and speech recognition is growing.\" But the original specifies \"客户\", so it's better to include \"customers\" in the translation. \n\nI think the most accurate translation would be \"The demand from customers for real-time translation and speech recognition is increasing.\" Or \"Customers' demand for real-time translation and speech recognition is growing.\" Either way, the key points are the demand from customers and the two technologies. \n\nI should check if \"real-time translation\" is the correct term. Yes, that's standard. \"Speech recognition\" is correct too. The sentence structure in Chinese is subject (需求) + predicate (越来越大), so the English should reflect that the demand is increasing. \n\nSo the final translation would be: \"Customers' demand for real-time translation and speech recognition is growing.\" Or maybe \"The demand from customers for real-time translation and speech recognition is increasing.\" Both are correct, but the first one is more concise. The user might prefer a direct translation. Let me confirm the structure again. The original is \"客户对...的需求越来越大\", which translates to \"The demand from customers for... is increasing.\" So the correct translation is \"The demand from customers for real-time translation and speech recognition is increasing.\" But maybe \"Customers' demand for real-time translation and speech recognition is growing.\" Both are correct, but the first one is more literal. However, in English, \"customers' demand\" is more natural. \n\nAlternatively, \"The demand for real-time translation and speech recognition from customers is increasing.\" But that's a bit wordy. The most straightforward is \"Customers' demand for real-time translation and speech recognition is growing.\" That captures the meaning accurately.\n</think>\n\nCustomers' demand for real-time translation and speech recognition is growing.",
+          "translation_latency_s": 7.704455625003902,
+          "e2e_latency_s": 8.952957042005437
+        }
+      ],
+      "segment_count": 10,
+      "hallucination_flag": false
+    },
+    {
+      "language": "zh",
+      "target_language": "en",
+      "context_size": 3,
+      "audio_file": "/Users/thomaspatane/GitHub/personal/livetranslate/modules/transcription-service/tests/fixtures/audio/meeting_zh.wav",
+      "reference_transcription": "大家好，欢迎参加今天的会议。今天我们要讨论第三季度的销售报告。 好的，谢谢。根据数据显示，我们第三季度的总收入达到了两千五百万美元，比去年同期增长了百分之十五。 这个增长率非常不错。能详细说一下各个地区的表现吗？ 当然可以。亚太地区表现最好，增长了百分之二十二。北美地区增长了百分之十。欧洲地区基本持平。 我注意到人工智能产品的销售额增长特别快。这个趋势能持续吗？ 我们预计下个季度人工智能相关产品将继续保持强劲增长。客户对实时翻译和语音识别的需求越来越大。",
+      "reference_translation": "Hello everyone, welcome to today's meeting. Today we'll be discussing the third quarter sales report. Okay, thank you. According to the data, our total revenue for the third quarter reached twenty-five million dollars, an increase of fifteen percent compared to the same period last year. That growth rate is very impressive. Could you go into more detail about the performance in each region? Of course. The Asia-Pacific region performed the best, growing by twenty-two percent. North America grew by ten percent. Europe remained essentially flat. I noticed that sales of artificial intelligence products have been growing particularly fast. Can this trend continue? We expect that AI-related products will continue to maintain strong growth next quarter. Customer demand for real-time translation and speech recognition is increasing.",
+      "transcription_error_rate": 0.0947867298578199,
+      "transcription_metric": "cer",
+      "translation_bleu": 0.0155,
+      "ttft_s": 0.9565444590043626,
+      "ttc_s": 4.2376168750051875,
+      "transcription_latency_stats": {
+        "p50": 1.32,
+        "p90": 1.4,
+        "p95": 1.4,
+        "p99": 1.4,
+        "mean": 1.287,
+        "max": 1.419,
+        "samples": 10
+      },
+      "translation_latency_stats": {
+        "p50": 6.393,
+        "p90": 9.065,
+        "p95": 9.065,
+        "p99": 9.065,
+        "mean": 7.033,
+        "max": 12.622,
+        "samples": 10
+      },
+      "e2e_latency_stats": {
+        "p50": 7.793,
+        "p90": 10.271,
+        "p95": 10.271,
+        "p99": 10.271,
+        "mean": 8.321,
+        "max": 14.041,
+        "samples": 10
+      },
+      "segments": [
+        {
+          "index": 0,
+          "audio_end_wall_s": 7.049999840091914e-05,
+          "transcription": "大家好",
+          "transcription_latency_s": 0.9564689170001657,
+          "translation": "<think>\nOkay, the user wants me to translate \"大家好\" from Chinese to English. Let me start by breaking down the phrase. \"大家\" is a common Chinese term that translates to \"everyone\" or \"all of you.\" The word \"好\" usually means \"good\" or \"hello.\" So putting it together, \"大家好\" is a greeting that means \"Hello, everyone\" or \"Hi, everyone.\"\n\nI need to make sure there's no nuance I'm missing. In Chinese, \"大家好\" is often used to greet a group of people, like in a classroom or a meeting. The equivalent in English would be \"Hello, everyone\" or \"Hi, everyone.\" I should check if there's a more formal or informal way to say it. Since the original is a general greeting, \"Hello, everyone\" is appropriate. \n\nWait, sometimes \"hello\" is used as a greeting, but \"hi\" is more casual. However, \"大家好\" is a bit more formal. Maybe \"Hello, everyone\" is better here. Let me confirm. Yes, in formal contexts, \"Hello, everyone\" is the standard translation. So the answer should be \"Hello, everyone.\"\n</think>\n\nHello, everyone.",
+          "translation_latency_s": 3.2810572089947527,
+          "e2e_latency_s": 4.237526125994918
+        },
+        {
+          "index": 1,
+          "audio_end_wall_s": 4.238110875005077,
+          "transcription": "大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告",
+          "transcription_latency_s": 1.3196030410035746,
+          "translation": "<think>\nOkay, let's tackle this translation. The user provided a Chinese sentence that needs to be translated into English. The original text is: \"大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告\". \n\nFirst, I'll break down the sentence. The first part is \"大家好\", which I know translates to \"Hello, everyone\" or \"Hi, everyone\". The next part is \"欢迎参加今天的会议\", which is \"Welcome to today's meeting\". Then there's \"今天我们要讨论第三季度的销售报告\", which should be \"Today, we will discuss the sales report for the third quarter\".\n\nNow, putting it all together. The structure in Chinese is a bit fragmented, with the two parts separated by a comma. In English, it's more natural to have a complete sentence. So, \"Hello, everyone. Welcome to today's meeting. Today, we will discuss the sales report for the third quarter.\" \n\nWait, but the original has \"今天我们要讨论\" which is \"Today, we will discuss\". However, in the Chinese sentence, the two parts are connected. Maybe it's better to combine them into a single sentence. Let me check the flow. \n\nAnother way could be: \"Hello, everyone. Welcome to today's meeting. Today, we will discuss the third-quarter sales report.\" That sounds more natural. The user might expect the translation to be concise and formal, suitable for a meeting. \n\nI should also check for any possible errors. \"第三季度\" is \"third quarter\", and \"销售报告\" is \"sales report\". The structure \"今天我们要讨论\" is correct as \"Today, we will discuss\". \n\nSo the final translation would be: \"Hello, everyone. Welcome to today's meeting. Today, we will discuss the third-quarter sales report.\" \n\nI need to make sure there are no typos and that the translation is accurate. Also, the user mentioned previous translations, so maybe they want a consistent style. Since the first part was \"Hello, everyone\", the translation here should follow that. \n\nYes, that seems correct. The answer should be the translated text without any extra explanations.\n</think>\n\nHello, everyone. Welcome to today's meeting. Today, we will discuss the third-quarter sales report.",
+          "translation_latency_s": 6.135904999995546,
+          "e2e_latency_s": 7.455508040999121
+        },
+        {
+          "index": 2,
+          "audio_end_wall_s": 11.693962959005148,
+          "transcription": "好的,谢谢根据数据显示,我们第三季度的总收入达到了2500",
+          "transcription_latency_s": 1.3460290000002715,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by looking at the text: \"好的,谢谢根据数据显示,我们第三季度的总收入达到了2500\". \n\nFirst, breaking it down. \"好的\" is \"Okay\" or \"Alright\". Then \"谢谢\" is \"Thank you\". Next part is \"根据数据显示\" which translates to \"According to the data\". Then \"我们第三季度的总收入达到了2500\" – \"our total revenue for the third quarter reached 2500\". \n\nWait, the numbers here. \"2500\" – is that 2500 units? Maybe it's 2500 million or something else? But since the original is in Chinese, the number is likely just 2500, so I'll keep it as is. \n\nPutting it all together: \"Okay, thank you. According to the data, our total revenue for the third quarter reached 2500.\" \n\nBut maybe \"2500\" should have a unit? The original might have a missing unit, but since it's not provided, I'll stick with the number as given. Also, the structure in Chinese uses a comma after \"谢谢\", which in English would be a period. So the translation should be: \"Okay, thank you. According to the data, our total revenue for the third quarter reached 2500.\" \n\nWait, but in the previous example, the user had \"大家好\" translated as \"Hello, everyone\". So maybe the user expects a more formal or concise translation. Let me check again. \n\n\"好的\" is \"Okay\", \"谢谢\" is \"Thank you\", \"根据数据显示\" is \"According to the data\", \"我们第三季度的总收入达到了2500\" is \"our total revenue for the third quarter reached 2500\". \n\nAnother way to phrase it: \"Okay, thank you. According to the data, our total revenue for the third quarter reached 2500.\" \n\nI think that's correct. The user might be expecting a direct translation without extra words. So the answer should be: \"Okay, thank you. According to the data, our total revenue for the third quarter reached 2500.\" \n\nBut wait, in the previous example, the user had \"大家好\" translated as \"Hello, everyone\", so maybe the structure here is similar. The user might want a concise translation. Let me make sure the numbers are correct. The original says \"2500\" which is probably 2500 in the unit, so no need to add \"million\" unless specified. \n\nYes, so the translation is accurate. The final answer is as above.\n</think>\n\nOkay, thank you. According to the data, our total revenue for the third quarter reached 2500.",
+          "translation_latency_s": 8.463989208001294,
+          "e2e_latency_s": 9.810018208001566
+        },
+        {
+          "index": 3,
+          "audio_end_wall_s": 21.504222750001645,
+          "transcription": "收入达到了2500万美元,比去年同期增长了15%。",
+          "transcription_latency_s": 1.2063407500027097,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"收入达到了2500万美元,比去年同期增长了15%。\" into English. Let me start by breaking down the sentence.\n\nFirst, \"收入达到了2500万美元\" – \"收入\" is \"revenue\", \"达到了\" is \"reached\", \"2500万美元\" is \"25 million USD\". So that part would be \"Revenue reached 25 million USD\".\n\nNext, \"比去年同期增长了15%\" – \"比去年同期\" is \"compared to last year's same period\", \"增长了15%\" is \"grew by 15%\". So combining those, it's \"grew by 15% compared to last year's same period\".\n\nPutting it all together: \"Revenue reached 25 million USD, growing by 15% compared to the same period last year.\"\n\nWait, but in the previous example, the user had \"2500\" translated as \"2500\", but here it's \"2500万美元\", which is 25 million USD. So I need to make sure the currency is specified. The original text includes \"万美元\", which is \"US dollars\". So the translation should be \"25 million USD\".\n\nAlso, the structure in Chinese uses a comma after the first part, so in English, it's appropriate to use a comma as well. The phrase \"grew by 15% compared to the same period last year\" is a common way to express year-over-year growth.\n\nI should check if \"grew by 15%\" is the correct phrasing. Yes, \"grew by 15%\" is correct. Alternatively, \"increased by 15%\" is also acceptable, but \"grew\" is more concise.\n\nSo the final translation is: \"Revenue reached 25 million USD, growing by 15% compared to the same period last year.\" \n\nWait, but the original Chinese uses \"比去年同期增长了15%\", which is \"grew by 15% compared to last year's same period\". The phrasing \"compared to the same period last year\" is more formal. However, in business contexts, \"compared to last year\" is also acceptable. \n\nAlternatively, \"compared to the same period last year\" is more precise. So the translation should be accurate. \n\nI think that's correct. The user might be expecting a direct translation without extra words, so the answer is as above.\n</think>\n\nRevenue reached 25 million USD, growing by 15% compared to the same period last year.",
+          "translation_latency_s": 9.064755457999127,
+          "e2e_latency_s": 10.271096208001836
+        },
+        {
+          "index": 4,
+          "audio_end_wall_s": 31.775645125002484,
+          "transcription": "这个增长率非常不错能详细说一下各个地区的表现吗当然可以",
+          "transcription_latency_s": 1.3456173749946174,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"这个增长率非常不错能详细说一下各个地区的表现吗当然可以\" into English. Let me break it down.\n\nFirst, \"这个增长率非常不错\" – \"这个\" is \"this\", \"增长率\" is \"growth rate\", \"非常不错\" is \"very good\" or \"quite impressive\". So the first part is \"This growth rate is very impressive\" or \"This growth rate is quite good\".\n\nNext, \"能详细说一下各个地区的表现吗\" – \"能详细说一下\" is \"can you elaborate on\", \"各个地区\" is \"each region\", \"的表现\" is \"performance\". So this part is \"Can you elaborate on the performance of each region?\" or \"Can you explain the performance of each region in detail?\"\n\nFinally, \"当然可以\" is \"Of course\" or \"Certainly\".\n\nPutting it all together, the translation should be smooth and natural. The first part is about the growth rate being good, then asking for details on regional performance, and the response is \"Of course\".\n\nSo the translation would be: \"This growth rate is quite impressive. Can you elaborate on the performance of each region? Of course.\" Or more concisely, \"This growth rate is impressive. Can you explain the performance of each region? Of course.\"\n\nI need to make sure the flow is correct. The user might be in a meeting or a discussion, so the translation should be formal but clear. Also, the structure in Chinese uses a comma, so in English, it's appropriate to use a comma as well. The response \"Of course\" is a common reply, so that's correct.\n\nI think that's the right translation.\n</think>\n\nThis growth rate is impressive. Can you explain the performance of each region? Of course.",
+          "translation_latency_s": 7.31374233400129,
+          "e2e_latency_s": 8.659359708995908
+        },
+        {
+          "index": 5,
+          "audio_end_wall_s": 40.43534708399966,
+          "transcription": "当然可以亚太地区表现最好增长了22%北美地区增长了",
+          "transcription_latency_s": 1.394582333996368,
+          "translation": "<think>\nOkay, the user provided a Chinese sentence and wants it translated into English. Let me start by understanding the sentence.\n\nThe sentence is: \"当然可以亚太地区表现最好增长了22%北美地区增长了\". \n\nBreaking it down:\n\n- \"当然可以\" translates to \"Of course\".\n- \"亚太地区\" is \"Asia-Pacific region\".\n- \"表现最好\" means \"performed best\" or \"had the best performance\".\n- \"增长了22%\" is \"grew by 22%\".\n- \"北美地区\" is \"North American region\".\n- \"增长了\" is \"grew\".\n\nPutting it together: \"Of course, the Asia-Pacific region performed best, growing by 22%, while the North American region grew.\"\n\nWait, the original sentence ends with \"增长了\" but doesn't specify the percentage for North America. So the translation should reflect that. The structure in Chinese uses a comma to separate the two parts, so in English, it's appropriate to use a comma as well. \n\nSo the correct translation would be: \"Of course, the Asia-Pacific region performed best, growing by 22%, while the North American region grew.\"\n\nI need to make sure the percentages are correctly placed. The original has \"增长了22%\" after the Asia-Pacific region, so the percentage applies to the Asia-Pacific region. The North American region's growth is mentioned without a percentage, so it's just \"grew\". \n\nTherefore, the final translation is accurate.\n</think>\n\nOf course, the Asia-Pacific region performed best, growing by 22%, while the North American region grew.",
+          "translation_latency_s": 6.935984458003077,
+          "e2e_latency_s": 8.330566791999445
+        },
+        {
+          "index": 6,
+          "audio_end_wall_s": 48.76631954200275,
+          "transcription": "北美地区增长了10%欧洲地区基本持平",
+          "transcription_latency_s": 1.2516939160050242,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"北美地区增长了10%欧洲地区基本持平\" into English. Let me start by breaking down each part.\n\nFirst, \"北美地区\" is \"North American region\". Then \"增长了10%\" translates to \"grew by 10%\". Next, \"欧洲地区\" is \"European region\". \"基本持平\" means \"essentially flat\" or \"remained roughly the same\".\n\nSo putting it together: \"North American region grew by 10%, while the European region remained roughly the same.\"\n\nI need to check the structure. The original uses a comma, so in English, it's appropriate to use a comma as well. The phrasing \"remained roughly the same\" is accurate for \"基本持平\". \n\nI should make sure the percentages are correctly associated with the regions. The first part is about the North American region's growth, and the second part is about the European region's stagnation. \n\nThe translation seems correct. No need for extra words. Just a straightforward translation.\n</think>\n\nNorth American region grew by 10%, while the European region remained roughly the same.",
+          "translation_latency_s": 5.017447999998694,
+          "e2e_latency_s": 6.2691419160037185
+        },
+        {
+          "index": 7,
+          "audio_end_wall_s": 55.0359175420017,
+          "transcription": "我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?",
+          "transcription_latency_s": 1.4002843750058673,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?\" into English. Let me start by breaking down the sentence.\n\nFirst, \"我注意到\" is \"I noticed\". Then \"人工智能产品的销售额\" is \"the sales of artificial intelligence products\". \"增长特别快\" translates to \"grew particularly fast\" or \"increased very rapidly\". The next part is \"这个趋势能持续吗?\" which is \"Can this trend continue?\" or \"Can this trend last?\"\n\nPutting it all together: \"I noticed that the sales of artificial intelligence products increased very rapidly. Can this trend continue?\"\n\nWait, the original sentence structure in Chinese is a bit different. The first part is \"我注意到人工智能产品的销售额增长特别快\", which is \"I noticed that the sales of artificial intelligence products grew particularly fast\". Then the question \"这个趋势能持续吗?\" is \"Can this trend continue?\" \n\nSo the correct translation would be: \"I noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?\" \n\nI should check if \"grew particularly fast\" is the best phrasing. Alternatively, \"increased very rapidly\" might be more natural. Also, \"this trend\" refers to the sales growth. \n\nAnother way to phrase it could be: \"I noticed that the sales of artificial intelligence products are increasing rapidly. Can this trend continue?\" But the original uses \"grew\" which is past tense, so maybe \"grew\" is better. \n\nSo the final translation is: \"I noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?\" \n\nI think that's accurate. The user might be asking about the sustainability of the growth trend in AI product sales. The translation captures both the observation and the question about the trend's continuation.\n</think>\n\nI noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?",
+          "translation_latency_s": 6.392955125003937,
+          "e2e_latency_s": 7.793239500009804
+        },
+        {
+          "index": 8,
+          "audio_end_wall_s": 62.82950933399843,
+          "transcription": "我们预计下个季度人工智能相关产品将继续保持强劲增长客户",
+          "transcription_latency_s": 1.4185254589974647,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\" into English. Let me start by breaking down the sentence.\n\nFirst, \"我们预计\" is \"We expect\" or \"We anticipate\". Then \"下个季度\" is \"next quarter\". \"人工智能相关产品\" translates to \"artificial intelligence-related products\". \"将继续保持强劲增长\" is \"will continue to maintain strong growth\". The last part is \"客户\", which is \"customers\".\n\nPutting it all together: \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter. Customers...\"\n\nWait, the original sentence ends with \"客户\", but that seems incomplete. Maybe it's a typo or missing part? Let me check again. The original text is \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\". The last word is \"客户\", which is \"customers\". But the structure doesn't make sense. Maybe it's supposed to be \"客户\" as the subject? Or maybe there's a missing word.\n\nAlternatively, perhaps the sentence is \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" which doesn't make sense. Maybe the original text has a mistake. Alternatively, maybe it's \"客户\" as a separate clause, but that's unclear.\n\nWait, maybe the original is \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" which would be \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" but that still doesn't make sense. Maybe the user intended to say \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, and customers...\" but that's speculative.\n\nAlternatively, maybe \"客户\" is part of the sentence, like \"客户\" is the subject, but that doesn't fit. Maybe the correct translation is \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, and customers...\" but that seems off. Alternatively, maybe the sentence is \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, and customers will...\" but the original text doesn't have that.\n\nAlternatively, maybe the original text is incomplete. The user might have intended to say \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, and customers will...\" but the last part is cut off. However, based on the given text, the translation would be \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" which is grammatically incorrect. \n\nAlternatively, maybe \"客户\" is part of the sentence, but in the original, it's a separate clause. Maybe the user made a mistake in the text. But since the user provided the text as is, I need to translate it as is. So the translation would be: \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" which is incomplete. But perhaps the user intended to have \"客户\" as the end, but it's unclear. \n\nAlternatively, maybe the sentence is \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" but that's not a complete sentence. Maybe the user intended to have \"客户\" as part of the sentence, but without more context, it's hard to say. However, the most accurate translation based on the given text is \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" but that's incomplete. Alternatively, maybe the last word is a typo, and the correct translation is \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers will...\" but again, that's speculative. \n\nGiven the ambiguity, I'll proceed with the translation as: \"We expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...\" but note that the last part is incomplete. However, since the user provided the text as is, I'll translate it as is.\n</think>\n\nWe expect that artificial intelligence-related products will continue to maintain strong growth in the next quarter, customers...",
+          "translation_latency_s": 12.622445250002784,
+          "e2e_latency_s": 14.040970709000248
+        },
+        {
+          "index": 9,
+          "audio_end_wall_s": 83.2087933340008,
+          "transcription": "客户对实时翻译和语音识别的需求越来越大。",
+          "transcription_latency_s": 1.2344497080048313,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"客户对实时翻译和语音识别的需求越来越大。\" into English. Let me start by breaking down the sentence.\n\nFirst, \"客户\" is \"customers\". Then \"对...的需求\" is \"demand for...\". \"实时翻译\" is \"real-time translation\". \"语音识别\" is \"speech recognition\". \"越来越大\" translates to \"is increasing\" or \"is growing larger\".\n\nPutting it all together: \"Customers' demand for real-time translation and speech recognition is increasing.\" \n\nWait, the structure in Chinese is \"客户对...的需求越来越大\", which is \"customers' demand for... is increasing\". So the correct translation should be \"Customers' demand for real-time translation and speech recognition is increasing.\"\n\nI should check if \"is increasing\" is the right verb here. Yes, \"is increasing\" accurately conveys the idea that the demand is growing. Also, \"real-time translation and speech recognition\" are the two technologies mentioned. The sentence structure is correct. So the translation is accurate.\n</think>\n\nCustomers' demand for real-time translation and speech recognition is increasing.",
+          "translation_latency_s": 5.103468624998641,
+          "e2e_latency_s": 6.337918333003472
+        }
+      ],
+      "segment_count": 10,
+      "hallucination_flag": false
+    },
+    {
+      "language": "zh",
+      "target_language": "en",
+      "context_size": 5,
+      "audio_file": "/Users/thomaspatane/GitHub/personal/livetranslate/modules/transcription-service/tests/fixtures/audio/meeting_zh.wav",
+      "reference_transcription": "大家好，欢迎参加今天的会议。今天我们要讨论第三季度的销售报告。 好的，谢谢。根据数据显示，我们第三季度的总收入达到了两千五百万美元，比去年同期增长了百分之十五。 这个增长率非常不错。能详细说一下各个地区的表现吗？ 当然可以。亚太地区表现最好，增长了百分之二十二。北美地区增长了百分之十。欧洲地区基本持平。 我注意到人工智能产品的销售额增长特别快。这个趋势能持续吗？ 我们预计下个季度人工智能相关产品将继续保持强劲增长。客户对实时翻译和语音识别的需求越来越大。",
+      "reference_translation": "Hello everyone, welcome to today's meeting. Today we'll be discussing the third quarter sales report. Okay, thank you. According to the data, our total revenue for the third quarter reached twenty-five million dollars, an increase of fifteen percent compared to the same period last year. That growth rate is very impressive. Could you go into more detail about the performance in each region? Of course. The Asia-Pacific region performed the best, growing by twenty-two percent. North America grew by ten percent. Europe remained essentially flat. I noticed that sales of artificial intelligence products have been growing particularly fast. Can this trend continue? We expect that AI-related products will continue to maintain strong growth next quarter. Customer demand for real-time translation and speech recognition is increasing.",
+      "transcription_error_rate": 0.0947867298578199,
+      "transcription_metric": "cer",
+      "translation_bleu": 0.012,
+      "ttft_s": 0.9349595000021509,
+      "ttc_s": 4.40866320799978,
+      "transcription_latency_stats": {
+        "p50": 1.298,
+        "p90": 1.415,
+        "p95": 1.415,
+        "p99": 1.415,
+        "mean": 1.283,
+        "max": 1.423,
+        "samples": 10
+      },
+      "translation_latency_stats": {
+        "p50": 7.248,
+        "p90": 9.279,
+        "p95": 9.279,
+        "p99": 9.279,
+        "mean": 8.031,
+        "max": 17.037,
+        "samples": 10
+      },
+      "e2e_latency_stats": {
+        "p50": 8.487,
+        "p90": 10.488,
+        "p95": 10.488,
+        "p99": 10.488,
+        "mean": 9.315,
+        "max": 18.46,
+        "samples": 10
+      },
+      "segments": [
+        {
+          "index": 0,
+          "audio_end_wall_s": 6.82500030961819e-05,
+          "transcription": "大家好",
+          "transcription_latency_s": 0.9348862920014653,
+          "translation": "<think>\nOkay, the user wants me to translate \"大家好\" from Chinese to English. Let me start by breaking down the phrase. \"大家\" is a common Chinese term that translates to \"everyone\" or \"all of you.\" The word \"好\" usually means \"good\" or \"hello.\" \n\nPutting them together, \"大家好\" is a standard greeting that's equivalent to \"Hello, everyone!\" or \"Hi, everyone.\" I should check if there's a more natural way to say this in English. Sometimes, \"Hello, everyone!\" is the most direct translation. Alternatively, \"Hi, everyone!\" is also correct. \n\nI need to make sure there's no cultural nuance I'm missing. In Chinese, this greeting is used in both formal and informal settings. The English equivalent should be straightforward. Maybe \"Hello, everyone!\" is the safest choice here. Let me confirm if there's any other possible translation. \n\nAnother thought: \"Hello, all of you!\" but that's a bit wordy. \"Hi, everyone!\" is concise and natural. The user specified to output only the translation, so I shouldn't add any extra explanations. \n\nTherefore, the translation should be \"Hello, everyone!\" or \"Hi, everyone!\" Both are correct, but \"Hello, everyone!\" is more formal, which might be appropriate for the context. I'll go with that.\n</think>\n\nHello, everyone!",
+          "translation_latency_s": 3.4736957080021966,
+          "e2e_latency_s": 4.408582000003662
+        },
+        {
+          "index": 1,
+          "audio_end_wall_s": 4.4089488750032615,
+          "transcription": "大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告",
+          "transcription_latency_s": 1.3133992079965537,
+          "translation": "<think>\nOkay, the user provided a Chinese sentence that needs to be translated into English. Let me start by breaking down the sentence.\n\nFirst part: \"大家好\" is a greeting, which I know translates to \"Hello, everyone!\" or \"Hi, everyone!\" as I thought earlier.\n\nNext part: \"欢迎参加今天的会议\" – \"欢迎\" is \"welcome\", \"参加\" is \"attend\", \"今天的会议\" is \"today's meeting\". So putting that together: \"Welcome to attend today's meeting\" but that sounds a bit awkward. Maybe \"Welcome to today's meeting\" is better. Wait, \"欢迎参加\" is more like \"Welcome to attend\" but in English, it's more natural to say \"Welcome to today's meeting\" or \"Welcome to attend today's meeting\".\n\nThen the next part: \"今天我们要讨论第三季度的销售报告\" – \"今天我们\" is \"today we\", \"要讨论\" is \"will discuss\" or \"are going to discuss\". \"第三季度的\" is \"third quarter's\", \"销售报告\" is \"sales report\". So the whole part would be \"Today, we will discuss the third quarter's sales report\" or \"Today, we will discuss the sales report for the third quarter.\"\n\nPutting it all together: \"Hello, everyone! Welcome to today's meeting. Today, we will discuss the third quarter's sales report.\"\n\nWait, but the original Chinese uses \"欢迎参加今天的会议\" which is \"Welcome to attend today's meeting\". Maybe \"Welcome to today's meeting\" is sufficient. Also, \"今天我们要讨论\" is \"Today, we will discuss\".\n\nSo the full translation would be: \"Hello, everyone! Welcome to today's meeting. Today, we will discuss the third quarter's sales report.\"\n\nI need to make sure the translation is accurate and natural. Let me check each part again.\n\n\"大家好\" → \"Hello, everyone!\" or \"Hi, everyone!\" – correct.\n\n\"欢迎参加今天的会议\" → \"Welcome to today's meeting\" – yes, that's natural.\n\n\"今天我们要讨论第三季度的销售报告\" → \"Today, we will discuss the third quarter's sales report\" – correct.\n\nAlternatively, \"Today, we will be discussing the sales report for the third quarter.\" But the original is more direct, so the first version is better.\n\nI think that's the correct translation. The user might be expecting a formal business context, so \"Welcome to today's meeting\" is appropriate. Also, the structure of the sentence is correct. No errors in grammar or vocabulary. So the final translation should be as above.\n</think>\n\nHello, everyone! Welcome to today's meeting. Today, we will discuss the third quarter's sales report.",
+          "translation_latency_s": 7.265406041995448,
+          "e2e_latency_s": 8.578805249992001
+        },
+        {
+          "index": 2,
+          "audio_end_wall_s": 12.988059791001433,
+          "transcription": "好的,谢谢根据数据显示,我们第三季度的总收入达到了2500",
+          "transcription_latency_s": 1.2975572919967817,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by looking at the text provided.\n\nThe first part is \"好的,谢谢\". \"好的\" is \"Okay\" or \"Alright\", and \"谢谢\" is \"Thank you\". So that would be \"Okay, thank you.\"\n\nNext part: \"根据数据显示\". \"根据\" is \"based on\", \"数据\" is \"data\", \"显示\" is \"show\" or \"indicates\". So this part translates to \"based on the data shows\" or more naturally, \"Based on the data, it shows\".\n\nThen \"我们第三季度的总收入达到了2500\". \"我们\" is \"we\", \"第三季度\" is \"third quarter\", \"的\" is possessive, \"总收入\" is \"total revenue\", \"达到了\" is \"reached\", and \"2500\" is \"2500\". So putting it together: \"Our total revenue for the third quarter reached 2500.\"\n\nWait, but the numbers might be in a specific currency. The original says \"2500\" but doesn't specify. However, the user might just want the translation as is. So \"2500\" is kept as is.\n\nPutting it all together: \"Okay, thank you. Based on the data, it shows that our total revenue for the third quarter reached 2500.\"\n\nBut maybe \"Based on the data, it shows that our total revenue for the third quarter reached 2500.\" is more concise. However, the original structure is \"好的,谢谢根据数据显示,我们第三季度的总收入达到了2500.\" So the translation would be \"Okay, thank you. Based on the data, it shows that our total revenue for the third quarter reached 2500.\"\n\nWait, but the original is a single sentence. Let me check the punctuation. The original has a comma after \"谢谢\", then \"根据数据显示\", then the rest. So the translation should maintain that flow.\n\nAlternatively, \"Okay, thank you. Based on the data, it shows that our total revenue for the third quarter reached 2500.\"\n\nBut maybe \"Based on the data, it shows that our total revenue for the third quarter reached 2500.\" is better as a single sentence. However, the user might have a specific structure in mind. The original starts with \"好的,谢谢\", so the translation should start with \"Okay, thank you.\"\n\nSo the final translation would be: \"Okay, thank you. Based on the data, it shows that our total revenue for the third quarter reached 2500.\"\n</think>\n\nOkay, thank you. Based on the data, it shows that our total revenue for the third quarter reached 2500.",
+          "translation_latency_s": 8.446516459000122,
+          "e2e_latency_s": 9.744073750996904
+        },
+        {
+          "index": 3,
+          "audio_end_wall_s": 22.732463332999032,
+          "transcription": "收入达到了2500万美元,比去年同期增长了15%。",
+          "transcription_latency_s": 1.2087457090019598,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by looking at the text provided.\n\nThe sentence is: \"收入达到了2500万美元,比去年同期增长了15%。\"\n\nBreaking it down:\n\n\"收入\" is \"revenue\". \n\n\"达到了\" is \"reached\".\n\n\"2500万美元\" is \"25 million USD\" or \"25 million dollars\". \n\n\"比去年同期增长了15%\" translates to \"grew by 15% compared to last year's same period\".\n\nPutting it all together: \"Revenue reached 25 million dollars, growing by 15% compared to the same period last year.\"\n\nWait, but the original uses \"2500万美元\", which is 25 million USD. The phrase \"比去年同期增长了15%\" is \"grew by 15% compared to the same period last year\".\n\nSo the translation should be accurate. Let me check if \"grew by\" is the right term here. Yes, \"grew by 15%\" is correct. Also, \"same period last year\" is a common way to refer to the previous year's same time.\n\nAlternatively, \"compared to last year's same period\" is also correct. But \"compared to the same period last year\" is more concise.\n\nSo the final translation would be: \"Revenue reached 25 million dollars, growing by 15% compared to the same period last year.\"\n\nBut the user might prefer a more concise version. Maybe \"Revenue reached 25 million dollars, a 15% increase compared to the same period last year.\"\n\nYes, that's better. Using \"a 15% increase\" is more natural in business contexts. So the translation would be: \"Revenue reached 25 million dollars, a 15% increase compared to the same period last year.\"\n\nI should make sure the numbers are correctly converted. 2500万美元 is 25 million USD. The phrase \"比去年同期增长了15%\" is \"grew by 15% compared to the same period last year\".\n\nTherefore, the correct translation is: \"Revenue reached 25 million dollars, a 15% increase compared to the same period last year.\"\n</think>\n\nRevenue reached 25 million dollars, a 15% increase compared to the same period last year.",
+          "translation_latency_s": 9.279123792002792,
+          "e2e_latency_s": 10.487869501004752
+        },
+        {
+          "index": 4,
+          "audio_end_wall_s": 33.22060587500164,
+          "transcription": "这个增长率非常不错能详细说一下各个地区的表现吗当然可以",
+          "transcription_latency_s": 1.4149962500014226,
+          "translation": "<think>\nOkay, the user provided a Chinese sentence that needs to be translated into English. Let me start by breaking down the text.\n\nThe first part is \"这个增长率非常不错\". \"这个\" is \"this\", \"增长率\" is \"growth rate\", \"非常\" is \"very\", \"不错\" is \"good\" or \"not bad\". So this translates to \"This growth rate is very good\" or \"This growth rate is quite good.\"\n\nNext, \"能详细说一下各个地区的表现吗\" – \"能详细说一下\" is \"can you elaborate on\", \"各个地区\" is \"each region\", \"的表现\" is \"performance\". So this part is \"Can you elaborate on the performance of each region?\"\n\nThen \"当然可以\" is \"Of course.\"\n\nPutting it all together: \"This growth rate is very good. Can you elaborate on the performance of each region? Of course.\"\n\nBut let me check if there's a more natural way to phrase it. \"This growth rate is quite good.\" might be better. Also, \"Can you please elaborate on the performance of each region? Of course.\" sounds more formal and polite, which is appropriate for a business context.\n\nSo the final translation would be: \"This growth rate is quite good. Can you please elaborate on the performance of each region? Of course.\"",
+          "translation_latency_s": 6.37189058399963,
+          "e2e_latency_s": 7.786886834001052
+        },
+        {
+          "index": 5,
+          "audio_end_wall_s": 41.0078773330024,
+          "transcription": "当然可以亚太地区表现最好增长了22%北美地区增长了",
+          "transcription_latency_s": 1.3974689579990809,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by looking at the text provided.\n\nThe sentence is: \"当然可以亚太地区表现最好增长了22%北美地区增长了\"\n\nBreaking it down:\n\n\"当然可以\" is \"Of course.\"\n\n\"亚太地区\" is \"Asia-Pacific region.\"\n\n\"表现最好\" is \"performed best.\"\n\n\"增长了22%\" is \"grew by 22%.\"\n\n\"北美地区\" is \"North American region.\"\n\n\"增长了\" is \"grew.\"\n\nSo putting it all together: \"Of course, the Asia-Pacific region performed best, growing by 22%, while the North American region grew.\"\n\nWait, but the original structure is \"当然可以亚太地区表现最好增长了22%北美地区增长了\". The translation should be structured as: \"Of course, the Asia-Pacific region performed best, growing by 22%, while the North American region grew.\"\n\nBut maybe \"while\" is not necessary. The original might be saying that the Asia-Pacific region grew by 22%, and the North American region also grew. So the translation should be: \"Of course, the Asia-Pacific region performed best, growing by 22%, while the North American region also grew.\"\n\nAlternatively, \"Of course, the Asia-Pacific region performed best, growing by 22%, while the North American region grew.\"\n\nI need to make sure the numbers and regions are correctly translated. \"亚太地区\" is \"Asia-Pacific region\", \"北美地区\" is \"North American region\". The growth percentages are correctly converted. The structure of the sentence is correct. So the final translation should be as above.\n</think>\n\nOf course, the Asia-Pacific region performed best, growing by 22%, while the North American region also grew.",
+          "translation_latency_s": 8.073111208999762,
+          "e2e_latency_s": 9.470580166998843
+        },
+        {
+          "index": 6,
+          "audio_end_wall_s": 50.47873504099698,
+          "transcription": "北美地区增长了10%欧洲地区基本持平",
+          "transcription_latency_s": 1.2039347500031,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese text \"北美地区增长了10%欧洲地区基本持平\" into English. Let me break this down.\n\nFirst, \"北美地区\" is \"North American region\". Then \"增长了10%\" translates to \"grew by 10%\". Next, \"欧洲地区\" is \"European region\". \"基本持平\" means \"remained roughly the same\" or \"was basically flat\".\n\nPutting it all together: \"The North American region grew by 10%, while the European region remained roughly the same.\"\n\nI need to check if the structure is correct. The original sentence uses \"增长了\" for North America and \"基本持平\" for Europe. So the translation should compare the two regions. Using \"while\" to contrast them is appropriate. The numbers are correctly translated. The phrase \"remained roughly the same\" is natural. Alternatively, \"was basically flat\" could be used, but \"remained roughly the same\" is more concise. So the final translation should be accurate and natural.\n</think>\n\nThe North American region grew by 10%, while the European region remained roughly the same.",
+          "translation_latency_s": 6.341710166001576,
+          "e2e_latency_s": 7.545644916004676
+        },
+        {
+          "index": 7,
+          "audio_end_wall_s": 58.02482441600296,
+          "transcription": "我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?",
+          "transcription_latency_s": 1.3998366669984534,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me start by looking at the text.\n\nThe sentence is: \"我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?\"\n\nBreaking it down:\n\n\"我注意到\" is \"I noticed\".\n\n\"人工智能产品\" is \"artificial intelligence products\".\n\n\"的销售额\" is \"sales\".\n\n\"增长特别快\" is \"grew particularly fast\".\n\n\"这个趋势能持续吗?\" is \"Can this trend continue?\"\n\nPutting it all together: \"I noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?\"\n\nBut the original sentence structure is a bit different. The Chinese sentence is a single sentence, so the translation should flow naturally. Let me check the structure again.\n\nThe first part: \"我注意到人工智能产品的销售额增长特别快\" – \"I noticed that the sales of artificial intelligence products grew particularly fast.\"\n\nThe second part: \"这个趋势能持续吗?\" – \"Can this trend continue?\"\n\nSo the full translation would be: \"I noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?\"\n\nAlternatively, to make it more concise: \"I noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?\"\n\nYes, that's accurate. The user might be asking about the sustainability of the growth trend in AI product sales. The translation should be clear and direct.\n</think>\n\nI noticed that the sales of artificial intelligence products grew particularly fast. Can this trend continue?",
+          "translation_latency_s": 6.777073000004748,
+          "e2e_latency_s": 8.176909667003201
+        },
+        {
+          "index": 8,
+          "audio_end_wall_s": 66.20217591599794,
+          "transcription": "我们预计下个季度人工智能相关产品将继续保持强劲增长客户",
+          "transcription_latency_s": 1.4229017079996993,
+          "translation": "<think>\nOkay, the user wants me to translate a Chinese sentence into English. Let me look at the text they provided.\n\nThe sentence is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\"\n\nFirst, I need to parse this. The structure seems to be: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth clients.\" Wait, that doesn't make sense. The last part \"客户\" is \"clients\" but it's placed at the end, which might be a mistake.\n\nWait, maybe the original text is split into two parts. The user might have intended: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户...\" but the second part is cut off. Alternatively, maybe the sentence is: \"我们预计下个季度，人工智能相关产品将继续保持强劲增长，客户...\" but that still doesn't make sense.\n\nAlternatively, maybe the correct translation is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients...\" but that's incomplete. Wait, perhaps the original sentence is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户需求将增加。\" But the user only provided the first part.\n\nWait, the user's input is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\". The last word is \"客户\", which is \"clients\". So the sentence is probably: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...\" but that's not a complete sentence. Maybe there's a typo or missing words.\n\nAlternatively, maybe the intended sentence is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients will...\" but the user only provided the first part.\n\nAlternatively, maybe the correct translation is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients will...\" but the user's input ends with \"客户\".\n\nWait, perhaps the original sentence is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户的需求将增加。\" which translates to \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients' demand will increase.\"\n\nBut the user's input is cut off. However, the user's instruction says to translate the given text, which is \"我们预计下个季度人工智能相关产品将继续保持强劲增长客户\". The last word is \"客户\", so the translation would be: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...\"\n\nBut that's incomplete. Alternatively, maybe the original sentence is missing a part, but the user provided the text as is. So the translation would be: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...\"\n\nBut that doesn't make sense. Maybe the correct translation is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients will...\" but the user's input doesn't have the rest. Alternatively, maybe the sentence is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients will...\" but the user's input ends at \"客户\".\n\nAlternatively, maybe the user made a typo, and the correct sentence is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户的需求将增加。\" which would translate to \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients' demand will increase.\"\n\nBut since the user provided only the first part, I'll translate the given text as: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...\"\n\nBut that seems incomplete. Maybe the user intended to write: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户的需求将增加。\" and the last part is missing. Alternatively, the user might have a typo and the correct sentence is: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户将增加。\" which would be \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients will increase.\" But that doesn't make sense.\n\nAlternatively, maybe the correct translation is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients will...\" but without the rest, it's incomplete.\n\nGiven the user's input, the translation is: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...\"\n\nBut that's not a complete sentence. Maybe the user intended to write: \"我们预计下个季度人工智能相关产品将继续保持强劲增长，客户的需求将增加。\" which would be: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, and clients' demand will increase.\"\n\nBut the user's input is cut off. However, since the user provided the text as is, I'll translate it as: \"We expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...\"\n</think>\n\nWe expect that the next quarter's artificial intelligence-related products will continue to maintain strong growth, clients...",
+          "translation_latency_s": 17.03702491599688,
+          "e2e_latency_s": 18.45992662399658
+        },
+        {
+          "index": 9,
+          "audio_end_wall_s": 93.1498900000006,
+          "transcription": "客户对实时翻译和语音识别的需求越来越大。",
+          "transcription_latency_s": 1.2390178749992629,
+          "translation": "<think>\nOkay, the user wants me to translate the Chinese sentence \"客户对实时翻译和语音识别的需求越来越大。\" into English. Let me start by breaking down the sentence.\n\nFirst, \"客户\" is \"customers\" or \"clients\". Then \"对...的需求\" is \"demand for...\". The next part is \"实时翻译\" which is \"real-time translation\" and \"语音识别\" is \"voice recognition\". The last part \"的需求越来越大\" translates to \"demand is increasing\" or \"is growing\".\n\nPutting it all together: \"Customers' demand for real-time translation and voice recognition is increasing.\" Alternatively, \"The demand from customers for real-time translation and voice recognition is growing.\"\n\nI need to make sure the structure is correct. The sentence structure in Chinese is subject + object, so \"客户\" is the subject, followed by the demand for two technologies. The phrase \"需求越来越大\" is the key part, which indicates an increasing trend.\n\nAnother way to phrase it could be \"The demand for real-time translation and voice recognition from customers is on the rise.\" But the most straightforward translation would be \"Customers' demand for real-time translation and voice recognition is increasing.\"\n\nI should check if \"real-time translation\" and \"voice recognition\" are the correct terms. Yes, those are standard terms. The sentence is clear and natural in English. So the final translation should be accurate and convey the increasing demand.\n</think>\n\nCustomers' demand for real-time translation and voice recognition is increasing.",
+          "translation_latency_s": 7.248347583998111,
+          "e2e_latency_s": 8.487365458997374
+        }
+      ],
+      "segment_count": 10,
+      "hallucination_flag": false
+    }
+  ]
+}

@@ -6,14 +6,29 @@ import { configApi } from '$lib/api/config';
 export const load: PageServerLoad = async ({ fetch }) => {
 	const ff = firefliesApi(fetch);
 	const cfg = configApi(fetch);
-	const [translationConfig, uiConfig, translationModels, translationHealth] =
+	const [translationConfig, uiConfig, translationModels, translationHealth, activePromptRes] =
 		await Promise.all([
 			ff.getTranslationConfig().catch(() => null),
 			cfg.getUiConfig().catch(() => null),
 			cfg.getTranslationModels().catch(() => null),
-			cfg.getTranslationHealth().catch(() => null)
+			cfg.getTranslationHealth().catch(() => null),
+			// Try to load the active prompt from server
+			(async () => {
+				try {
+					const api = configApi(fetch);
+					const res = await api.getPrompts();
+					const prompts = res?.prompts ?? [];
+					const active = (prompts as any[]).find(
+						(p: any) => p.id === 'active_translation' && p.is_active
+					);
+					if (active) {
+						return { template: active.template, style: active.metadata?.style ?? 'simple' };
+					}
+				} catch { /* server unavailable */ }
+				return null;
+			})(),
 		]);
-	return { translationConfig, uiConfig, translationModels, translationHealth };
+	return { translationConfig, uiConfig, translationModels, translationHealth, activePrompt: activePromptRes };
 };
 
 export const actions: Actions = {

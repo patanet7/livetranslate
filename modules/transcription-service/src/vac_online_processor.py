@@ -893,7 +893,7 @@ class VACOnlineProcessor:
         overlap_s: float = 0.5,
         stride_s: float = 4.5,
         sampling_rate: int = 16_000,
-        rms_threshold: float = 0.005,
+        rms_threshold: float = 0.0003,
     ) -> None:
         self.prebuffer_s = prebuffer_s
         self.overlap_s = overlap_s
@@ -947,14 +947,14 @@ class VACOnlineProcessor:
         - Before the first inference: fires once ``prebuffer_s`` has been fed.
         - After the first inference: fires once ``stride_s`` of *new* audio
           has accumulated since the previous inference.
-        - Suppressed if the new audio is pure silence (RMS < threshold).
+
+        Note: speech gating removed — Whisper's own no_speech_prob filter
+        (checked after inference) is more reliable than RMS energy on
+        downsampled browser audio where levels can be very low.
         """
         if not self._first_inference_done:
-            if self._buffer_samples < self._prebuffer_samples:
-                return False
-        elif self._new_samples_since_inference < self._stride_samples:
-            return False
-        return self._has_speech()
+            return self._buffer_samples >= self._prebuffer_samples
+        return self._new_samples_since_inference >= self._stride_samples
 
     def _has_speech(self, rms_threshold: float | None = None) -> bool:
         """Check if recent audio contains speech (RMS energy above threshold).
@@ -1014,6 +1014,29 @@ class VACOnlineProcessor:
         self._new_samples_since_inference = 0
         self._first_inference_done = True
 
+        return audio
+
+    def ready_for_draft(self) -> bool:
+        """Return True when enough new audio has accumulated for a draft inference.
+
+        Fires at stride/2 of new audio (half the full stride), but only after
+        the first inference has completed.
+        """
+        if not self._first_inference_done:
+            return False
+        draft_threshold = self._stride_samples // 2
+        return self._new_samples_since_inference >= draft_threshold
+
+    def get_inference_audio_snapshot(self) -> np.ndarray:
+        """Return audio snapshot WITHOUT consuming buffer. For draft passes.
+
+        Unlike get_inference_audio(), this does NOT reset the buffer or the
+        new-audio counter. The buffer remains intact so the final pass can
+        consume it later with get_inference_audio().
+        """
+        audio = np.concatenate(list(self._buffer), axis=0) if self._buffer else np.array([], dtype=np.float32)
+        if len(audio) > 30 * self.SAMPLING_RATE:
+            audio = audio[-30 * self.SAMPLING_RATE:]
         return audio
 
     # ------------------------------------------------------------------

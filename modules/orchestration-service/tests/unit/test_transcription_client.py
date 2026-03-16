@@ -432,7 +432,7 @@ class TestReconnectOnConnectionLost:
         # First connect drops immediately; reconnect succeeds with a blocking ws.
         call_count = 0
 
-        async def fake_connect(url):
+        async def fake_connect(url, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -476,7 +476,7 @@ class TestReconnectOnConnectionLost:
 
         call_count = 0
 
-        async def always_fail(url):
+        async def always_fail(url, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -499,7 +499,7 @@ class TestReconnectOnConnectionLost:
         """When close() is called, ConnectionClosed should not trigger reconnect."""
         connect_count = 0
 
-        async def counting_connect(url):
+        async def counting_connect(url, **kwargs):
             nonlocal connect_count
             connect_count += 1
             return _BlockingWs()

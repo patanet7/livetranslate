@@ -11,7 +11,10 @@
 
 	let { data } = $props();
 
-	let searchQuery = $state(data.query ?? '');
+	let searchQuery = $state('');
+
+	// Sync from server load data
+	$effect(() => { searchQuery = data.query ?? ''; });
 	let statusFilter = $state<'all' | 'live' | 'completed'>('all');
 
 	// Sync All state

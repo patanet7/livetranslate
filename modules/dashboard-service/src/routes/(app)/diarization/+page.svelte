@@ -15,12 +15,12 @@
 
 	// ── Jobs State ─────────────────────────────────────────────────────
 
-	let jobs = $state<DiarizationJob[]>(data.jobs);
+	let jobs = $state<DiarizationJob[]>([]);
 	let cancellingJobId = $state<string | null>(null);
 
 	// ── Speakers State ─────────────────────────────────────────────────
 
-	let speakers = $state<SpeakerProfile[]>(data.speakers);
+	let speakers = $state<SpeakerProfile[]>([]);
 	let showAddSpeaker = $state(false);
 	let newSpeakerName = $state('');
 	let newSpeakerEmail = $state('');
@@ -28,11 +28,20 @@
 
 	// ── Rules State ────────────────────────────────────────────────────
 
-	let rulesEnabled = $state(data.rules.enabled);
-	let participantPatterns = $state(data.rules.participant_patterns.join(', '));
-	let titlePatterns = $state(data.rules.title_patterns.join(', '));
-	let minDurationMinutes = $state(data.rules.min_duration_minutes);
-	let excludeEmpty = $state(data.rules.exclude_empty);
+	let rulesEnabled = $state(false);
+	let participantPatterns = $state('');
+	let titlePatterns = $state('');
+	let minDurationMinutes = $state(0);
+	let excludeEmpty = $state(false);
+
+	// Sync from server load data
+	$effect(() => { jobs = data.jobs; });
+	$effect(() => { speakers = data.speakers; });
+	$effect(() => { rulesEnabled = data.rules.enabled; });
+	$effect(() => { participantPatterns = data.rules.participant_patterns.join(', '); });
+	$effect(() => { titlePatterns = data.rules.title_patterns.join(', '); });
+	$effect(() => { minDurationMinutes = data.rules.min_duration_minutes; });
+	$effect(() => { excludeEmpty = data.rules.exclude_empty; });
 	let savingRules = $state(false);
 
 	// ── Helpers ────────────────────────────────────────────────────────
@@ -79,7 +88,7 @@
 			const res = await fetch(`/api/diarization/jobs/${id}/cancel`, { method: 'POST' });
 			if (res.ok) {
 				toastStore.success('Job cancelled');
-				jobs = jobs.map((j) => (j.id === id ? { ...j, status: 'cancelled' as const } : j));
+				jobs = jobs.map((j) => (j.job_id === id ? { ...j, status: 'cancelled' as const } : j));
 			} else {
 				const body = await res.json().catch(() => null);
 				toastStore.error(body?.detail ?? 'Failed to cancel job');
@@ -209,7 +218,7 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y">
-									{#each jobs as job (job.id)}
+									{#each jobs as job (job.job_id)}
 										<tr class="hover:bg-muted/40 transition-colors">
 											<td class="py-3 pr-4 font-mono text-xs">
 												{job.meeting_id}
@@ -227,20 +236,20 @@
 												{job.triggered_by}
 											</td>
 											<td class="py-3 pr-4 text-muted-foreground">
-												{job.speakers_detected ?? '—'}
+												{job.num_speakers_detected ?? '—'}
 											</td>
 											<td class="py-3 pr-4 text-muted-foreground whitespace-nowrap">
-												{formatDate(job.created_at)}
+												{formatDate(job.created_at ?? '')}
 											</td>
 											<td class="py-3">
 												{#if job.status === 'queued'}
 													<Button
 														variant="outline"
 														size="sm"
-														disabled={cancellingJobId === job.id}
-														onclick={() => cancelJob(job.id)}
+														disabled={cancellingJobId === job.job_id}
+														onclick={() => cancelJob(job.job_id)}
 													>
-														{cancellingJobId === job.id ? 'Cancelling...' : 'Cancel'}
+														{cancellingJobId === job.job_id ? 'Cancelling...' : 'Cancel'}
 													</Button>
 												{/if}
 											</td>
@@ -341,7 +350,7 @@
 												{speaker.email ?? '—'}
 											</td>
 											<td class="py-3 pr-4">
-												<Badge variant="outline">{speaker.source}</Badge>
+												<Badge variant="outline">{speaker.enrollment_source}</Badge>
 											</td>
 											<td class="py-3 text-muted-foreground">{speaker.sample_count}</td>
 										</tr>
@@ -380,6 +389,7 @@
 							<button
 								type="button"
 								role="switch"
+								aria-label="Auto-trigger enabled"
 								aria-checked={rulesEnabled}
 								onclick={() => {
 									rulesEnabled = !rulesEnabled;

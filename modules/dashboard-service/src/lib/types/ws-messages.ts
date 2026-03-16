@@ -58,6 +58,7 @@ export interface SegmentMessage {
   stable_text: string;
   unstable_text: string;
   is_final: boolean;
+  is_draft: boolean;
   speaker_id: string | null;
   start_ms: number | null;
   end_ms: number | null;
@@ -67,6 +68,14 @@ export interface InterimMessage {
   type: 'interim';
   text: string;
   confidence: number;
+}
+
+export interface TranslationChunkMessage {
+  type: 'translation_chunk';
+  transcript_id: number;
+  delta: string;
+  source_lang: string;
+  target_lang: string;
 }
 
 export interface TranslationMessage {
@@ -111,25 +120,33 @@ export interface BackendSwitchedMessage {
   language: string;
 }
 
+export interface ErrorMessage {
+  type: 'error';
+  message: string;
+  recoverable: boolean;
+}
+
 export type ServerMessage =
   | ConnectedMessage
   | SegmentMessage
   | InterimMessage
+  | TranslationChunkMessage
   | TranslationMessage
   | MeetingStartedMessage
   | RecordingStatusMessage
   | ServiceStatusMessage
   | LanguageDetectedMessage
-  | BackendSwitchedMessage;
+  | BackendSwitchedMessage
+  | ErrorMessage;
 
 export function parseServerMessage(raw: string): ServerMessage | null {
   try {
     const data = JSON.parse(raw);
     if (!data || typeof data.type !== 'string') return null;
     const knownTypes = [
-      'connected', 'segment', 'interim', 'translation',
+      'connected', 'segment', 'interim', 'translation', 'translation_chunk',
       'meeting_started', 'recording_status', 'service_status',
-      'language_detected', 'backend_switched',
+      'language_detected', 'backend_switched', 'error',
     ];
     if (!knownTypes.includes(data.type)) return null;
     // Unsafe cast: validates `type` discriminant only, not field presence/types.

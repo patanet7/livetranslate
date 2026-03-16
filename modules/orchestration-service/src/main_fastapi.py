@@ -10,6 +10,7 @@ and improved performance over the legacy Flask implementation.
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -24,7 +25,11 @@ load_dotenv()
 
 from livetranslate_common.logging import get_logger, setup_logging
 
-setup_logging(service_name="orchestration")
+setup_logging(
+    service_name="orchestration",
+    log_level=os.environ.get("LOG_LEVEL", "INFO"),
+    log_format=os.environ.get("LOG_FORMAT", "dev"),
+)
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware

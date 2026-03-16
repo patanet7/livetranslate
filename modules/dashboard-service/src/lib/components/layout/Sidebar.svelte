@@ -120,6 +120,7 @@
 	<nav class="flex-1 p-2 space-y-1 overflow-y-auto">
 		{#each navItems as item}
 			{@const parentActive = isParentActive(item)}
+			{@const Icon = item.icon}
 			<a
 				href={item.children ? item.children[0].href : item.href}
 				aria-current={parentActive ? 'page' : undefined}
@@ -129,7 +130,7 @@
 					: 'text-muted-foreground hover:bg-accent/50'}"
 				onclick={handleNavClick}
 			>
-				<svelte:component this={item.icon} class="size-4 shrink-0" />
+				<Icon class="size-4 shrink-0" />
 				<span class="truncate">{item.label}</span>
 				{#if item.children}
 					<ChevronRightIcon

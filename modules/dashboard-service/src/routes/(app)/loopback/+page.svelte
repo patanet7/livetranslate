@@ -6,6 +6,8 @@
   import { LoopbackWebSocket } from '$lib/audio/websocket';
   import type { ServerMessage } from '$lib/types/ws-messages';
   import { WS_BASE } from '$lib/config';
+  import { runDemo, type DemoHandle } from '$lib/loopback/demo-script';
+  import { startHealthPoller, type HealthPollerHandle } from '$lib/loopback/health-poller';
   import Toolbar from '$lib/components/loopback/Toolbar.svelte';
   import SplitView from '$lib/components/loopback/SplitView.svelte';
   import SubtitleView from '$lib/components/loopback/SubtitleView.svelte';
@@ -15,9 +17,14 @@
   let selectedDeviceId = $state('');
   let elapsedTime = $state('00:00:00');
   let elapsedTimerInterval: ReturnType<typeof setInterval> | null = null;
+  let captureError = $state<string | null>(null);
+  let audioLevel = $state(0);
+  let demoHandle = $state<DemoHandle | null>(null);
+  let isDemoRunning = $derived(demoHandle !== null);
 
   let capture: AudioCapture | null = null;
   let ws: LoopbackWebSocket | null = null;
+  let healthPoller: HealthPollerHandle | null = null;
   let stopping = false;  // C3: Re-entrancy guard for stopCapture
 
   function handleMessage(msg: ServerMessage) {
@@ -27,6 +34,9 @@
         break;
       case 'interim':
         loopbackStore.updateInterim(msg);
+        break;
+      case 'translation_chunk':
+        loopbackStore.appendTranslationChunk(msg);
         break;
       case 'translation':
         loopbackStore.addTranslation(msg);
@@ -58,13 +68,17 @@
         }
         break;
       case 'backend_switched':
-        // Informational — could show a toast, for now just log
+        break;
+      case 'error':
+        loopbackStore.lastError = msg.message;
+        captureError = msg.message;
         break;
     }
   }
 
   async function startCapture() {
     if (loopbackStore.isCapturing) return;
+    captureError = null;
 
     // S2: Use WS_BASE from config instead of hardcoded port
     const wsUrl = `${WS_BASE}/ws/loopback`;
@@ -117,28 +131,41 @@
     try {
       await connectedPromise;
     } catch {
+      captureError = 'Could not connect to orchestration service. Is it running?';
       loopbackStore.connectionState = 'error';
       ws.disconnect();
       ws = null;
       return;
     }
 
-    // Start audio capture
+    // Start audio capture with selected source type
     capture = new AudioCapture();
     try {
       await capture.start({
         deviceId: selectedDeviceId || undefined,
-        sourceType: 'system',
+        sourceType: 'mic',
         onChunk: (data) => {
           ws?.sendAudio(data);
+          loopbackStore.chunksSent++;
         },
         onError: (error) => {
           console.error('Audio capture error:', error);
           stopCapture();
         },
+        onLevel: (rms) => {
+          audioLevel = rms;
+        },
       });
     } catch (err) {
-      console.error('Failed to start audio capture:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      // Categorize error: permission vs device config vs generic
+      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
+        captureError = `Microphone access denied. Please allow microphone access in your browser.`;
+      } else if (msg.includes('loopback') || msg.includes('BlackHole') || msg.includes('device')) {
+        captureError = msg;
+      } else {
+        captureError = `Audio capture failed: ${msg}`;
+      }
       loopbackStore.connectionState = 'error';
       ws?.disconnect();
       ws = null;
@@ -173,6 +200,7 @@
 
       loopbackStore.isCapturing = false;
       loopbackStore.connectionState = 'disconnected';
+      audioLevel = 0;
       stopElapsedTimer();
     } finally {
       stopping = false;
@@ -187,6 +215,21 @@
     ws?.sendMessage({ type: 'end_meeting' });
     loopbackStore.endMeeting();
     stopElapsedTimer();
+  }
+
+  function startDemo() {
+    if (loopbackStore.isCapturing || isDemoRunning) return;
+    loopbackStore.clear();
+    captureError = null;
+    demoHandle = runDemo(loopbackStore, {
+      onComplete: () => { demoHandle = null; },
+      onMessage: handleMessage,
+    });
+  }
+
+  function stopDemo() {
+    demoHandle?.stop();
+    demoHandle = null;
   }
 
   /** I1/I2: Send config changes (model, language) to server via WebSocket */
@@ -232,6 +275,15 @@
     } catch (err) {
       console.error('Failed to enumerate audio devices:', err);
     }
+
+    // Poll actual service health from /api/health every 5s
+    healthPoller = startHealthPoller((health) => {
+      // Don't overwrite demo-driven status
+      if (!isDemoRunning) {
+        loopbackStore.transcriptionStatus = health.transcription;
+        loopbackStore.translationStatus = health.translation;
+      }
+    });
   });
 
   // I6: Clean up audio capture before SvelteKit navigates away.
@@ -240,11 +292,15 @@
   // We fire-and-forget stopCapture(); the re-entrancy guard inside it
   // prevents double-cleanup if onDestroy also fires.
   beforeNavigate(() => {
+    healthPoller?.stop();
+    stopDemo();
     stopCapture();
   });
 
   onDestroy(() => {
     // Fallback for non-navigation unmounts (e.g., HMR)
+    healthPoller?.stop();
+    stopDemo();
     stopCapture();
   });
 </script>
@@ -253,12 +309,23 @@
   <Toolbar
     {devices}
     bind:selectedDeviceId
+    {audioLevel}
     onStartCapture={startCapture}
     onStopCapture={stopCapture}
     onStartMeeting={startMeeting}
     onEndMeeting={endMeeting}
     onConfigChange={handleConfigChange}
+    onStartDemo={startDemo}
+    onStopDemo={stopDemo}
+    {isDemoRunning}
   />
+
+  {#if captureError}
+    <div class="capture-error" role="alert">
+      <span>{captureError}</span>
+      <button class="dismiss-btn" onclick={() => captureError = null} aria-label="Dismiss error">&times;</button>
+    </div>
+  {/if}
 
   {#if loopbackStore.isMeetingActive}
     <div class="meeting-bar">
@@ -372,6 +439,31 @@
     border-radius: 4px;
     font-size: 11px;
     background: rgba(255, 255, 255, 0.15);
+  }
+
+  .capture-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #7f1d1d;
+    color: #fecaca;
+    font-size: 13px;
+    gap: 12px;
+  }
+
+  .dismiss-btn {
+    background: none;
+    border: none;
+    color: #fecaca;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  .dismiss-btn:hover {
+    color: white;
   }
 
   .display-area {

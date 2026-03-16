@@ -5,7 +5,7 @@
  * display mode, and audio source configuration.
  */
 
-import type { SegmentMessage, InterimMessage, TranslationMessage } from '$lib/types/ws-messages';
+import type { SegmentMessage, InterimMessage, TranslationMessage, TranslationChunkMessage } from '$lib/types/ws-messages';
 
 export type DisplayMode = 'split' | 'subtitle' | 'transcript';
 
@@ -13,11 +13,15 @@ export interface CaptionEntry {
   id: number;
   segmentId: number;  // Server-side segment_id for translation matching
   text: string;
+  stableText: string;      // Confirmed text (won't change)
+  unstableText: string;    // Tentative text (may be refined)
   language: string;
   confidence: number;
   speakerId: string | null;
   isFinal: boolean;
+  isDraft: boolean;        // True for fast first-pass captions
   translation: string | null;
+  translationComplete: boolean;  // false until final TranslationMessage arrives
   timestamp: number;
 }
 
@@ -47,6 +51,10 @@ function createLoopbackStore() {
   let recordingChunks = $state(0);
   let sourceLanguage = $state<string | null>(null);
   let targetLanguage = $state('en');
+  let chunksSent = $state(0);
+  let segmentsReceived = $state(0);
+  let translationsReceived = $state(0);
+  let lastError = $state<string | null>(null);
   let nextId = 0;
   const speakerColorMap = new Map<string, string>();
 
@@ -61,20 +69,48 @@ function createLoopbackStore() {
   function addSegment(msg: SegmentMessage) {
     // I1: Guard against malformed server messages with missing fields
     if (typeof msg.text !== 'string' || typeof msg.confidence !== 'number') return;
+    segmentsReceived++;
+
+    // Check if this segment_id already exists (draft→final refinement, or re-send)
+    const existingIdx = captions.findIndex(c => c.segmentId === msg.segment_id);
 
     const entry: CaptionEntry = {
-      id: nextId++,
-      segmentId: msg.segment_id,  // I3: Store server-side ID for translation matching
-      text: msg.stable_text || msg.text,
+      id: existingIdx >= 0 ? captions[existingIdx].id : nextId++,
+      segmentId: msg.segment_id,
+      text: [msg.stable_text, msg.unstable_text].filter(Boolean).join(' ') || msg.text,
+      stableText: msg.stable_text ?? msg.text,
+      unstableText: msg.unstable_text ?? '',
       language: msg.language,
       confidence: msg.confidence,
       speakerId: msg.speaker_id,
       isFinal: msg.is_final,
-      translation: null,
-      timestamp: Date.now(),
+      isDraft: msg.is_draft ?? false,
+      translation: existingIdx >= 0 ? captions[existingIdx].translation : null,
+      translationComplete: existingIdx >= 0 ? captions[existingIdx].translationComplete : false,
+      timestamp: existingIdx >= 0 ? captions[existingIdx].timestamp : Date.now(),
     };
-    // I2: Cap captions array to prevent unbounded growth
-    captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
+
+    if (existingIdx >= 0) {
+      const existing = captions[existingIdx];
+
+      // Guard 1: Don't overwrite a finalized segment with a stale draft
+      if (!existing.isDraft && entry.isDraft) return;
+
+      // Guard 2: If both are finals, the second is a new segment from a
+      // duplicate segment_id (counter race). Append instead of overwriting.
+      if (!existing.isDraft && !entry.isDraft) {
+        entry.id = nextId++;
+        entry.segmentId = msg.segment_id + 100000;  // synthetic offset to avoid future collisions
+        captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
+      } else {
+        // Normal: draft→final refinement — replace in-place (no layout shift)
+        captions = captions.map((c, i) => i === existingIdx ? entry : c);
+      }
+    } else {
+      // New segment: append
+      // I2: Cap captions array to prevent unbounded growth
+      captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
+    }
 
     // Auto-detect source language on first segment
     if (!sourceLanguage) {
@@ -87,16 +123,21 @@ function createLoopbackStore() {
     interimConfidence = msg.confidence;
   }
 
+  function appendTranslationChunk(msg: TranslationChunkMessage) {
+    const caption = captions.find(c => c.segmentId === msg.transcript_id);
+    if (!caption) return;
+    caption.translation = caption.translation === null ? msg.delta : caption.translation + msg.delta;
+  }
+
   function addTranslation(msg: TranslationMessage) {
     // I1: Guard against malformed translation messages
     if (typeof msg.text !== 'string' || typeof msg.transcript_id !== 'number') return;
+    translationsReceived++;
 
-    // I3 fix: Match on segmentId (server-side segment_id), not the local
-    // auto-incrementing id. These are different ID spaces — local id starts
-    // at 0, transcript_id is a BIGSERIAL from the database.
-    captions = captions.map((c) =>
-      c.segmentId === msg.transcript_id ? { ...c, translation: msg.text } : c
-    );
+    const caption = captions.find(c => c.segmentId === msg.transcript_id);
+    if (!caption) return;
+    caption.translation = msg.text;
+    caption.translationComplete = true;
   }
 
   function startMeeting(sessionId: string, startedAt: string) {
@@ -117,6 +158,10 @@ function createLoopbackStore() {
     captions = [];
     interimText = '';
     interimConfidence = 0;
+    chunksSent = 0;
+    segmentsReceived = 0;
+    translationsReceived = 0;
+    lastError = null;
     nextId = 0;
     speakerColorMap.clear();  // M2: Clear speaker colors with captions
   }
@@ -146,9 +191,16 @@ function createLoopbackStore() {
     set sourceLanguage(v: string | null) { sourceLanguage = v; },
     get targetLanguage() { return targetLanguage; },
     set targetLanguage(v: string) { targetLanguage = v; },
+    get chunksSent() { return chunksSent; },
+    set chunksSent(v: number) { chunksSent = v; },
+    get segmentsReceived() { return segmentsReceived; },
+    get translationsReceived() { return translationsReceived; },
+    get lastError() { return lastError; },
+    set lastError(v: string | null) { lastError = v; },
     getSpeakerColor,
     addSegment,
     updateInterim,
+    appendTranslationChunk,
     addTranslation,
     startMeeting,
     endMeeting,

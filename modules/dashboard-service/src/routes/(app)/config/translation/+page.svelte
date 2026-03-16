@@ -105,18 +105,26 @@
 	let promptStyle = $state('simple');
 	let promptTemplate = $state(PROMPT_TEMPLATES.simple);
 	let promptSaved = $state(false);
+	let promptSyncing = $state(false);
 
 	$effect(() => {
 		if (typeof window !== 'undefined') {
-			const savedTemplate = localStorage.getItem(STORAGE_KEY);
-			const savedStyle = localStorage.getItem(STYLE_STORAGE_KEY);
-			if (savedStyle && savedStyle in PROMPT_TEMPLATES) {
-				promptStyle = savedStyle;
-			}
-			if (savedTemplate) {
-				promptTemplate = savedTemplate;
+			// Try server-loaded prompts first, fall back to localStorage
+			const serverPrompt = data.activePrompt as { style?: string; template?: string } | null;
+			if (serverPrompt?.template) {
+				promptTemplate = serverPrompt.template;
+				promptStyle = serverPrompt.style ?? 'simple';
 			} else {
-				promptTemplate = PROMPT_TEMPLATES[promptStyle];
+				const savedTemplate = localStorage.getItem(STORAGE_KEY);
+				const savedStyle = localStorage.getItem(STYLE_STORAGE_KEY);
+				if (savedStyle && savedStyle in PROMPT_TEMPLATES) {
+					promptStyle = savedStyle;
+				}
+				if (savedTemplate) {
+					promptTemplate = savedTemplate;
+				} else {
+					promptTemplate = PROMPT_TEMPLATES[promptStyle];
+				}
 			}
 		}
 	});
@@ -127,15 +135,58 @@
 		promptTemplate = PROMPT_TEMPLATES[promptStyle] ?? PROMPT_TEMPLATES.simple;
 	}
 
-	function savePrompt() {
+	async function savePrompt() {
+		// Save to localStorage (graceful degradation)
 		if (typeof window !== 'undefined') {
 			localStorage.setItem(STORAGE_KEY, promptTemplate);
 			localStorage.setItem(STYLE_STORAGE_KEY, promptStyle);
+		}
+
+		// Persist to server
+		try {
+			await fetch('/api/settings/prompts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					id: 'active_translation',
+					name: `Translation (${promptStyle})`,
+					description: 'Active translation prompt template',
+					template: promptTemplate,
+					category: 'translation',
+					is_active: true,
+					metadata: { style: promptStyle },
+				}),
+			});
 			promptSaved = true;
-			toastStore.success('Prompt template saved');
-			setTimeout(() => {
-				promptSaved = false;
-			}, 2000);
+			toastStore.success('Prompt template saved to server');
+		} catch {
+			promptSaved = true;
+			toastStore.success('Prompt saved locally (server unavailable)');
+		}
+		setTimeout(() => { promptSaved = false; }, 2000);
+	}
+
+	async function syncFromServer() {
+		promptSyncing = true;
+		try {
+			const res = await fetch('/api/settings/prompts/active_translation');
+			if (res.ok) {
+				const result = await res.json();
+				if (result.prompt?.template) {
+					promptTemplate = result.prompt.template;
+					const meta = result.prompt.metadata ?? {};
+					if (meta.style && meta.style in PROMPT_TEMPLATES) {
+						promptStyle = meta.style;
+					}
+					toastStore.success('Synced prompt from server');
+				}
+			} else {
+				toastStore.info('No server-side prompt found');
+			}
+		} catch {
+			toastStore.error('Could not reach server');
+		} finally {
+			promptSyncing = false;
 		}
 	}
 
@@ -462,12 +513,47 @@
 
 				<div class="flex gap-2">
 					<Button onclick={savePrompt}>Save Prompt</Button>
+					<Button variant="outline" onclick={syncFromServer} disabled={promptSyncing}>
+						{promptSyncing ? 'Syncing...' : 'Sync from Server'}
+					</Button>
 					<Button variant="outline" onclick={resetPrompt}>Reset to Default</Button>
 				</div>
 
 				{#if promptSaved}
-					<p class="text-sm text-green-600">Prompt template saved to local storage</p>
+					<p class="text-sm text-green-600">Prompt template saved</p>
 				{/if}
+			</div>
+		</Card.Content>
+	</Card.Root>
+
+	<!-- Benchmark-Optimal LLM Defaults -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Benchmark-Optimal Defaults</Card.Title>
+			<Card.Description>Reference values from Plan 6 benchmark sweep</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<div class="grid grid-cols-2 gap-4 text-sm">
+				<div class="space-y-1">
+					<p class="text-xs text-muted-foreground">Model</p>
+					<p class="font-medium">qwen3.5:7b</p>
+				</div>
+				<div class="space-y-1">
+					<p class="text-xs text-muted-foreground">Temperature</p>
+					<p class="font-medium">0.3</p>
+				</div>
+				<div class="space-y-1">
+					<p class="text-xs text-muted-foreground">Context Window</p>
+					<p class="font-medium">5 entries</p>
+				</div>
+				<div class="space-y-1">
+					<p class="text-xs text-muted-foreground">Max Context Tokens</p>
+					<p class="font-medium">500</p>
+				</div>
+			</div>
+			<div class="mt-3 rounded-md bg-blue-950/30 border border-blue-800/30 p-3 text-xs text-blue-200">
+				These values produced the best CER/WER scores in the Plan 6 benchmark sweep.
+				The Translation Settings form above uses these as defaults.
 			</div>
 		</Card.Content>
 	</Card.Root>

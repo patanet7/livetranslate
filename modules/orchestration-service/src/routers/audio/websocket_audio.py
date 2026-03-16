@@ -18,6 +18,7 @@ import asyncio
 import json
 import os
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,6 +26,7 @@ import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models.ws_messages import (
+    ConfigMessage,
     ConnectedMessage,
     EndMeetingMessage,
     EndSessionMessage,
@@ -56,6 +58,61 @@ RECORDING_BASE_PATH = Path(os.getenv("RECORDING_BASE_PATH", "/tmp/livetranslate/
 TARGET_LANGUAGE = os.getenv("DEFAULT_TARGET_LANGUAGE", "en")
 DEFAULT_SAMPLE_RATE = int(os.getenv("DEFAULT_SAMPLE_RATE", "48000"))
 DEFAULT_CHANNELS = int(os.getenv("DEFAULT_CHANNELS", "1"))
+
+
+async def _strip_think_and_stream(raw_stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Filter out <think>...</think> blocks from streaming LLM output.
+
+    Buffers the first ~30 characters to detect and strip think blocks.
+    After the buffer phase (or if no think block is found), switches to
+    passthrough mode yielding tokens immediately.
+    """
+    buffer = ""
+    in_think = False
+    BUFFER_LIMIT = 30
+
+    async for delta in raw_stream:
+        if in_think:
+            # Inside a think block — accumulate until we find </think>
+            buffer += delta
+            end_idx = buffer.find("</think>")
+            if end_idx != -1:
+                # Think block closed — yield anything after </think>
+                remainder = buffer[end_idx + 8:]
+                buffer = ""
+                in_think = False
+                if remainder:
+                    yield remainder
+            continue
+
+        if len(buffer) < BUFFER_LIMIT:
+            # Still buffering — accumulate
+            buffer += delta
+
+            # Check if buffer starts with <think>
+            if buffer.startswith("<think>"):
+                in_think = True
+                # Check if </think> already arrived in the same buffer
+                end_idx = buffer.find("</think>")
+                if end_idx != -1:
+                    remainder = buffer[end_idx + 8:]
+                    buffer = ""
+                    in_think = False
+                    if remainder:
+                        yield remainder
+                continue
+
+            # If we've buffered enough and no <think> prefix, flush
+            if len(buffer) >= BUFFER_LIMIT:
+                yield buffer
+                buffer = ""
+        else:
+            # Past buffer phase — passthrough
+            yield delta
+
+    # Flush any remaining buffer (handles: no think block, unclosed think block)
+    if buffer and not in_think:
+        yield buffer
 
 
 async def _try_create_pipeline(
@@ -125,8 +182,9 @@ async def websocket_audio_stream(websocket: WebSocket):
     transcription_client = None
     translation_service = None
     session_tasks: set[asyncio.Task] = set()
-    _translation_semaphore = asyncio.Semaphore(2)  # limit concurrent translations
-    segment_counter = 0
+    _ws_send_lock = asyncio.Lock()
+    _disconnected = False
+    segment_counter = 0  # fallback counter for backends that don't send segment_id
     sample_rate = DEFAULT_SAMPLE_RATE
     channels = DEFAULT_CHANNELS
     source_language: str | None = None
@@ -136,32 +194,72 @@ async def websocket_audio_stream(websocket: WebSocket):
     _stable_text_buffer: str = ""
     _last_translated_stable: str = ""
 
+    async def safe_send(msg: str) -> bool:
+        """Send a text frame with disconnect protection.
+
+        Returns True if sent, False if the WebSocket is dead.
+        Serializes sends via lock to prevent interleaved frames
+        from concurrent translation tasks.
+        """
+        nonlocal _disconnected
+        if _disconnected:
+            return False
+        try:
+            async with _ws_send_lock:
+                await websocket.send_text(msg)
+            return True
+        except Exception:
+            _disconnected = True
+            return False
+
     async def handle_transcription_segment(data: dict) -> None:
         """Transform transcription result → SegmentMessage → forward to frontend."""
         nonlocal segment_counter, source_language, _stable_text_buffer, _last_translated_stable
-        segment_counter += 1
+
+        # Preserve transcription service's segment_id for draft→final matching.
+        # The transcription service sends draft (seg_id=N) then final (seg_id=N)
+        # with matching IDs. Only fall back to our counter for backends that
+        # don't include segment_id.
+        seg_id = data.get("segment_id")
+        if seg_id is None:
+            segment_counter += 1
+            seg_id = segment_counter
 
         msg = SegmentMessage(
-            segment_id=segment_counter,
+            segment_id=seg_id,
             text=data.get("text", ""),
             language=data.get("language", ""),
             confidence=data.get("confidence", 0.0),
             stable_text=data.get("stable_text", ""),
             unstable_text=data.get("unstable_text", ""),
             is_final=data.get("is_final", False),
+            is_draft=data.get("is_draft", False),
             speaker_id=data.get("speaker_id"),
             start_ms=data.get("start_ms"),
             end_ms=data.get("end_ms"),
+        )
+
+        logger.debug(
+            "segment_forward",
+            session_id=session_id,
+            seg_id=msg.segment_id,
+            is_draft=msg.is_draft,
+            is_final=msg.is_final,
+            text_len=len(msg.text),
+            stable_len=len(msg.stable_text),
+            unstable_len=len(msg.unstable_text),
         )
 
         # Track source language before send (don't lose it if send fails)
         if msg.language:
             source_language = msg.language
 
-        try:
-            await websocket.send_text(msg.model_dump_json())
-        except Exception:
+        if not await safe_send(msg.model_dump_json()):
             return  # frontend disconnected
+
+        # Don't translate drafts — wait for the refined final pass
+        if msg.is_draft:
+            return
 
         # Translation trigger: prefer stable_text accumulation, fall back to is_final
         if not (translation_service and target_language and source_language != target_language):
@@ -169,28 +267,59 @@ async def websocket_audio_stream(websocket: WebSocket):
 
         translate_text = ""
         if msg.stable_text:
-            # Accumulate stable text and translate when a sentence boundary is detected
-            _stable_text_buffer += msg.stable_text
-            # Check for sentence boundaries (period, question mark, exclamation)
             import re
+            incoming = msg.stable_text
+            # Guard: strip overlap with already-translated text to prevent
+            # sending duplicate context to the LLM
+            if _last_translated_stable:
+                # Fast path: if incoming is entirely contained in what we
+                # already translated, skip it (handles duplicate segment_ids)
+                incoming_norm = re.sub(r"[^\w\s]", "", incoming).lower()
+                last_norm = re.sub(r"[^\w\s]", "", _last_translated_stable).lower()
+                if incoming_norm and incoming_norm in last_norm:
+                    incoming = ""
+                else:
+                    # Word-level prefix dedup for partial overlaps
+                    prev_words = last_norm.split()
+                    new_words_raw = incoming.split()
+                    new_words = [re.sub(r"[^\w\s]", "", w).lower() for w in new_words_raw]
+                    max_check = min(len(prev_words), len(new_words), 12)
+                    for overlap_len in range(max_check, 0, -1):
+                        if prev_words[-overlap_len:] == new_words[:overlap_len]:
+                            incoming = " ".join(new_words_raw[overlap_len:])
+                            break
+            if incoming.strip():
+                _stable_text_buffer += (" " if _stable_text_buffer else "") + incoming.strip()
+            # Check for sentence boundaries (period, question mark, exclamation)
             if re.search(r"[.!?。！？]$", _stable_text_buffer.strip()):  # noqa: RUF001
                 translate_text = _stable_text_buffer.strip()
-                _last_translated_stable = translate_text
+                # Accumulate translated text (keep last ~500 chars for substring dedup)
+                _last_translated_stable = (_last_translated_stable + " " + translate_text)[-500:]
                 _stable_text_buffer = ""
         elif msg.is_final:
             # Fallback: use is_final when stable_text is not populated
             translate_text = msg.text
 
         if translate_text:
+            logger.debug(
+                "translation_trigger",
+                session_id=session_id,
+                seg_id=msg.segment_id,
+                translate_text=translate_text[:80],
+                stable_text=msg.stable_text[:40] if msg.stable_text else "",
+                last_translated=_last_translated_stable[:40] if _last_translated_stable else "",
+                buffer_len=len(_stable_text_buffer),
+            )
             task = asyncio.create_task(
                 _translate_and_send(
-                    websocket,
+                    safe_send,
                     translation_service,
                     segment_id=msg.segment_id,
                     text=translate_text,
                     source_lang=msg.language,
                     target_lang=target_language,
                     speaker_name=msg.speaker_id,
+                    pipeline=pipeline,
                 )
             )
             session_tasks.add(task)
@@ -200,26 +329,20 @@ async def websocket_audio_stream(websocket: WebSocket):
         """Forward language_detected to frontend."""
         nonlocal source_language
         source_language = data.get("language", source_language)
-        try:
-            await websocket.send_text(
-                LanguageDetectedMessage(
-                    language=data.get("language", ""),
-                    confidence=data.get("confidence", 0.0),
-                ).model_dump_json()
-            )
-        except Exception:
-            pass
+        await safe_send(
+            LanguageDetectedMessage(
+                language=data.get("language", ""),
+                confidence=data.get("confidence", 0.0),
+            ).model_dump_json()
+        )
 
     async def handle_transcription_error(data: dict) -> None:
         """Forward errors from transcription service to frontend."""
-        try:
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "message": data.get("message", "Transcription error"),
-                "recoverable": data.get("recoverable", True),
-            }))
-        except Exception:
-            pass
+        await safe_send(json.dumps({
+            "type": "error",
+            "message": data.get("message", "Transcription error"),
+            "recoverable": data.get("recoverable", True),
+        }))
 
     try:
         while True:
@@ -257,7 +380,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     raw = json.loads(raw_text)
                     msg_type = raw.get("type", "")
                     if msg_type == "ping":
-                        await websocket.send_text(json.dumps({
+                        await safe_send(json.dumps({
                             "type": "pong",
                             "timestamp": datetime.now(UTC).isoformat(),
                         }))
@@ -322,7 +445,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                             asyncio.create_task(_warm_up_llm(translation_service))
 
                     # Send service status
-                    await websocket.send_text(
+                    await safe_send(
                         ServiceStatusMessage(
                             transcription="up",
                             translation="up" if translation_service else "down",
@@ -330,12 +453,12 @@ async def websocket_audio_stream(websocket: WebSocket):
                     )
                 except Exception as exc:
                     logger.error("transcription_connect_failed", error=str(exc))
-                    await websocket.send_text(json.dumps({
+                    await safe_send(json.dumps({
                         "type": "error",
                         "message": f"Cannot reach transcription service: {exc}",
                         "recoverable": False,
                     }))
-                    await websocket.send_text(
+                    await safe_send(
                         ServiceStatusMessage(
                             transcription="down",
                             translation="down",
@@ -348,13 +471,13 @@ async def websocket_audio_stream(websocket: WebSocket):
                     try:
                         await pipeline.promote_to_meeting()
                         _active_sessions.get(session_id, {})["is_meeting"] = True
-                        await websocket.send_text(
+                        await safe_send(
                             MeetingStartedMessage(
                                 session_id=str(pipeline.session_id),
                                 started_at=datetime.now(UTC).isoformat(),
                             ).model_dump_json()
                         )
-                        await websocket.send_text(
+                        await safe_send(
                             RecordingStatusMessage(
                                 recording=True,
                                 chunks_written=0,
@@ -362,13 +485,13 @@ async def websocket_audio_stream(websocket: WebSocket):
                         )
                     except Exception as exc:
                         logger.error("promote_failed", error=str(exc))
-                        await websocket.send_text(json.dumps({
+                        await safe_send(json.dumps({
                             "type": "error",
                             "message": f"Failed to promote to meeting: {exc}",
                             "recoverable": True,
                         }))
                 else:
-                    await websocket.send_text(json.dumps({
+                    await safe_send(json.dumps({
                         "type": "error",
                         "message": "Meeting pipeline not available (no database configured)",
                         "recoverable": False,
@@ -378,12 +501,19 @@ async def websocket_audio_stream(websocket: WebSocket):
             elif isinstance(msg, EndMeetingMessage):
                 if pipeline and pipeline.is_meeting:
                     await pipeline.end()
-                    await websocket.send_text(
+                    await safe_send(
                         RecordingStatusMessage(
                             recording=False,
                             chunks_written=0,
                         ).model_dump_json()
                     )
+
+            # --- config (language, model changes from toolbar) ---
+            elif isinstance(msg, ConfigMessage):
+                if msg.language:
+                    source_language = msg.language
+                    if transcription_client and transcription_client.connected:
+                        await transcription_client.send_config(language=msg.language)
 
             # --- end_session ---
             elif isinstance(msg, EndSessionMessage):
@@ -469,40 +599,105 @@ def _try_create_translation_service() -> "TranslationService | None":
 
 
 async def _translate_and_send(
-    websocket: WebSocket,
+    safe_send: "Callable[[str], Awaitable[bool]]",
     translation_service: "TranslationService",
     segment_id: int,
     text: str,
     source_lang: str,
     target_lang: str,
     speaker_name: str | None,
+    pipeline: "MeetingPipeline | None" = None,
 ) -> None:
-    """Translate a segment and send the result to the frontend.
+    """Translate a segment via streaming and forward tokens to the frontend.
 
-    Runs as a fire-and-forget task with bounded concurrency (semaphore=2).
-    Errors are silently logged — translation failure should never crash
-    the main audio pipeline.
+    Streams translation_chunk messages as tokens arrive, then sends a
+    final TranslationMessage with the cleaned canonical translation.
+    Falls back to non-streaming translate() if streaming fails.
+    Persists to DB when in meeting mode.
     """
+    import time as _time
+
     try:
-        from livetranslate_common.models import TranslationRequest
+        context = translation_service.get_context(speaker_name)
+        start = _time.monotonic()
 
-        request = TranslationRequest(
-            text=text,
-            source_language=source_lang,
-            target_language=target_lang,
-            speaker_name=speaker_name,
-        )
-        response = await translation_service.translate(request)
+        full_text = ""
+        translation = ""
+        try:
+            async for delta in _strip_think_and_stream(
+                translation_service._client.translate_stream(
+                    text, source_lang, target_lang, context,
+                )
+            ):
+                full_text += delta
+                sent = await safe_send(json.dumps({
+                    "type": "translation_chunk",
+                    "transcript_id": segment_id,
+                    "delta": delta,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                }))
+                if not sent:
+                    return  # WebSocket dead, stop wasting LLM tokens
 
-        context_entries = translation_service.get_context(speaker_name)
-        msg = TranslationMessage(
-            text=response.translated_text,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            transcript_id=segment_id,
-            context_used=len(context_entries),
+            # Final canonical message (after _extract_translation cleanup)
+            logger.debug(
+                "stream_complete",
+                segment_id=segment_id,
+                full_text_len=len(full_text),
+                full_text_preview=full_text[:100],
+            )
+            translation = translation_service._client._extract_translation(full_text)
+        except Exception as stream_exc:
+            logger.warning(
+                "translation_stream_fallback",
+                segment_id=segment_id,
+                error=str(stream_exc),
+            )
+            # Fallback: non-streaming translate
+            from livetranslate_common.models import TranslationRequest
+
+            request = TranslationRequest(
+                text=text,
+                source_language=source_lang,
+                target_language=target_lang,
+                speaker_name=speaker_name,
+            )
+            response = await translation_service.translate(request)
+            translation = response.translated_text
+
+        latency_ms = (_time.monotonic() - start) * 1000
+
+        # Add to context window (only from final cleaned text, never partial)
+        translation_service._get_context_window(speaker_name).add(text, translation)
+
+        await safe_send(
+            TranslationMessage(
+                text=translation,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                transcript_id=segment_id,
+                context_used=len(context),
+            ).model_dump_json()
         )
-        await websocket.send_text(msg.model_dump_json())
+
+        # Persist to DB when in meeting mode
+        if pipeline and pipeline.is_meeting and pipeline.session_manager:
+            try:
+                await pipeline.session_manager.save_translation(
+                    chunk_id=None,  # chunk persistence is separate
+                    translated_text=translation,
+                    source_language=source_lang,
+                    target_language=target_lang,
+                    model_used=translation_service.config.model,
+                    translation_time_ms=round(latency_ms, 1),
+                )
+            except Exception as persist_exc:
+                logger.warning(
+                    "translation_persist_failed",
+                    segment_id=segment_id,
+                    error=str(persist_exc),
+                )
 
     except Exception as exc:
         logger.warning(
