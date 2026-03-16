@@ -1,6 +1,7 @@
 """Structlog configuration for LiveTranslate services."""
 
 import logging
+import os
 import sys
 
 import structlog
@@ -29,7 +30,23 @@ def setup_logging(service_name: str, log_level: str = "INFO", log_format: str = 
         ),
     ]
     if log_format == "dev":
-        renderer: structlog.types.Processor = structlog.dev.ConsoleRenderer(colors=True)
+        # Force colors via env var (for piped-but-displayed-in-terminal scenarios like just dev),
+        # otherwise auto-detect from TTY
+        use_colors = os.environ.get("FORCE_COLOR", "") == "1" or sys.stderr.isatty()
+        # Distinct colors per level — default structlog uses green for both info+debug
+        level_styles = structlog.dev.ConsoleRenderer.get_default_level_styles(colors=use_colors)
+        if use_colors:
+            level_styles.update({
+                "debug": "\x1b[36m",         # cyan
+                "info": "\x1b[32m",          # green
+                "warning": "\x1b[33;1m",     # bold yellow
+                "error": "\x1b[31;1m",       # bold red
+                "critical": "\x1b[41;37;1m", # white on red bg
+            })
+        renderer: structlog.types.Processor = structlog.dev.ConsoleRenderer(
+            colors=use_colors,
+            level_styles=level_styles,
+        )
     else:
         renderer = structlog.processors.JSONRenderer()
 

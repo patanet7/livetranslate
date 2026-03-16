@@ -306,9 +306,9 @@
 <div class="mb-4 flex items-center justify-between">
 	<div>
 		<h1 class="text-2xl font-bold">{meeting?.title ?? 'Meeting'}</h1>
-		{#if meeting?.date}
+		{#if meeting?.start_time}
 			<p class="text-sm text-muted-foreground">
-				{new Date(meeting.date).toLocaleDateString(undefined, {
+				{new Date(meeting.start_time).toLocaleDateString(undefined, {
 					year: 'numeric',
 					month: 'long',
 					day: 'numeric'

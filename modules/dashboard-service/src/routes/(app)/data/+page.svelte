@@ -58,14 +58,20 @@
 	let { data } = $props();
 
 	// Data source: 'sessions' (active Fireflies) or 'meetings' (DB past meetings)
-	let dataSource = $state<'sessions' | 'meetings'>(
-		data.meetings.length > 0 ? 'meetings' : 'sessions'
-	);
+	let dataSource = $state<'sessions' | 'meetings'>('sessions');
+	let selectedSession = $state('');
+	let selectedMeeting = $state('');
 
-	const initialSession = data.preSelectedSession || '';
-	const initialMeeting = data.preSelectedMeeting || '';
-	let selectedSession = $state(initialSession);
-	let selectedMeeting = $state(initialMeeting);
+	// Sync initial selections from server load data
+	$effect(() => {
+		dataSource = data.meetings.length > 0 ? 'meetings' : 'sessions';
+	});
+	$effect(() => {
+		selectedSession = data.preSelectedSession || '';
+	});
+	$effect(() => {
+		selectedMeeting = data.preSelectedMeeting || '';
+	});
 	let loading = $state(false);
 
 	// Session-based data (from /api/data/*)

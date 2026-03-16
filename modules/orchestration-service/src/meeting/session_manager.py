@@ -164,6 +164,39 @@ class MeetingSessionManager:
             logger.warning("startup_orphans_recovered", count=len(orphans))
         return orphans
 
+    async def save_translation(
+        self,
+        chunk_id: uuid.UUID | None,
+        translated_text: str,
+        source_language: str,
+        target_language: str,
+        model_used: str,
+        translation_time_ms: float | None = None,
+    ) -> MeetingTranslation:
+        """Persist a translation, optionally linked to a MeetingChunk.
+
+        Called after streaming translation completes. chunk_id may be None
+        if the chunk wasn't persisted (ephemeral mode or timing race).
+        """
+        translation = MeetingTranslation(
+            chunk_id=chunk_id,
+            translated_text=translated_text,
+            source_language=source_language,
+            target_language=target_language,
+            model_used=model_used,
+            translation_time_ms=translation_time_ms,
+        )
+        self.db.add(translation)
+        await self.db.commit()
+        await self.db.refresh(translation)
+        logger.info(
+            "translation_persisted",
+            translation_id=str(translation.id),
+            chunk_id=str(chunk_id) if chunk_id else None,
+            target_language=target_language,
+        )
+        return translation
+
     async def recover_untranslated(self) -> list[MeetingChunk]:
         """Return finalized chunks that have no associated translation.
 

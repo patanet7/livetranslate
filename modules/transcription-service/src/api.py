@@ -42,8 +42,12 @@ class SimpleStabilityTracker:
     def __init__(self, overlap_s: float = 1.0) -> None:
         self._overlap_s = overlap_s
 
-    def split(self, text: str, segments: list["Segment"]) -> tuple[str, str]:
+    def split(self, text: str, segments: list["Segment"], *, is_final: bool = False) -> tuple[str, str]:
         """Split text into (stable, unstable) based on segment timing.
+
+        If is_final=True, ALL text is stable — the next segment will handle
+        its own overlap. Unstable text only makes sense for drafts where the
+        same audio will be re-decoded.
 
         If there are timed segments, words whose end_ms falls before the overlap
         boundary are stable. Otherwise, fall back to keeping the last ~20% as
@@ -51,6 +55,9 @@ class SimpleStabilityTracker:
         """
         if not text:
             return "", ""
+
+        if is_final:
+            return text, ""
 
         overlap_ms = int(self._overlap_s * 1000)
 
@@ -109,23 +116,29 @@ def _dedup_overlap(prev_text: str, new_text: str) -> str:
 
     if is_cjk:
         # Character-level dedup for CJK (no spaces between words)
-        # Normalize: strip punctuation for matching
         prev_chars = re.sub(r'[^\w]', '', prev_text)
         new_chars = re.sub(r'[^\w]', '', new_text)
-        # Cap at 20 chars (~1.5s of CJK at ~3 chars/s per speaker)
         max_overlap = min(len(prev_chars), len(new_chars), 20)
-        for overlap_len in range(max_overlap, 2, -1):  # min 3 chars to avoid false matches
+        for overlap_len in range(max_overlap, 2, -1):
             suffix = prev_chars[-overlap_len:]
             if new_chars.startswith(suffix):
-                # Found character overlap — find where it ends in the original new_text
-                # Strip from new_text by finding the suffix position
-                stripped = new_text
-                for i in range(len(new_text)):
-                    candidate = re.sub(r'[^\w]', '', new_text[:i + 1])
-                    if len(candidate) >= overlap_len:
-                        stripped = new_text[i + 1:].lstrip()
-                        break
-                return stripped if stripped else new_text
+                # Walk new_text consuming exactly overlap_len word-chars
+                consumed = 0
+                for i, ch in enumerate(new_text):
+                    if re.match(r'\w', ch):
+                        consumed += 1
+                    if consumed == overlap_len:
+                        result = new_text[i + 1:].lstrip()
+                        logger.debug(
+                            "dedup_cjk",
+                            overlap_chars=overlap_len,
+                            removed=new_text[:i + 1],
+                            kept_len=len(result),
+                        )
+                        return result
+                # Entire new_text was the repeated overlap
+                logger.debug("dedup_cjk_full_overlap", overlap_chars=overlap_len)
+                return ""
         return new_text
 
     # Word-level dedup for Latin scripts
@@ -142,6 +155,12 @@ def _dedup_overlap(prev_text: str, new_text: str) -> str:
         suffix = prev_norm[-overlap_len:]
         prefix = new_norm[:overlap_len]
         if suffix == prefix:
+            logger.debug(
+                "dedup_words",
+                overlap_words=overlap_len,
+                removed=new_words[:overlap_len],
+                kept_words=len(new_words) - overlap_len,
+            )
             return " ".join(new_words[overlap_len:])
 
     return new_text
@@ -258,6 +277,10 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
         _stability_tracker: SimpleStabilityTracker | None = None
         # Track session-level sample count for absolute timestamps
         _session_samples_consumed: int = 0
+        # Segment counter for matching draft→final pairs
+        _segment_counter: int = 0
+        # GPU mutual exclusion: only one inference at a time
+        _inference_lock = asyncio.Lock()
 
         async def producer():
             """Read frames from WebSocket and route to queue or handle control messages."""
@@ -296,9 +319,19 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 else:
                     raise
 
-        async def _run_inference(inference_audio: np.ndarray) -> None:
+        async def _run_inference(
+            inference_audio: np.ndarray,
+            *,
+            is_draft: bool = False,
+            segment_id: int = 0,
+        ) -> None:
             """Run transcription inference and send results. Runs as background task
-            so the consumer can keep feeding VAC during inference."""
+            so the consumer can keep feeding VAC during inference.
+
+            When is_draft=True, results are sent with is_draft=True and the
+            session_samples_consumed counter is NOT advanced (the final pass
+            will advance it when it consumes the same audio).
+            """
             nonlocal _prev_segment_text, _session_samples_consumed
 
             try:
@@ -403,26 +436,47 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 else:
                     result_data["start_ms"] = chunk_offset_ms
                     result_data["end_ms"] = chunk_offset_ms
-                overlap_samples = state.vac_processor._overlap_samples if state.vac_processor else 0
-                _session_samples_consumed += max(0, len(inference_audio) - overlap_samples)
+                # Only advance session sample counter on final (non-draft) passes
+                if not is_draft:
+                    overlap_samples = state.vac_processor._overlap_samples if state.vac_processor else 0
+                    _session_samples_consumed += max(0, len(inference_audio) - overlap_samples)
 
                 # Dedup overlap
                 deduped_text = _dedup_overlap(_prev_segment_text, result_data["text"])
                 result_data["text"] = deduped_text
-                _prev_segment_text = result.text
+                # Only update prev_segment_text on final passes
+                if not is_draft:
+                    _prev_segment_text = deduped_text
 
-                # Stability tracking: split into stable/unstable text
+                # Stability tracking: split into stable/unstable text.
+                # Drafts: overlap tail is unstable (will be re-decoded).
+                # Finals: ALL text is stable — the next segment handles its own overlap.
                 nonlocal _stability_tracker
                 if _stability_tracker is None:
                     overlap = state.vac_processor.overlap_s if state.vac_processor else 1.0
                     _stability_tracker = SimpleStabilityTracker(overlap_s=overlap)
-                stable, unstable = _stability_tracker.split(deduped_text, result.segments)
+                stable, unstable = _stability_tracker.split(
+                    deduped_text, result.segments, is_final=not is_draft
+                )
                 result_data["stable_text"] = stable
                 result_data["unstable_text"] = unstable
 
                 if deduped_text.strip():
+                    # Remove internal-only fields before sending to client
+                    result_data.pop("segments", None)
+                    logger.debug(
+                        "segment_send",
+                        session_id=session_id,
+                        seg_id=segment_id,
+                        is_draft=is_draft,
+                        is_final=result_data.get("is_final", False),
+                        stable=stable[:40] if stable else "",
+                        unstable=unstable[:40] if unstable else "",
+                    )
                     await ws.send_text(json.dumps({
                         "type": "segment",
+                        "segment_id": segment_id,
+                        "is_draft": is_draft,
                         **result_data,
                     }))
 
@@ -444,10 +498,24 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     pass
 
         async def consumer():
-            """Feed audio to VAC. When ready, spawn inference as background task
-            so audio keeps flowing during model execution — real-time streaming."""
-            nonlocal _prev_segment_text, _session_samples_consumed
+            """Feed audio to VAC. Two-pass inference: draft (fast, at stride/2)
+            and final (accurate, at full stride). Only one inference runs at a
+            time (GPU mutual exclusion via _inference_lock).
+
+            Draft pass: non-destructive buffer snapshot → is_draft=True
+            Final pass: destructive buffer consume → is_draft=False, same segment_id
+            """
+            nonlocal _prev_segment_text, _session_samples_consumed, _segment_counter
             inference_task: asyncio.Task | None = None
+            # Track whether a draft has been sent for the current segment
+            _draft_sent_for_segment: int | None = None
+
+            async def _locked_inference(
+                audio: np.ndarray, *, is_draft: bool, seg_id: int
+            ) -> None:
+                """Acquire the GPU lock, run inference, release."""
+                async with _inference_lock:
+                    await _run_inference(audio, is_draft=is_draft, segment_id=seg_id)
 
             while True:
                 raw_audio = await audio_queue.get()
@@ -455,15 +523,18 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     # Wait for any running inference to finish
                     if inference_task and not inference_task.done():
                         await inference_task
-                    # End of stream — flush remaining VAC buffer
+                    # End of stream — flush remaining VAC buffer as final
                     if state.vac_processor is not None and state.current_backend_key is not None:
                         remaining = state.vac_processor.get_inference_audio()
                         if len(remaining) >= 4800:
-                            await _run_inference(remaining)
+                            _segment_counter += 1
+                            await _run_inference(
+                                remaining, is_draft=False, segment_id=_segment_counter
+                            )
                     break
 
                 audio = np.frombuffer(raw_audio, dtype=np.float32)
-                if len(audio) < 1600:
+                if len(audio) < 160:  # 10ms at 16kHz — browser chunks are ~1365 after downsample
                     continue
 
                 try:
@@ -490,17 +561,52 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         )
 
                     await state.vac_processor.feed_audio(audio)
-                    if not state.vac_processor.ready_for_inference():
-                        continue
 
                     # Don't start new inference if previous is still running
                     if inference_task and not inference_task.done():
                         continue
 
-                    inference_audio = state.vac_processor.get_inference_audio()
-                    inference_task = asyncio.create_task(_run_inference(inference_audio))
-                    # Yield to event loop so inference task can start immediately
-                    await asyncio.sleep(0)
+                    # Final pass: full stride of new audio accumulated
+                    if state.vac_processor.ready_for_inference():
+                        _segment_counter += 1
+                        had_draft = (_draft_sent_for_segment == _segment_counter)
+                        _draft_sent_for_segment = None
+                        inference_audio = state.vac_processor.get_inference_audio()
+                        logger.debug(
+                            "inference_dispatch",
+                            session_id=session_id,
+                            seg_id=_segment_counter,
+                            is_draft=False,
+                            had_draft=had_draft,
+                            audio_s=round(len(inference_audio) / 16000, 2),
+                        )
+                        inference_task = asyncio.create_task(
+                            _locked_inference(
+                                inference_audio, is_draft=False, seg_id=_segment_counter
+                            )
+                        )
+                        await asyncio.sleep(0)
+                    # Draft pass: half-stride of new audio, no draft sent yet for next segment
+                    elif (
+                        state.vac_processor.ready_for_draft()
+                        and _draft_sent_for_segment != _segment_counter + 1
+                    ):
+                        next_seg_id = _segment_counter + 1
+                        _draft_sent_for_segment = next_seg_id
+                        snapshot = state.vac_processor.get_inference_audio_snapshot()
+                        logger.debug(
+                            "inference_dispatch",
+                            session_id=session_id,
+                            seg_id=next_seg_id,
+                            is_draft=True,
+                            audio_s=round(len(snapshot) / 16000, 2),
+                        )
+                        inference_task = asyncio.create_task(
+                            _locked_inference(
+                                snapshot, is_draft=True, seg_id=next_seg_id
+                            )
+                        )
+                        await asyncio.sleep(0)
 
                 except Exception as exc:
                     logger.exception("consumer_error", session_id=session_id, error=str(exc))

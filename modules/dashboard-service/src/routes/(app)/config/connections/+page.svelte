@@ -15,7 +15,7 @@
 	let { data } = $props();
 
 	// ── Connections State ──────────────────────────────────────────────
-	let connections: AIConnection[] = $state(data.connections ?? []);
+	let connections: AIConnection[] = $state([]);
 	let connectionStatuses: Record<string, 'unknown' | 'connected' | 'error' | 'verifying'> =
 		$state({});
 	let connectionModelCounts: Record<string, number> = $state({});
@@ -25,7 +25,15 @@
 	let pendingDeleteId: string | null = $state(null);
 
 	// ── Feature Preferences State ──────────────────────────────────────
-	let preferences: Record<string, FeaturePreference> = $state(data.preferences ?? {});
+	let preferences: Record<string, FeaturePreference> = $state({});
+
+	// Sync from server load data
+	$effect(() => {
+		connections = data.connections ?? [];
+	});
+	$effect(() => {
+		preferences = data.preferences ?? {};
+	});
 
 	// ── Connection CRUD (direct fetch to avoid $env boundary) ──────────
 

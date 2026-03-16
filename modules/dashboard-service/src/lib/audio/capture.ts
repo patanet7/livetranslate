@@ -15,6 +15,8 @@ export interface CaptureOptions {
   sourceType: AudioSourceType;
   onChunk: (data: Float32Array) => void;
   onError: (error: Error) => void;
+  /** Called with peak level (0-1) every ~85ms for VU meter display */
+  onLevel?: (peak: number) => void;
 }
 
 export class AudioCapture {
@@ -114,6 +116,8 @@ export class AudioCapture {
         this.workletNode.port.onmessage = (event) => {
           if (event.data.type === 'audio_chunk') {
             options.onChunk(new Float32Array(event.data.data));
+          } else if (event.data.type === 'audio_level') {
+            options.onLevel?.(event.data.peak);
           }
         };
         compressor.connect(this.workletNode);
@@ -134,11 +138,13 @@ export class AudioCapture {
       const source = this.context.createMediaStreamSource(this.stream);
       this.workletNode = new AudioWorkletNode(this.context, 'audio-chunk-processor');
 
-      // Handle chunks from worklet
+      // Handle chunks and level from worklet
       this.workletNode.port.onmessage = (event) => {
         if (event.data.type === 'audio_chunk') {
           const chunk = new Float32Array(event.data.data);
           options.onChunk(chunk);
+        } else if (event.data.type === 'audio_level') {
+          options.onLevel?.(event.data.rms);
         }
       };
 

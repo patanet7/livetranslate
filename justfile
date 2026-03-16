@@ -42,47 +42,77 @@ install:
 # Development — Start Services
 # ==============================================================================
 
-# LLM model for translation (vllm-mlx on Mac, Ollama on thomas-pc)
+# Split inference: two vllm-mlx processes to avoid Metal GPU crash from concurrent requests
+# Whisper instance handles /v1/audio/transcriptions only
+# LLM instance handles /v1/chat/completions only
+whisper_port := "8005"
+llm_port := "8006"
 llm_model := env("LLM_MODEL", "mlx-community/Qwen3-4B-4bit")
-llm_port := "8000"
 
-# Start all services locally (vllm-mlx handles both Whisper + LLM)
+# Log level for Python services (INFO, DEBUG, WARNING)
+log_level := env("LOG_LEVEL", "INFO")
+
+# Log directory for dev services
+log_dir := "/tmp/livetranslate/logs"
+
+# Start all services locally (two vllm-mlx: Whisper on :8005, LLM on :8006)
 dev:
-    @echo "Starting all services..."
-    @echo "  vllm-mlx:        http://localhost:{{llm_port}} ({{llm_model}} + Whisper)"
-    @echo "  Transcription:   http://localhost:5001 (vllm backend → :{{llm_port}})"
-    @echo "  Orchestration:   http://localhost:3000"
+    @mkdir -p {{log_dir}}
+    @echo "Starting all services (split inference)..."
+    @echo "  vllm-mlx STT:    http://localhost:{{whisper_port}} (Whisper)"
+    @echo "  vllm-mlx LLM:    http://localhost:{{llm_port}} ({{llm_model}})"
+    @echo "  Transcription:   http://localhost:5001 (vllm backend → :{{whisper_port}})"
+    @echo "  Orchestration:   http://localhost:3000 (LLM → :{{llm_port}})"
     @echo "  Dashboard:       http://localhost:5173"
+    @echo ""
+    @echo "Logs: {{log_dir}}/"
+    @echo "  tail -f {{log_dir}}/vllm-mlx-stt.log"
+    @echo "  tail -f {{log_dir}}/vllm-mlx-llm.log"
+    @echo "  tail -f {{log_dir}}/transcription.log"
+    @echo "  tail -f {{log_dir}}/orchestration.log"
+    @echo "  tail -f {{log_dir}}/dashboard.log"
     @echo ""
     @echo "Use Ctrl+C to stop all."
     @trap 'kill 0' EXIT; \
-        uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | sed 's/^/[vllm-mlx] /' & \
+        PYTHONUNBUFFERED=1 uv run vllm-mlx serve {{llm_model}} --port {{whisper_port}} 2>&1 | tee {{log_dir}}/vllm-mlx-stt.log | awk '{print "[vllm-stt] " $0; fflush()}' & \
+        PYTHONUNBUFFERED=1 uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | tee {{log_dir}}/vllm-mlx-llm.log | awk '{print "[vllm-llm] " $0; fflush()}' & \
         sleep 5 && \
-        VLLM_MLX_URL=http://localhost:{{llm_port}} \
-        uv run python {{transcription_dir}}/src/main_local.py --model large-v3-turbo --backend vllm 2>&1 | sed 's/^/[transcription] /' & \
+        VLLM_MLX_URL=http://localhost:{{whisper_port}} LOG_LEVEL={{log_level}} PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+        uv run python -u {{transcription_dir}}/src/main_local.py --model large-v3-turbo --backend vllm 2>&1 | tee {{log_dir}}/transcription.log | awk '{print "[transcription] " $0; fflush()}' & \
         sleep 3 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
         LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
-        LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
-        uv run python {{orchestration_dir}}/src/main_fastapi.py 2>&1 | sed 's/^/[orchestration] /' & \
-        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | sed 's/^/[dashboard] /' & \
+        LLM_TIMEOUT_S=30 DEFAULT_TARGET_LANGUAGE=zh LOG_LEVEL={{log_level}} PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+        uv run python -u {{orchestration_dir}}/src/main_fastapi.py 2>&1 | tee {{log_dir}}/orchestration.log | awk '{print "[orchestration] " $0; fflush()}' & \
+        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | tee {{log_dir}}/dashboard.log | awk '{print "[dashboard] " $0; fflush()}' & \
         wait
 
-# Start all services with Ollama instead of vllm-mlx
+# Start all services with DEBUG logging (shows segment lifecycle, dedup, draft→final)
+dev-debug:
+    LOG_LEVEL=DEBUG just dev
+
+# Start all services with Ollama for LLM (no vllm-mlx LLM instance needed)
 dev-ollama:
+    @mkdir -p {{log_dir}}
+    @echo "Starting services (Ollama for LLM, no vllm-mlx LLM)..."
+    @echo "Logs: {{log_dir}}/"
     @trap 'kill 0' EXIT; \
-        uv run python {{transcription_dir}}/src/main_local.py --model large-v3-turbo 2>&1 | sed 's/^/[transcription] /' & \
+        PYTHONUNBUFFERED=1 FORCE_COLOR=1 uv run python -u {{transcription_dir}}/src/main_local.py --model large-v3-turbo 2>&1 | tee {{log_dir}}/transcription.log | awk '{print "[transcription] " $0; fflush()}' & \
         sleep 5 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
-        LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen2.5:3b \
-        LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
-        uv run python {{orchestration_dir}}/src/main_fastapi.py 2>&1 | sed 's/^/[orchestration] /' & \
-        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | sed 's/^/[dashboard] /' & \
+        LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen3.5:4b \
+        LLM_TIMEOUT_S=30 DEFAULT_TARGET_LANGUAGE=zh PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+        uv run python -u {{orchestration_dir}}/src/main_fastapi.py 2>&1 | tee {{log_dir}}/orchestration.log | awk '{print "[orchestration] " $0; fflush()}' & \
+        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | tee {{log_dir}}/dashboard.log | awk '{print "[dashboard] " $0; fflush()}' & \
         wait
 
-# Start translation LLM server (vllm-mlx on Apple Silicon)
+# Start vllm-mlx LLM server standalone (Apple Silicon)
 dev-llm model=llm_model:
     uv run vllm-mlx serve {{model}} --port {{llm_port}}
+
+# Start vllm-mlx Whisper server standalone (Apple Silicon)
+dev-stt:
+    uv run vllm-mlx serve {{llm_model}} --port {{whisper_port}}
 
 # Start transcription service (Mac: auto-detect MLX/CPU)
 dev-transcription model='medium':
@@ -116,15 +146,19 @@ test:
     uv run pytest {{transcription_dir}}/tests/test_registry.py {{transcription_dir}}/tests/test_backpressure.py -v --timeout=30
     @echo ""
     @echo "=== Orchestration unit + integration ==="
-    cd {{orchestration_dir}} && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30
+    cd {{orchestration_dir}} && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30 -m "not integration"
 
 # Run shared contract + TS alignment tests
 test-contracts:
     uv run pytest modules/shared/tests/ -v --timeout=30
 
-# Run orchestration tests
+# Run orchestration tests (skip integration tests that need running services)
 test-orchestration:
-    cd {{orchestration_dir}} && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30
+    cd {{orchestration_dir}} && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30 -m "not integration"
+
+# Run orchestration integration tests (needs `just dev` running)
+test-orchestration-integration:
+    cd {{orchestration_dir}} && uv run pytest tests/unit/test_llm_client.py -v --timeout=30 -m integration
 
 # Run transcription registry + config tests
 test-transcription:

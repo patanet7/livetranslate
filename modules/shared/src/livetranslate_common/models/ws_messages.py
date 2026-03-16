@@ -144,6 +144,7 @@ class SegmentMessage(BaseModel):
         stable_text: Finalized portion of the text.
         unstable_text: Still-being-refined portion of the text.
         is_final: True when the segment will not be updated further.
+        is_draft: True for fast first-pass captions that will be refined by a later final.
         speaker_id: Optional speaker diarization identifier.
         start_ms: Segment start time in ms relative to session start (None for interim updates).
         end_ms: Segment end time in ms relative to session start (None for interim updates).
@@ -157,6 +158,7 @@ class SegmentMessage(BaseModel):
     stable_text: str
     unstable_text: str
     is_final: bool
+    is_draft: bool = False
     speaker_id: str | None = None
     start_ms: int | None = None
     end_ms: int | None = None
@@ -175,8 +177,28 @@ class InterimMessage(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class TranslationChunkMessage(BaseModel):
+    """Server streams partial translation tokens as they arrive from the LLM.
+
+    Args:
+        delta: New token(s) to append to the translation in progress.
+        transcript_id: Matches ``segment_id`` on ``SegmentMessage``.
+        source_lang: BCP-47 source language code.
+        target_lang: BCP-47 target language code.
+    """
+
+    type: Literal["translation_chunk"] = "translation_chunk"
+    transcript_id: int
+    delta: str
+    source_lang: str
+    target_lang: str
+
+
 class TranslationMessage(BaseModel):
-    """Server sends a translation result linked to a transcription.
+    """Server sends a complete translation result linked to a transcription.
+
+    Sent after all ``translation_chunk`` messages for this segment. Overwrites
+    any accumulated chunks with the canonical cleaned translation.
 
     Args:
         text: Translated text.
@@ -237,6 +259,19 @@ class ServiceStatusMessage(BaseModel):
     translation: Literal["up", "down"]
 
 
+class ErrorMessage(BaseModel):
+    """Server reports an error condition to the client.
+
+    Args:
+        message: Human-readable error description.
+        recoverable: Whether the client can continue after this error.
+    """
+
+    type: Literal["error"] = "error"
+    message: str
+    recoverable: bool = True
+
+
 # ---------------------------------------------------------------------------
 # Message registries
 # ---------------------------------------------------------------------------
@@ -255,11 +290,13 @@ _SERVER_MESSAGES: dict[str, type[BaseModel]] = {
     "segment": SegmentMessage,
     "interim": InterimMessage,
     "translation": TranslationMessage,
+    "translation_chunk": TranslationChunkMessage,
     "meeting_started": MeetingStartedMessage,
     "recording_status": RecordingStatusMessage,
     "service_status": ServiceStatusMessage,
     "language_detected": LanguageDetectedMessage,
     "backend_switched": BackendSwitchedMessage,
+    "error": ErrorMessage,
 }
 
 _ALL_MESSAGES: dict[str, type[BaseModel]] = {**_CLIENT_MESSAGES, **_SERVER_MESSAGES}

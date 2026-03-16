@@ -17,6 +17,7 @@ class AudioChunkProcessor extends AudioWorkletProcessor {
     this._writeIndex = 0;
     // M1: Track energy incrementally during accumulation to avoid a second pass.
     this._sumSquares = 0;
+    this._peak = 0;
     // C2: Holdover counter — keep sending for N buffers after last non-silent buffer
     // to prevent mid-speech dropouts from quiet trailing syllables.
     this._silentBufferCount = 0;
@@ -39,35 +40,25 @@ class AudioChunkProcessor extends AudioWorkletProcessor {
       this._ringBuffer[this._writeIndex++] = sample;
       // M1: Track energy incrementally — no second pass needed
       this._sumSquares += sample * sample;
+      const abs = sample < 0 ? -sample : sample;
+      if (abs > this._peak) this._peak = abs;
 
       // When buffer is full, check energy and send to main thread
       if (this._writeIndex >= this._bufferSize) {
-        // C2: Use RMS energy instead of peak detection.
-        // Peak detection (checking individual samples > threshold) drops quiet
-        // speech where no single sample exceeds the threshold. RMS measures
-        // actual energy content, which is what matters for speech presence.
-        // Threshold of 0.001 ≈ -60dBFS — well above noise floor but catches
-        // quiet speech that peak detection at 0.0001 (-80dBFS) would miss.
         const rms = Math.sqrt(this._sumSquares / this._bufferSize);
-        const hasAudio = rms > 0.001;
 
-        if (hasAudio) {
-          this._silentBufferCount = 0;
-          const chunk = new Float32Array(this._ringBuffer);
-          this.port.postMessage({ type: 'audio_chunk', data: chunk.buffer }, [chunk.buffer]);
-        } else {
-          this._silentBufferCount++;
-          // C2: Holdover — keep sending for N buffers after speech ends
-          // to avoid clipping the tail of an utterance. Whisper needs
-          // continuous audio; gaps cause garbled output.
-          if (this._silentBufferCount <= this._silentHoldover) {
-            const chunk = new Float32Array(this._ringBuffer);
-            this.port.postMessage({ type: 'audio_chunk', data: chunk.buffer }, [chunk.buffer]);
-          }
-        }
+        // Post level for VU meter — peak is more visually responsive than RMS
+        this.port.postMessage({ type: 'audio_level', rms: rms, peak: this._peak });
+
+        // Always send audio — backend VAC handles speech detection.
+        // Frontend silence gating caused chunks to be dropped, breaking
+        // the continuous stream that Whisper needs.
+        const chunk = new Float32Array(this._ringBuffer);
+        this.port.postMessage({ type: 'audio_chunk', data: chunk.buffer }, [chunk.buffer]);
 
         this._writeIndex = 0;
         this._sumSquares = 0;
+        this._peak = 0;
       }
     }
 

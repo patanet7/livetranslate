@@ -15,10 +15,19 @@
 	let { data } = $props();
 
 	// --- Reactive state ---
-	let glossaries = $state<Glossary[]>(data.glossaries);
-	let entries = $state<GlossaryEntry[]>(data.entries);
-	let selectedGlossaryId = $state<string | null>(data.activeGlossaryId);
-	let uiConfig = $state<UiConfig>(data.uiConfig);
+	let glossaries = $state<Glossary[]>([]);
+	let entries = $state<GlossaryEntry[]>([]);
+	let selectedGlossaryId = $state<string | null>(null);
+	let uiConfig = $state<UiConfig>({
+		domains: [], languages: [], language_codes: [], defaults: {},
+		translation_models: [], translation_service_available: false, config_version: ''
+	});
+
+	// Sync from server load data
+	$effect(() => { glossaries = data.glossaries; });
+	$effect(() => { entries = data.entries; });
+	$effect(() => { selectedGlossaryId = data.activeGlossaryId; });
+	$effect(() => { uiConfig = data.uiConfig; });
 
 	// Dialog visibility states
 	let newGlossaryOpen = $state(false);

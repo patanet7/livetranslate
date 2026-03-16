@@ -18,7 +18,12 @@
 
 	// ── State ──────────────────────────────────────────────────────
 
-	let conversations = $state<Conversation[]>(data.conversations);
+	let conversations = $state<Conversation[]>([]);
+
+	// Sync from server load data (runs on mount and after invalidateAll)
+	$effect(() => {
+		conversations = data.conversations;
+	});
 	let selectedConversationId = $state<string | null>(null);
 	let messages = $state<ChatMessage[]>([]);
 	let suggestions = $state<string[]>([]);
@@ -250,7 +255,7 @@
 				messages = [...messages.slice(0, -1), { ...assistantMsg }];
 			}
 
-			if (!assistantMsg.content.trim()) {
+			if (!assistantMsg.content?.trim()) {
 				assistantMsg.content = 'No response received.';
 				messages = [...messages.slice(0, -1), assistantMsg];
 			}

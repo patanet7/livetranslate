@@ -4,12 +4,14 @@ Ported from translation-service's OpenAICompatibleTranslator (~150 lines
 of core logic). Everything else was proxy/wrapper code.
 
 Handles: prompt construction, HTTP POST, response parsing, retry with
-exponential backoff.
+exponential backoff. Supports streaming for real-time token delivery.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import time
+from collections.abc import AsyncIterator
 
 import httpx
 from livetranslate_common.logging import get_logger
@@ -53,6 +55,11 @@ class LLMClient:
         response_text = await self._call_llm(messages)
         latency_ms = (time.monotonic() - start) * 1000
 
+        logger.debug(
+            "llm_raw_response",
+            raw_len=len(response_text),
+            raw_preview=response_text[:200],
+        )
         translation = self._extract_translation(response_text)
 
         logger.info(
@@ -116,19 +123,47 @@ class LLMClient:
             user_parts.append(f"Terms: {terms}")
             user_parts.append("")
 
-        # Context: translations only (not source text) — doubles effective context window
+        # Context: previous translations for consistency (do NOT re-translate)
         if context:
-            user_parts.append("Previous translations:")
-            for i, ctx in enumerate(context, 1):
-                user_parts.append(f"  {i}. {ctx.translation}")
+            user_parts.append("[Context — previous conversation, do NOT translate:]")
+            for ctx in context:
+                user_parts.append(f"- {ctx.translation}")
             user_parts.append("")
 
+        user_parts.append(f"[Translate this:]")
         user_parts.append(text)
+
+        # Append /nothink suffix — Qwen3 chat template recognizes this to
+        # disable the <think> reasoning phase. Belt-and-suspenders with
+        # chat_template_kwargs for servers that don't support template params.
+        user_content = "\n".join(user_parts) + " /nothink"
 
         return [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "\n".join(user_parts)},
+            {"role": "user", "content": user_content},
         ]
+
+    def _request_body(self, messages: list[dict], *, stream: bool = False) -> dict:
+        """Build the OpenAI-compatible request body.
+
+        Centralizes model, sampling, and Qwen3 /nothink parameters so
+        _call_llm() and translate_stream() stay in sync.
+        """
+        return {
+            "model": self.config.model,
+            "messages": messages,
+            "temperature": self.config.temperature,
+            "max_tokens": 512,
+            "stream": stream,
+            # Qwen3 /nothink mode — per Alibaba docs (qwenlm/qwen3):
+            # https://github.com/qwenlm/qwen3/blob/main/docs/source/deployment/vllm.md
+            "top_p": 0.8,
+            "top_k": 20,
+            "presence_penalty": 1.5,
+            "repetition_penalty": 1.05,
+            # Disable thinking for vLLM/SGLang (Jinja chat template param)
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
 
     async def _call_llm(self, messages: list[dict], max_retries: int = 1) -> str:
         """Call the LLM API with retry logic."""
@@ -137,20 +172,7 @@ class LLMClient:
             try:
                 response = await self._client.post(
                     "/chat/completions",
-                    json={
-                        "model": self.config.model,
-                        "messages": messages,
-                        "temperature": self.config.temperature,
-                        # Qwen3 /nothink mode settings per Alibaba docs:
-                        # temp=0.7, top_p=0.8, top_k=20, presence_penalty=0-2
-                        "top_p": 0.8,
-                        "top_k": 20,
-                        "presence_penalty": 1.0,
-                        "repetition_penalty": 1.05,
-                        # Disable thinking/reasoning for Qwen3+ models (latency)
-                        "think": False,
-                        "chat_template_kwargs": {"enable_thinking": False},
-                    },
+                    json=self._request_body(messages),
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -190,6 +212,61 @@ class LLMClient:
                (text[0] == '\u2018' and text[-1] == '\u2019'):
                 text = text[1:-1]
         return text.strip()
+
+    async def translate_stream(
+        self,
+        text: str,
+        source_language: str,
+        target_language: str,
+        context: list[TranslationContext] | None = None,
+        glossary_terms: dict[str, str] | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream translation tokens from the LLM.
+
+        Same prompt construction as translate(), but uses SSE streaming.
+        Yields raw delta strings as they arrive. No retry — caller should
+        fall back to non-streaming translate() on failure.
+        """
+        messages = self._build_messages(
+            text, source_language, target_language,
+            context or [], glossary_terms,
+        )
+
+        async with self._client.stream(
+            "POST",
+            "/chat/completions",
+            json=self._request_body(messages, stream=True),
+        ) as response:
+            response.raise_for_status()
+            line_count = 0
+            yield_count = 0
+            async for line in response.aiter_lines():
+                line_count += 1
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:]  # strip "data: " prefix
+                if payload.strip() == "[DONE]":
+                    logger.debug(
+                        "stream_done",
+                        lines=line_count,
+                        yields=yield_count,
+                    )
+                    break
+                try:
+                    chunk = json.loads(payload)
+                    delta = chunk["choices"][0]["delta"].get("content", "")
+                    if delta:
+                        yield_count += 1
+                        yield delta
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+            else:
+                # aiter_lines exhausted without [DONE] — stream ended unexpectedly
+                logger.warning(
+                    "stream_ended_without_done",
+                    lines=line_count,
+                    yields=yield_count,
+                )
 
     async def close(self) -> None:
         await self._client.aclose()

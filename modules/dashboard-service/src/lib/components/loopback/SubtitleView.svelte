@@ -11,12 +11,10 @@
   // 3e: Clamp opacity to valid range
   const clampedOpacity = $derived(Math.max(0, Math.min(1, bgOpacity)));
 
-  // Show last 2 final captions as subtitles
-  const recentCaptions = $derived(
-    loopbackStore.captions
-      .filter(c => c.isFinal)
-      .slice(-2)
-  );
+  // Show last 2 captions as subtitles. No filter — the store manages draft→final
+  // lifecycle via segment_id matching. Filtering dropped intermediate refinements,
+  // causing stale or duplicate captions.
+  const recentCaptions = $derived(loopbackStore.captions.slice(-2));
 
   /** Open subtitle view in a separate browser window for screen-sharing. */
   function popOut() {
@@ -51,7 +49,7 @@
   <div class="subtitle-area" role="status" aria-live="assertive" aria-label="Subtitles">
     {#each recentCaptions as caption (caption.id)}
       <div class="subtitle-line" style="background: rgba(0, 0, 0, {clampedOpacity})">
-        <div class="original" style="font-size: {fontSize}px">{caption.text}</div>
+        <div class="original" style="font-size: {fontSize}px"><span class="caption-text" class:is-draft={caption.isDraft}>{caption.stableText}{#if caption.unstableText}<span class="unstable"> {caption.unstableText}</span>{/if}</span></div>
         {#if caption.translation}
           <div class="translation" style="font-size: {fontSize + 2}px">{caption.translation}</div>
         {/if}
@@ -111,5 +109,16 @@
   }
   .translation {
     color: var(--color-translation, #90ee90);
+  }
+  .caption-text {
+    transition: opacity 0.3s ease;
+  }
+  .caption-text.is-draft {
+    opacity: 0.85;
+  }
+  .unstable {
+    opacity: 0.5;
+    font-style: italic;
+    transition: opacity 0.3s ease;
   }
 </style>

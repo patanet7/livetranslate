@@ -47,6 +47,33 @@ export function configApi(fetch: typeof globalThis.fetch) {
 			api.get<TranslationHealth>('/api/translation/health'),
 
 		switchTranslationModel: (model: string) =>
-			api.post<{ message: string }>('/api/translation/model', { model })
+			api.post<{ message: string }>('/api/translation/model', { model }),
+
+		getAudioProcessing: () =>
+			api.get<Record<string, unknown>>('/api/settings/audio-processing'),
+
+		saveAudioProcessing: (config: Record<string, unknown>) =>
+			api.post<{ message: string; config: Record<string, unknown> }>(
+				'/api/settings/audio-processing',
+				config
+			),
+
+		getChunking: () =>
+			api.get<Record<string, unknown>>('/api/settings/chunking'),
+
+		saveChunking: (config: Record<string, unknown>) =>
+			api.post<{ message: string; config: Record<string, unknown> }>(
+				'/api/settings/chunking',
+				config
+			),
+
+		getPrompts: () =>
+			api.get<{ success: boolean; prompts: unknown[] }>('/api/settings/prompts'),
+
+		savePrompt: (prompt: Record<string, unknown>) =>
+			api.post<{ success: boolean; prompt_id: string }>('/api/settings/prompts', prompt),
+
+		updatePrompt: (id: string, updates: Record<string, unknown>) =>
+			api.put<{ success: boolean }>(`/api/settings/prompts/${id}`, updates)
 	};
 }

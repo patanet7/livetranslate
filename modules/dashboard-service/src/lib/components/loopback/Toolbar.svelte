@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -14,6 +15,11 @@
 		onEndMeeting?: () => void;
 		/** I1: Callback to send config changes to the server via WebSocket */
 		onConfigChange?: (config: { model?: string; language?: string }) => void;
+		onStartDemo?: () => void;
+		onStopDemo?: () => void;
+		isDemoRunning?: boolean;
+		/** RMS audio level from capture (0-1) for VU meter */
+		audioLevel?: number;
 	}
 
 	let {
@@ -25,7 +31,22 @@
 		onStartMeeting,
 		onEndMeeting,
 		onConfigChange,
+		onStartDemo,
+		onStopDemo,
+		isDemoRunning = false,
+		audioLevel = 0,
 	}: Props = $props();
+
+	// Scale peak (0-1) to percentage using dB scale.
+	// Speech peaks at 0.05-0.5; log scale makes quiet speech visible.
+	// Maps -60dB..0dB → 0..100%
+	let levelDb = $derived(audioLevel > 0 ? 20 * Math.log10(audioLevel) : -60);
+	let levelPercent = $derived(Math.max(0, Math.min(100, Math.round((levelDb + 60) * (100 / 60)))));
+	let levelColor = $derived(
+		levelPercent > 90 ? 'var(--status-clip, #ef4444)' :
+		levelPercent > 5 ? 'var(--status-up, #22c55e)' :
+		'var(--text-muted, #94a3b8)'
+	);
 
 	const SOURCE_LANGUAGES = [
 		{ value: 'auto', label: 'Auto Detect' },
@@ -66,9 +87,9 @@
 	// Track previous values to avoid writing to the store on initial render.
 	// Effects run immediately during component initialization and writing to
 	// the shared store can cause reactive cascades that break hydration.
-	let prevSourceLang = sourceLanguageValue;
-	let prevTargetLang = targetLanguageValue;
-	let prevModel = modelOverride;
+	let prevSourceLang = $state(untrack(() => sourceLanguageValue));
+	let prevTargetLang = $state(untrack(() => targetLanguageValue));
+	let prevModel = $state(untrack(() => modelOverride));
 
 	// Sync source language changes to store and notify server
 	$effect(() => {
@@ -114,7 +135,7 @@
 <div class="toolbar">
 	<!-- Audio Source -->
 	<div class="toolbar-group">
-		<label class="toolbar-label">Audio Source</label>
+		<span class="toolbar-label">Audio Source</span>
 		<Select.Root type="single" value={selectedDeviceId} onValueChange={(v) => { if (v) { selectedDeviceId = v; onDeviceChange?.(v); } }}>
 			<Select.Trigger class="toolbar-select">
 				{devices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Select device'}
@@ -131,7 +152,7 @@
 
 	<!-- Source Language -->
 	<div class="toolbar-group">
-		<label class="toolbar-label">Source</label>
+		<span class="toolbar-label">Source</span>
 		<Select.Root type="single" bind:value={sourceLanguageValue}>
 			<Select.Trigger class="toolbar-select">
 				{SOURCE_LANGUAGES.find((l) => l.value === sourceLanguageValue)?.label ?? 'Auto Detect'}
@@ -146,7 +167,7 @@
 
 	<!-- Target Language -->
 	<div class="toolbar-group">
-		<label class="toolbar-label">Target</label>
+		<span class="toolbar-label">Target</span>
 		<Select.Root type="single" bind:value={targetLanguageValue}>
 			<Select.Trigger class="toolbar-select">
 				{TARGET_LANGUAGES.find((l) => l.value === targetLanguageValue)?.label ?? 'English'}
@@ -161,7 +182,7 @@
 
 	<!-- Model Override -->
 	<div class="toolbar-group">
-		<label class="toolbar-label">Model</label>
+		<span class="toolbar-label">Model</span>
 		<Select.Root type="single" bind:value={modelOverride}>
 			<Select.Trigger class="toolbar-select">
 				{MODELS.find((m) => m.value === modelOverride)?.label ?? 'Auto'}
@@ -176,7 +197,7 @@
 
 	<!-- Display Mode -->
 	<div class="toolbar-group">
-		<label class="toolbar-label">Display</label>
+		<span class="toolbar-label">Display</span>
 		<!-- I5: Use radiogroup semantics for display mode switcher -->
 		<div class="display-mode-switcher" role="radiogroup" aria-label="Display mode">
 			<button
@@ -203,10 +224,9 @@
 		</div>
 	</div>
 
-	<!-- Connection Status -->
+	<!-- Connection Status + Level -->
 	<div class="toolbar-group">
-		<label class="toolbar-label">Status</label>
-		<!-- I4: Add role="status" and aria-label for screen readers -->
+		<span class="toolbar-label">Status</span>
 		<div class="status-dots">
 			<span class="status-dot" role="status" aria-label="Speech-to-text: {loopbackStore.transcriptionStatus}" style="background-color: {statusColor(loopbackStore.transcriptionStatus)};"></span>
 			<span class="status-label">STT</span>
@@ -215,30 +235,59 @@
 		</div>
 	</div>
 
+	<!-- Audio Level + Pipeline Counters -->
+	{#if loopbackStore.isCapturing}
+		<div class="toolbar-group">
+			<span class="toolbar-label">Level</span>
+			<div class="vu-meter" role="meter" aria-label="Audio input level" aria-valuenow={levelPercent} aria-valuemin={0} aria-valuemax={100}>
+				<div class="vu-bar" style="width: {levelPercent}%; background-color: {levelColor};"></div>
+			</div>
+		</div>
+		<div class="toolbar-group">
+			<span class="toolbar-label">Pipeline</span>
+			<div class="pipeline-counters">
+				<span class="counter" title="Audio chunks sent to server">{loopbackStore.chunksSent} <span class="counter-label">chunks</span></span>
+				<span class="counter-sep">&rarr;</span>
+				<span class="counter" title="Transcription segments received">{loopbackStore.segmentsReceived} <span class="counter-label">segs</span></span>
+				<span class="counter-sep">&rarr;</span>
+				<span class="counter" title="Translations received">{loopbackStore.translationsReceived} <span class="counter-label">xlat</span></span>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Capture Controls -->
 	<div class="toolbar-group toolbar-actions">
-		{#if loopbackStore.isCapturing}
+		{#if isDemoRunning}
+			<Button variant="destructive" size="sm" onclick={onStopDemo}>
+				Stop Demo
+			</Button>
+		{:else if loopbackStore.isCapturing}
 			<Button variant="destructive" size="sm" onclick={onStopCapture}>
 				Stop Capture
 			</Button>
 		{:else}
+			<Button variant="outline" size="sm" onclick={onStartDemo}>
+				Demo
+			</Button>
 			<Button variant="default" size="sm" onclick={onStartCapture}>
 				Start Capture
 			</Button>
 		{/if}
 
-		{#if loopbackStore.isMeetingActive}
-			<Button
-				variant="destructive"
-				size="sm"
-				onclick={(e: MouseEvent) => { e.stopPropagation(); showEndMeetingDialog = true; }}
-			>
-				End Meeting
-			</Button>
-		{:else}
-			<Button variant="secondary" size="sm" onclick={onStartMeeting}>
-				Start Meeting
-			</Button>
+		{#if !isDemoRunning}
+			{#if loopbackStore.isMeetingActive}
+				<Button
+					variant="destructive"
+					size="sm"
+					onclick={(e: MouseEvent) => { e.stopPropagation(); showEndMeetingDialog = true; }}
+				>
+					End Meeting
+				</Button>
+			{:else}
+				<Button variant="secondary" size="sm" onclick={onStartMeeting}>
+					Start Meeting
+				</Button>
+			{/if}
 		{/if}
 	</div>
 </div>
@@ -300,6 +349,7 @@
 		min-width: 8rem;
 	}
 
+
 	.display-mode-switcher {
 		display: flex;
 		border: 1px solid var(--border, #333);
@@ -348,5 +398,42 @@
 		font-size: 0.6875rem;
 		color: var(--text-muted, #94a3b8);
 		margin-right: 0.25rem;
+	}
+
+	.vu-meter {
+		width: 5rem;
+		height: 0.5rem;
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		border-radius: 0.25rem;
+		overflow: hidden;
+		margin-top: 0.125rem;
+	}
+
+	.vu-bar {
+		height: 100%;
+		border-radius: 0.25rem;
+		transition: width 80ms linear;
+	}
+
+	.pipeline-counters {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.6875rem;
+		font-variant-numeric: tabular-nums;
+		padding: 0.125rem 0;
+	}
+
+	.counter {
+		color: var(--text, #e2e8f0);
+	}
+
+	.counter-label {
+		color: var(--text-muted, #94a3b8);
+	}
+
+	.counter-sep {
+		color: var(--text-muted, #94a3b8);
+		font-size: 0.5625rem;
 	}
 </style>
