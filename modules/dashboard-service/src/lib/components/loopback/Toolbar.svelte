@@ -4,6 +4,10 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { loopbackStore, type DisplayMode } from '$lib/stores/loopback.svelte';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
+
+	let toolbarExpanded = $state(true);
 
 	interface Props {
 		devices: MediaDeviceInfo[];
@@ -190,7 +194,21 @@
 	}
 </script>
 
-<div class="toolbar">
+<div class="toolbar" class:toolbar-collapsed={!toolbarExpanded}>
+	<!-- Toggle button -->
+	<button
+		class="toolbar-toggle"
+		title={toolbarExpanded ? 'Collapse settings' : 'Expand settings'}
+		onclick={() => { toolbarExpanded = !toolbarExpanded; }}
+	>
+		{#if toolbarExpanded}
+			<ChevronUpIcon class="size-3" />
+		{:else}
+			<ChevronDownIcon class="size-3" />
+		{/if}
+	</button>
+
+	{#if toolbarExpanded}
 	<!-- Audio Source -->
 	<div class="toolbar-group">
 		<span class="toolbar-label">Audio Source</span>
@@ -285,7 +303,9 @@
 		</Select.Root>
 	</div>
 
-	<!-- Display Mode -->
+	{/if}
+
+	<!-- Display Mode (always visible) -->
 	<div class="toolbar-group">
 		<span class="toolbar-label">Display</span>
 		<!-- I5: Use radiogroup semantics for display mode switcher -->
@@ -404,6 +424,29 @@
 		padding: 0.75rem 1rem;
 		border-bottom: 1px solid var(--border, #333);
 		background: var(--bg-secondary, #1e293b);
+		position: relative;
+	}
+
+	.toolbar-collapsed {
+		padding: 0.5rem 1rem;
+	}
+
+	.toolbar-toggle {
+		position: absolute;
+		top: 0.25rem;
+		right: 0.5rem;
+		padding: 0.125rem;
+		border: none;
+		background: transparent;
+		color: var(--text-muted, #94a3b8);
+		cursor: pointer;
+		opacity: 0.5;
+		transition: opacity 0.15s;
+		z-index: 1;
+	}
+
+	.toolbar-toggle:hover {
+		opacity: 1;
 	}
 
 	.toolbar-group {
