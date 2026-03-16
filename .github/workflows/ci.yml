@@ -12,18 +12,16 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
-  NODE_VERSION: "20"
-  PDM_VERSION: "2.20"
-  PNPM_VERSION: "8"
+  NODE_VERSION: "22"
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
       transcription: ${{ steps.changes.outputs.transcription }}
-      translation: ${{ steps.changes.outputs.translation }}
       orchestration: ${{ steps.changes.outputs.orchestration }}
-      frontend: ${{ steps.changes.outputs.frontend }}
+      shared: ${{ steps.changes.outputs.shared }}
+      dashboard: ${{ steps.changes.outputs.dashboard }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
@@ -32,12 +30,12 @@ jobs:
           filters: |
             transcription:
               - 'modules/transcription-service/**'
-            translation:
-              - 'modules/translation-service/**'
             orchestration:
               - 'modules/orchestration-service/**'
-            frontend:
-              - 'modules/frontend-service/**'
+            shared:
+              - 'modules/shared/**'
+            dashboard:
+              - 'modules/dashboard-service/**'
 
   lint-python:
     needs: detect-changes
@@ -49,48 +47,38 @@ jobs:
           - name: transcription-service
             path: modules/transcription-service
             changed: ${{ needs.detect-changes.outputs.transcription }}
-          - name: translation-service
-            path: modules/translation-service
-            changed: ${{ needs.detect-changes.outputs.translation }}
           - name: orchestration-service
             path: modules/orchestration-service
             changed: ${{ needs.detect-changes.outputs.orchestration }}
     steps:
       - uses: actions/checkout@v6
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
+
+      - name: Install uv
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
 
       - name: Set up Python
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install PDM
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        uses: pdm-project/setup-pdm@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          version: ${{ env.PDM_VERSION }}
-          cache: true
-          cache-dependency-path: ${{ matrix.service.path }}/pdm.lock
-
       - name: Install dependencies
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
-        run: |
-          pdm install --dev --no-lock || pdm install --dev
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
+        run: uv sync --all-packages --group dev
 
       - name: Run ruff linting
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
         run: |
-          pdm run ruff check src/ tests/ --output-format=github || true
+          uv run ruff check ${{ matrix.service.path }}/src/ ${{ matrix.service.path }}/tests/ --output-format=github || true
 
       - name: Run ruff format check
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
         run: |
-          pdm run ruff format --check src/ tests/ || true
+          uv run ruff format --check ${{ matrix.service.path }}/src/ ${{ matrix.service.path }}/tests/ || true
 
   type-check-python:
     needs: detect-changes
@@ -102,42 +90,33 @@ jobs:
           - name: transcription-service
             path: modules/transcription-service
             changed: ${{ needs.detect-changes.outputs.transcription }}
-          - name: translation-service
-            path: modules/translation-service
-            changed: ${{ needs.detect-changes.outputs.translation }}
           - name: orchestration-service
             path: modules/orchestration-service
             changed: ${{ needs.detect-changes.outputs.orchestration }}
     steps:
       - uses: actions/checkout@v6
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
+
+      - name: Install uv
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
 
       - name: Set up Python
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install PDM
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        uses: pdm-project/setup-pdm@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          version: ${{ env.PDM_VERSION }}
-          cache: true
-          cache-dependency-path: ${{ matrix.service.path }}/pdm.lock
-
       - name: Install dependencies
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
-        run: |
-          pdm install --dev --no-lock || pdm install --dev
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
+        run: uv sync --all-packages --group dev
 
       - name: Run mypy type checking
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
+        if: matrix.service.changed == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'push'
         run: |
-          pdm run mypy src/ --ignore-missing-imports --no-error-summary || true
+          uv run mypy ${{ matrix.service.path }}/src/ --ignore-missing-imports --no-error-summary || true
 
   test-python:
     needs: detect-changes
@@ -149,30 +128,27 @@ jobs:
           - name: transcription-service
             path: modules/transcription-service
             changed: ${{ needs.detect-changes.outputs.transcription }}
-          - name: translation-service
-            path: modules/translation-service
-            changed: ${{ needs.detect-changes.outputs.translation }}
           - name: orchestration-service
             path: modules/orchestration-service
             changed: ${{ needs.detect-changes.outputs.orchestration }}
+          - name: shared
+            path: modules/shared
+            changed: ${{ needs.detect-changes.outputs.shared }}
     steps:
       - uses: actions/checkout@v6
         if: matrix.service.changed == 'true' || github.event_name == 'push'
+
+      - name: Install uv
+        if: matrix.service.changed == 'true' || github.event_name == 'push'
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
 
       - name: Set up Python
         if: matrix.service.changed == 'true' || github.event_name == 'push'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install PDM
-        if: matrix.service.changed == 'true' || github.event_name == 'push'
-        uses: pdm-project/setup-pdm@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          version: ${{ env.PDM_VERSION }}
-          cache: true
-          cache-dependency-path: ${{ matrix.service.path }}/pdm.lock
 
       - name: Install system dependencies
         if: matrix.service.changed == 'true' || github.event_name == 'push'
@@ -182,182 +158,49 @@ jobs:
 
       - name: Install dependencies
         if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
-        run: |
-          pdm install --dev --no-lock || pdm install --dev
+        run: uv sync --all-packages --group dev
 
-      - name: Run pytest with coverage
+      - name: Run pytest
         if: matrix.service.changed == 'true' || github.event_name == 'push'
-        working-directory: ${{ matrix.service.path }}
         run: |
-          pdm run pytest tests/ \
-            --cov=src \
-            --cov-report=xml \
-            --cov-report=html \
-            --cov-report=term-missing \
+          uv run pytest ${{ matrix.service.path }}/tests/ \
             -v \
             --tb=short \
-            -m "not slow and not gpu and not integration" \
+            -m "not slow and not gpu and not integration and not e2e" \
             || true
 
-      - name: Upload coverage report
-        if: (matrix.service.changed == 'true' || github.event_name == 'push') && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.service.name }}
-          path: ${{ matrix.service.path }}/coverage.xml
-          retention-days: 7
-
-      - name: Upload coverage to Codecov
-        if: (matrix.service.changed == 'true' || github.event_name == 'push') && always()
-        uses: codecov/codecov-action@v5
-        with:
-          file: ${{ matrix.service.path }}/coverage.xml
-          flags: ${{ matrix.service.name }}
-          name: ${{ matrix.service.name }}
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-  lint-frontend:
+  check-dashboard:
     needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'push'
+    if: needs.detect-changes.outputs.dashboard == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: modules/frontend-service
+        working-directory: modules/dashboard-service
     steps:
       - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: modules/frontend-service/pnpm-lock.yaml
+          cache: npm
+          cache-dependency-path: modules/dashboard-service/package-lock.json
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
-      - name: Run ESLint
-        run: pnpm lint || true
+      - name: Svelte check (type + lint)
+        run: npx svelte-check --threshold error
 
-      - name: Run Prettier check
-        run: pnpm format:check || true
-
-  type-check-frontend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'push'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: modules/frontend-service
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: modules/frontend-service/pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run TypeScript type check
-        run: pnpm type-check
-
-  test-frontend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'push'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: modules/frontend-service
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: modules/frontend-service/pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run Vitest
-        run: pnpm test:coverage || true
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-frontend
-          path: modules/frontend-service/coverage/
-          retention-days: 7
-
-  build-frontend:
-    needs: [lint-frontend, type-check-frontend, test-frontend]
-    if: needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'push'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: modules/frontend-service
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: modules/frontend-service/pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build production bundle
-        run: pnpm build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: modules/frontend-service/dist/
-          retention-days: 7
+      - name: Build
+        run: npm run build
 
   ci-status:
     needs:
       - lint-python
       - type-check-python
       - test-python
-      - lint-frontend
-      - type-check-frontend
-      - test-frontend
-      - build-frontend
+      - check-dashboard
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -366,10 +209,7 @@ jobs:
           if [[ "${{ needs.lint-python.result }}" == "failure" ]] || \
              [[ "${{ needs.type-check-python.result }}" == "failure" ]] || \
              [[ "${{ needs.test-python.result }}" == "failure" ]] || \
-             [[ "${{ needs.lint-frontend.result }}" == "failure" ]] || \
-             [[ "${{ needs.type-check-frontend.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-frontend.result }}" == "failure" ]] || \
-             [[ "${{ needs.build-frontend.result }}" == "failure" ]]; then
+             [[ "${{ needs.check-dashboard.result }}" == "failure" ]]; then
             echo "CI failed"
             exit 1
           fi

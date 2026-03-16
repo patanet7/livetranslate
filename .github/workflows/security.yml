@@ -14,7 +14,6 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
-  PDM_VERSION: "2.20"
 
 jobs:
   bandit-scan:
@@ -26,8 +25,6 @@ jobs:
         service:
           - name: transcription-service
             path: modules/transcription-service
-          - name: translation-service
-            path: modules/translation-service
           - name: orchestration-service
             path: modules/orchestration-service
     steps:
@@ -72,42 +69,28 @@ jobs:
   safety-scan:
     name: Safety Dependency Scan
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service:
-          - name: transcription-service
-            path: modules/transcription-service
-          - name: translation-service
-            path: modules/translation-service
-          - name: orchestration-service
-            path: modules/orchestration-service
     steps:
       - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install PDM
-        uses: pdm-project/setup-pdm@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          version: ${{ env.PDM_VERSION }}
-
       - name: Install Safety
         run: pip install safety
 
       - name: Export requirements
-        working-directory: ${{ matrix.service.path }}
         run: |
-          pdm export -o requirements-check.txt --without-hashes || \
-          pdm lock && pdm export -o requirements-check.txt --without-hashes || \
+          uv export --no-hashes -o requirements-check.txt || \
           echo "Could not export requirements"
 
       - name: Run Safety scan
-        working-directory: ${{ matrix.service.path }}
         run: |
           if [ -f requirements-check.txt ]; then
             safety check -r requirements-check.txt \
@@ -123,47 +106,42 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: safety-report-${{ matrix.service.name }}
-          path: ${{ matrix.service.path }}/safety-report.json
+          name: safety-report
+          path: safety-report.json
           retention-days: 30
           if-no-files-found: ignore
 
   npm-audit:
-    name: NPM Audit
+    name: NPM Audit (Dashboard)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: modules/frontend-service
+        working-directory: modules/dashboard-service
     steps:
       - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
-          cache: pnpm
-          cache-dependency-path: modules/frontend-service/pnpm-lock.yaml
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: modules/dashboard-service/package-lock.json
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run npm audit
-        run: pnpm audit --json > npm-audit-report.json || true
+        run: npm audit --json > npm-audit-report.json || true
 
       - name: Run npm audit (console output)
-        run: pnpm audit || true
+        run: npm audit || true
 
       - name: Upload npm audit report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: npm-audit-report
-          path: modules/frontend-service/npm-audit-report.json
+          path: modules/dashboard-service/npm-audit-report.json
           retention-days: 30
 
   trivy-scan:
@@ -176,14 +154,8 @@ jobs:
           - name: transcription-service
             path: modules/transcription-service
             dockerfile: Dockerfile
-          - name: translation-service
-            path: modules/translation-service
-            dockerfile: Dockerfile
           - name: orchestration-service
             path: modules/orchestration-service
-            dockerfile: Dockerfile
-          - name: frontend-service
-            path: modules/frontend-service
             dockerfile: Dockerfile
     steps:
       - uses: actions/checkout@v6
