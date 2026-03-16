@@ -38,6 +38,21 @@ _HALLUCINATION_PHRASES: frozenset[str] = frozenset({
 })
 
 
+def _has_cjk(text: str) -> bool:
+    """Return True if text contains CJK characters (Chinese/Japanese/Korean)."""
+    for ch in text:
+        cp = ord(ch)
+        if (
+            0x4E00 <= cp <= 0x9FFF      # CJK Unified Ideographs
+            or 0x3400 <= cp <= 0x4DBF    # CJK Extension A
+            or 0x3040 <= cp <= 0x309F    # Hiragana
+            or 0x30A0 <= cp <= 0x30FF    # Katakana
+            or 0xAC00 <= cp <= 0xD7AF    # Hangul Syllables
+        ):
+            return True
+    return False
+
+
 class HallucinationFilter:
     """Stateful filter consolidating all hallucination detection gates.
 
@@ -80,14 +95,27 @@ class HallucinationFilter:
             return True, "boh_phrase"
 
         # Gate 3: Two-tier confidence
+        # CJK languages don't use spaces, so .split() returns 1-2 tokens for
+        # entire sentences. Use character count for CJK (1 char ≈ 1 word).
         word_count = len(result.text.split())
+        if _has_cjk(result.text):
+            word_count = max(word_count, len(result.text.strip()))
         if word_count <= 2 and result.confidence < self._short_conf_threshold:
             return True, "low_confidence_short"
         if result.confidence < self._min_conf:
             return True, "low_confidence"
 
         # Gate 4: Intra-word repetition (>5 words, <20% unique)
-        if word_count > 5:
+        # For CJK: use character-level bigrams instead of space-split words,
+        # since CJK has no spaces and single characters repeat naturally.
+        if _has_cjk(result.text):
+            chars = list(result.text.strip())
+            if len(chars) > 10:
+                bigrams = [result.text[i:i+2] for i in range(len(chars) - 1)]
+                unique_ratio = len(set(bigrams)) / len(bigrams)
+                if unique_ratio < 0.2:
+                    return True, "intra_word_repetition"
+        elif word_count > 5:
             words = result.text.lower().split()
             unique_ratio = len(set(words)) / len(words)
             if unique_ratio < 0.2:

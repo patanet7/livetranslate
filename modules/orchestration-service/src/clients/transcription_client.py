@@ -21,10 +21,12 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import websockets
-from websockets.asyncio.client import ClientConnection
 from livetranslate_common.logging import get_logger
+from websockets.asyncio.client import ClientConnection
 
 logger = get_logger()
+
+_UNCHANGED = object()  # sentinel: "don't include this field in the config message"
 
 # Type alias for async callbacks that receive a parsed JSON dict
 MessageCallback = Callable[[dict[str, Any]], Awaitable[None]]
@@ -109,20 +111,24 @@ class WebSocketTranscriptionClient:
 
     async def send_config(
         self,
-        language: str | None = None,
-        initial_prompt: str | None = None,
-        glossary_terms: list[str] | None = None,
+        language: str | None | object = _UNCHANGED,
+        initial_prompt: str | None | object = _UNCHANGED,
+        glossary_terms: list[str] | None | object = _UNCHANGED,
     ) -> None:
-        """Send a config message to the transcription service."""
+        """Send a config message to the transcription service.
+
+        Pass ``language=None`` to explicitly request auto-detect (sends
+        ``"language": null``).  Omitting the parameter means "don't change".
+        """
         if not self._ws:
             raise RuntimeError("Not connected to transcription service")
 
         msg: dict[str, Any] = {"type": "config"}
-        if language is not None:
-            msg["language"] = language
-        if initial_prompt is not None:
+        if language is not _UNCHANGED:
+            msg["language"] = language  # None → null → auto-detect
+        if initial_prompt is not _UNCHANGED:
             msg["initial_prompt"] = initial_prompt
-        if glossary_terms is not None:
+        if glossary_terms is not _UNCHANGED:
             msg["glossary_terms"] = glossary_terms
 
         await self._ws.send(json.dumps(msg))

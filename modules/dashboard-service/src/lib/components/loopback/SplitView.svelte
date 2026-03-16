@@ -67,7 +67,7 @@
   <!-- Original language panel -->
   <div class="panel panel-original">
     <div class="panel-header">
-      Original ({loopbackStore.sourceLanguage ?? 'detecting...'})
+      Original ({loopbackStore.detectedLanguage ?? loopbackStore.sourceLanguage ?? 'detecting...'})
     </div>
     <div class="panel-content" role="log" aria-live="polite" aria-label="Original captions">
       {#each paragraphs as para (para.id)}

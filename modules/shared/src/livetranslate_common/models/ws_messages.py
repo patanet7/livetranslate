@@ -74,6 +74,7 @@ class ConfigMessage(BaseModel):
     model: str | None = None
     language: str | None = None
     target_language: str | None = None
+    interpreter_languages: list[str] | None = None
     initial_prompt: str | None = None
     glossary_terms: list[str] | None = None
 

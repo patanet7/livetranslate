@@ -120,6 +120,50 @@ export class LoopbackWebSocket {
     this.setState('disconnected');
   }
 
+  /**
+   * Send end_session, then wait for the server to finish draining
+   * in-flight translations before disconnecting. Messages received
+   * during the drain period are still dispatched to onMessage.
+   *
+   * @param timeoutMs Max time to wait for server close (default 5s)
+   */
+  async drainAndDisconnect(timeoutMs = 5000): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.disconnect();
+      return;
+    }
+
+    // Prevent auto-reconnect during drain
+    this.reconnectAttempts = this.maxReconnectAttempts;
+
+    this.sendMessage({ type: 'end_session' });
+
+    // Wait for the server to close the connection (after draining translations)
+    // or for our timeout to expire.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        resolve();
+      }, timeoutMs);
+
+      const wsRef = this.ws;
+      if (wsRef) {
+        const origOnClose = wsRef.onclose;
+        wsRef.onclose = () => {
+          clearTimeout(timer);
+          if (origOnClose) origOnClose.call(wsRef, new CloseEvent('close'));
+          resolve();
+        };
+      }
+    });
+
+    // Force-close if server didn't close within timeout
+    this._hasConnectedOnce = false;
+    this.ws?.close();
+    this.ws = null;
+    this._sessionId = null;
+    this.setState('disconnected');
+  }
+
   /** Send a binary audio chunk (Float32Array) */
   sendAudio(data: Float32Array): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return;

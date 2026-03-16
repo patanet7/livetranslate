@@ -20,18 +20,22 @@ export function hasPendingTranslation(captions: CaptionEntry[]): boolean {
 /**
  * Derive the visual phase of a paragraph's translation.
  * Used by TranslationText to determine opacity and indicator state.
+ *
+ * The final translation path accumulates stable_text across segments and
+ * only fires a TranslationMessage for the segment that triggers the flush.
+ * Earlier segments in the buffer keep their draft translations. So a
+ * paragraph is "complete" once ANY caption has a final translation — the
+ * other captions have draft text that's visually sufficient.
  */
 export function translationPhase(
 	captions: CaptionEntry[]
 ): 'waiting' | 'draft' | 'streaming' | 'complete' {
 	const hasTranslation = captions.some((c) => c.translation !== null);
-	const allComplete = captions.every((c) => c.translationComplete || c.isDraft);
-	const hasDraft = captions.some((c) => c.translationIsDraft);
 	const anyFinalComplete = captions.some((c) => c.translationComplete);
+	const hasDraft = captions.some((c) => c.translationIsDraft && !c.translationComplete);
 
-	if (anyFinalComplete && !hasPendingTranslation(captions)) return 'complete';
-	if (hasDraft && hasTranslation) return 'draft';
-	if (hasTranslation && !allComplete) return 'streaming';
-	if (!hasTranslation) return 'waiting';
-	return 'complete';
+	if (anyFinalComplete) return 'complete';
+	if (hasDraft) return 'draft';
+	if (hasTranslation) return 'streaming';
+	return 'waiting';
 }
