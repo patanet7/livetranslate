@@ -2,7 +2,8 @@
 
 All settings can be overridden via environment variables with LLM_ prefix:
   LLM_BASE_URL, LLM_MODEL, LLM_TEMPERATURE, LLM_TIMEOUT_S,
-  LLM_CONTEXT_WINDOW_SIZE, LLM_MAX_CONTEXT_TOKENS, LLM_MAX_QUEUE_DEPTH
+  LLM_CONTEXT_WINDOW_SIZE, LLM_MAX_CONTEXT_TOKENS, LLM_MAX_QUEUE_DEPTH,
+  LLM_MAX_TOKENS, LLM_DRAFT_MAX_TOKENS, LLM_DRAFT_TIMEOUT_S
 """
 from __future__ import annotations
 
@@ -19,6 +20,9 @@ class TranslationConfig(BaseSettings):
     context_window_size: int = 5
     max_context_tokens: int = 500
     max_queue_depth: int = 10
+    max_tokens: int = 512
+    draft_max_tokens: int = 160
+    draft_timeout_s: int = 4
 
     @property
     def llm_base_url(self) -> str:

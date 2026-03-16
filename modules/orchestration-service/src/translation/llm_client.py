@@ -38,6 +38,8 @@ class LLMClient:
         target_language: str,
         context: list[TranslationContext] | None = None,
         glossary_terms: dict[str, str] | None = None,
+        max_tokens: int | None = None,
+        max_retries: int = 1,
     ) -> str:
         """Translate text using the LLM. Returns translated string.
 
@@ -45,6 +47,8 @@ class LLMClient:
             glossary_terms: Optional dict of {source_term: target_term} for
                 consistent terminology. Passed to the prompt builder so the
                 LLM uses the preferred translations for domain-specific terms.
+            max_tokens: Override config.max_tokens for this call.
+            max_retries: Number of retries on failure (0 = fail immediately).
         """
         messages = self._build_messages(
             text, source_language, target_language,
@@ -52,7 +56,7 @@ class LLMClient:
         )
 
         start = time.monotonic()
-        response_text = await self._call_llm(messages)
+        response_text = await self._call_llm(messages, max_retries=max_retries, max_tokens=max_tokens)
         latency_ms = (time.monotonic() - start) * 1000
 
         logger.debug(
@@ -143,7 +147,13 @@ class LLMClient:
             {"role": "user", "content": user_content},
         ]
 
-    def _request_body(self, messages: list[dict], *, stream: bool = False) -> dict:
+    def _request_body(
+        self,
+        messages: list[dict],
+        *,
+        stream: bool = False,
+        max_tokens: int | None = None,
+    ) -> dict:
         """Build the OpenAI-compatible request body.
 
         Centralizes model, sampling, and Qwen3 /nothink parameters so
@@ -153,7 +163,7 @@ class LLMClient:
             "model": self.config.model,
             "messages": messages,
             "temperature": self.config.temperature,
-            "max_tokens": 512,
+            "max_tokens": max_tokens if max_tokens is not None else self.config.max_tokens,
             "stream": stream,
             # Qwen3 /nothink mode — per Alibaba docs (qwenlm/qwen3):
             # https://github.com/qwenlm/qwen3/blob/main/docs/source/deployment/vllm.md
@@ -165,14 +175,19 @@ class LLMClient:
             "chat_template_kwargs": {"enable_thinking": False},
         }
 
-    async def _call_llm(self, messages: list[dict], max_retries: int = 1) -> str:
+    async def _call_llm(
+        self,
+        messages: list[dict],
+        max_retries: int = 1,
+        max_tokens: int | None = None,
+    ) -> str:
         """Call the LLM API with retry logic."""
         last_error = None
         for attempt in range(max_retries + 1):
             try:
                 response = await self._client.post(
                     "/chat/completions",
-                    json=self._request_body(messages),
+                    json=self._request_body(messages, max_tokens=max_tokens),
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -220,6 +235,7 @@ class LLMClient:
         target_language: str,
         context: list[TranslationContext] | None = None,
         glossary_terms: dict[str, str] | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
         """Stream translation tokens from the LLM.
 
@@ -235,7 +251,7 @@ class LLMClient:
         async with self._client.stream(
             "POST",
             "/chat/completions",
-            json=self._request_body(messages, stream=True),
+            json=self._request_body(messages, stream=True, max_tokens=max_tokens),
         ) as response:
             response.raise_for_status()
             line_count = 0

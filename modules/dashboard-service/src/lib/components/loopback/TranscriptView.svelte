@@ -1,5 +1,7 @@
 <script lang="ts">
   import { loopbackStore, type CaptionEntry } from '$lib/stores/loopback.svelte';
+  import { paragraphTranslation, translationPhase } from './paragraph-helpers';
+  import TranslationText from './TranslationText.svelte';
 
   let endRef: HTMLElement | undefined;
 
@@ -50,10 +52,6 @@
     return d.toLocaleTimeString(undefined, { hour12: false });
   }
 
-  function paragraphTranslation(captions: CaptionEntry[]): string {
-    return captions.map(c => c.translation).filter(Boolean).join(' ');
-  }
-
   /** CJK languages don't use spaces between words. */
   function isCjk(lang: string): boolean {
     return ['zh', 'ja', 'ko'].includes(lang);
@@ -62,6 +60,8 @@
 
 <div class="transcript-view" role="log" aria-live="polite" aria-label="Transcript">
   {#each paragraphs as para (para.id)}
+    {@const trans = paragraphTranslation(para.captions)}
+    {@const phase = translationPhase(para.captions)}
     <div
       class="transcript-entry"
       style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
@@ -81,9 +81,9 @@
           {#if cap.unstableText}<span class="unstable">{#if !isCjk(cap.language)}{' '}{/if}{cap.unstableText}</span>{/if}
         {/each}
       </div>
-      {#if paragraphTranslation(para.captions)}
-        <div class="translation">{paragraphTranslation(para.captions)}</div>
-      {/if}
+      <div class="translation">
+        <TranslationText text={trans} {phase} />
+      </div>
     </div>
   {/each}
   {#if loopbackStore.interimText}
