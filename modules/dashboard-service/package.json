@@ -31,7 +31,7 @@
 		"@lucide/svelte": "^0.575.0",
 		"bits-ui": "^2.16.2",
 		"clsx": "^2.1.1",
-		"marked": "^17.0.3",
+		"marked": "^17.0.4",
 		"mode-watcher": "^1.1.0",
 		"shadcn-svelte": "^1.1.1",
 		"svelte-sonner": "^1.0.7",
