@@ -13,14 +13,18 @@
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import PanelLeftCloseIcon from '@lucide/svelte/icons/panel-left-close';
+	import PanelLeftOpenIcon from '@lucide/svelte/icons/panel-left-open';
 	import type { Component } from 'svelte';
 
 	interface Props {
 		open?: boolean;
+		collapsed?: boolean;
 		onclose?: () => void;
+		oncollapse?: (collapsed: boolean) => void;
 	}
 
-	let { open = false, onclose }: Props = $props();
+	let { open = false, collapsed = false, onclose, oncollapse }: Props = $props();
 
 	interface NavChild {
 		label: string;
@@ -109,13 +113,18 @@
 {/if}
 
 <aside
-	class="w-56 border-r bg-card flex flex-col h-full
-		fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-in-out
+	class="border-r bg-card flex flex-col h-full transition-all duration-200 ease-in-out
+		fixed inset-y-0 left-0 z-50
 		md:relative md:translate-x-0 md:z-auto
-		{open ? 'translate-x-0' : '-translate-x-full'}"
+		{open ? 'translate-x-0' : '-translate-x-full'}
+		{collapsed ? 'w-14' : 'w-56'}"
 >
-	<div class="p-4 border-b">
-		<h1 class="text-lg font-semibold">{APP_NAME}</h1>
+	<div class="p-4 border-b flex items-center {collapsed ? 'justify-center px-2' : ''}">
+		{#if collapsed}
+			<span class="text-lg font-semibold" title={APP_NAME}>L</span>
+		{:else}
+			<h1 class="text-lg font-semibold">{APP_NAME}</h1>
+		{/if}
 	</div>
 	<nav class="flex-1 p-2 space-y-1 overflow-y-auto">
 		{#each navItems as item}
@@ -124,23 +133,27 @@
 			<a
 				href={item.children ? item.children[0].href : item.href}
 				aria-current={parentActive ? 'page' : undefined}
-				class="flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors
+				title={collapsed ? item.label : undefined}
+				class="flex items-center rounded-md text-sm transition-colors
+					{collapsed ? 'justify-center px-2 py-2' : 'gap-2 px-3 py-2'}
 					{parentActive
 					? 'bg-accent text-accent-foreground font-medium'
 					: 'text-muted-foreground hover:bg-accent/50'}"
 				onclick={handleNavClick}
 			>
 				<Icon class="size-4 shrink-0" />
-				<span class="truncate">{item.label}</span>
-				{#if item.children}
-					<ChevronRightIcon
-						class="size-3 ml-auto shrink-0 transition-transform {parentActive
-							? 'rotate-90'
-							: ''}"
-					/>
+				{#if !collapsed}
+					<span class="truncate">{item.label}</span>
+					{#if item.children}
+						<ChevronRightIcon
+							class="size-3 ml-auto shrink-0 transition-transform {parentActive
+								? 'rotate-90'
+								: ''}"
+						/>
+					{/if}
 				{/if}
 			</a>
-			{#if item.children && parentActive}
+			{#if !collapsed && item.children && parentActive}
 				<div class="ml-8 space-y-0.5">
 					{#each item.children as child}
 						<a
@@ -158,7 +171,20 @@
 			{/if}
 		{/each}
 	</nav>
-	<div class="p-3 border-t">
-		<p class="text-[10px] text-muted-foreground/60 text-center">SvelteKit Dashboard v2.0.0</p>
+	<div class="border-t {collapsed ? 'p-2' : 'p-3'}">
+		<button
+			class="hidden md:flex items-center justify-center w-full py-1.5 rounded-md text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent/50 transition-colors"
+			title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			onclick={() => oncollapse?.(!collapsed)}
+		>
+			{#if collapsed}
+				<PanelLeftOpenIcon class="size-4" />
+			{:else}
+				<PanelLeftCloseIcon class="size-4" />
+			{/if}
+		</button>
+		{#if !collapsed}
+			<p class="text-[10px] text-muted-foreground/60 text-center mt-1">SvelteKit Dashboard v2.0.0</p>
+		{/if}
 	</div>
 </aside>

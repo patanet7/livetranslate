@@ -25,7 +25,7 @@ export interface EndMeetingMessage {
 export interface ConfigMessage {
   type: 'config';
   model?: string;
-  language?: string;
+  language?: string | null;
   target_language?: string;
   interpreter_languages?: [string, string] | null;
   initial_prompt?: string;

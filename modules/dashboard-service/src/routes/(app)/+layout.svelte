@@ -8,6 +8,7 @@
 	let { children } = $props();
 
 	let sidebarOpen = $state(false);
+	let sidebarCollapsed = $state(false);
 
 	onMount(() => {
 		healthStore.startPolling();
@@ -20,7 +21,12 @@
 </script>
 
 <div class="flex h-screen bg-background text-foreground">
-	<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />
+	<Sidebar
+		open={sidebarOpen}
+		collapsed={sidebarCollapsed}
+		onclose={() => (sidebarOpen = false)}
+		oncollapse={(v) => (sidebarCollapsed = v)}
+	/>
 	<div class="flex flex-col flex-1 overflow-hidden">
 		<TopBar health={healthStore.status} onMenuToggle={() => (sidebarOpen = !sidebarOpen)} />
 		<main class="flex-1 overflow-y-auto p-4 md:p-6">
