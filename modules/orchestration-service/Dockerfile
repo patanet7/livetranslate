@@ -7,8 +7,7 @@
 FROM python:3.12-slim AS builder
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PDM_CHECK_UPDATE=false
+ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,18 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PDM
-RUN pip install --no-cache-dir pdm
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Set working directory
 WORKDIR /app
 
-# Copy only dependency files first (layer caching)
-COPY pyproject.toml pdm.lock* ./
+# Copy dependency files first (layer caching)
+COPY pyproject.toml uv.lock* ./
 
-# Install dependencies (production only, no lock file generation)
-ARG PDM_INSTALL_ARGS="--prod --no-lock --no-editable"
-RUN pdm install ${PDM_INSTALL_ARGS}
+# Install dependencies (production only)
+RUN uv sync --no-dev --frozen
 
 # =============================================================================
 # Stage 2: Runtime
