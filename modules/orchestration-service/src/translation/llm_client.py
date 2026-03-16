@@ -85,8 +85,13 @@ class LLMClient:
         target_language: str,
         context: list[TranslationContext],
         glossary_terms: dict[str, str] | None = None,
+        is_draft: bool = False,
     ) -> list[dict]:
         """Build LLM messages for translation.
+
+        Args:
+            is_draft: When True, uses a shorter system prompt (no context guard)
+                and compact user message format for lower latency.
 
         If glossary_terms is provided AND the existing TranslationPromptBuilder
         is available, delegates to it for richer prompt construction (glossary
@@ -118,11 +123,21 @@ class LLMClient:
         }
         extra = _EXTRA_INSTRUCTIONS.get((source_language, target_language), "")
 
-        system_prompt = (
-            f"Translate spoken {src_name} to natural {tgt_name}.{extra} "
-            f"Output ONLY the {tgt_name} translation. "
-            f"Never output {src_name} or any other language."
-        )
+        # System prompt: two variants
+        # - Final path with context: needs "Never repeat context" guard
+        # - Draft path / no context: shorter prompt, lower latency
+        has_context = bool(context)
+        if has_context:
+            system_prompt = (
+                f"Translate {src_name} speech to {tgt_name}.{extra} "
+                f"Output ONLY the {tgt_name} translation. "
+                f"Never repeat context."
+            )
+        else:
+            system_prompt = (
+                f"Translate {src_name} speech to {tgt_name}.{extra} "
+                f"Output ONLY the {tgt_name} translation."
+            )
 
         user_parts = []
 
@@ -136,15 +151,22 @@ class LLMClient:
             user_parts.append(f"Terms: {terms}")
             user_parts.append("")
 
-        # Context: previous translations for consistency (do NOT re-translate)
+        # Context: bilingual pairs for consistency
         if context:
-            user_parts.append("[Context — previous conversation, do NOT translate:]")
+            user_parts.append("[Prior:]")
             for ctx in context:
-                user_parts.append(f"- {ctx.translation}")
+                src = ctx.text.replace("\n", " ")
+                tgt = ctx.translation.replace("\n", " ")
+                user_parts.append(f"[{src_name}] {src}")
+                user_parts.append(f"[{tgt_name}] {tgt}")
             user_parts.append("")
 
-        user_parts.append(f"[Translate this:]")
-        user_parts.append(text)
+        # Text to translate: compact format for drafts, labeled for finals
+        if has_context:
+            user_parts.append("[New:]")
+            user_parts.append(text)
+        else:
+            user_parts.append(f"Translate: {text}")
 
         # Append /nothink suffix — Qwen3 chat template recognizes this to
         # disable the <think> reasoning phase. Belt-and-suspenders with

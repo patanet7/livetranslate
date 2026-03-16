@@ -146,8 +146,16 @@ class SegmentMessage(BaseModel):
         confidence: Overall confidence in [0.0, 1.0].
         stable_text: Finalized portion of the text.
         unstable_text: Still-being-refined portion of the text.
-        is_final: True when the segment will not be updated further.
-        is_draft: True for fast first-pass captions that will be refined by a later final.
+        is_final: True when the segment text ends at a sentence boundary
+            (punctuation). WARNING: Does NOT mean "last segment" or "will not
+            be updated." A segment with is_final=False can still be the
+            definitive transcription for its audio window.
+            See ARCHITECTURE.md Draft/Final Protocol.
+        is_draft: True for first-pass VAC snapshot (non-destructive, stride/2
+            audio). Draft and final segments share the same segment_id. The
+            final is a second-pass with the full audio stride -- same model,
+            more audio, usually longer/more accurate text. The frontend
+            replaces the draft in-place when the final arrives.
         speaker_id: Optional speaker diarization identifier.
         start_ms: Segment start time in ms relative to session start (None for interim updates).
         end_ms: Segment end time in ms relative to session start (None for interim updates).

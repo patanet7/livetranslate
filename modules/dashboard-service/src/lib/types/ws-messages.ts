@@ -59,7 +59,22 @@ export interface SegmentMessage {
   confidence: number;
   stable_text: string;
   unstable_text: string;
+  /**
+   * True when the segment text ends at a sentence boundary (punctuation).
+   *
+   * WARNING: Does NOT mean "last segment" or "will not be updated."
+   * A segment with is_final=false can still be the definitive transcription
+   * for its audio window. See ARCHITECTURE.md Draft/Final Protocol.
+   */
   is_final: boolean;
+  /**
+   * True for first-pass VAC snapshot (non-destructive, stride/2 audio).
+   *
+   * Draft and final segments share the same segment_id. The final is a
+   * second-pass with the full audio stride -- same model, more audio,
+   * usually longer/more accurate text. The frontend replaces the draft
+   * in-place when the final arrives.
+   */
   is_draft: boolean;
   speaker_id: string | null;
   start_ms: number | null;

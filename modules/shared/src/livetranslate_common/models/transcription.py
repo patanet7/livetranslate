@@ -45,8 +45,16 @@ class TranscriptionResult(BaseModel):
         segments: List of timed sub-segments.
         stable_text: The portion of text considered stable (finalized).
         unstable_text: The portion of text still being refined.
-        is_final: Whether this result is fully finalized.
-        is_draft: Whether this result is a draft/partial output.
+        is_final: True when the segment text ends at a sentence boundary
+            (punctuation). WARNING: Does NOT mean "last segment" or "will not
+            be updated." A segment with is_final=False can still be the
+            definitive transcription for its audio window.
+            See ARCHITECTURE.md Draft/Final Protocol.
+        is_draft: True for first-pass VAC snapshot (non-destructive, stride/2
+            audio). Draft and final segments share the same segment_id. The
+            final is a second-pass with the full audio stride -- same model,
+            more audio, usually longer/more accurate text. The frontend
+            replaces the draft in-place when the final arrives.
         speaker_id: Optional speaker identifier for the result.
         should_translate: Whether this result should be sent for translation.
         context_text: Prior context text used to condition the model.

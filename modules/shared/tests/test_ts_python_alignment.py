@@ -49,6 +49,8 @@ def _parse_ts_interfaces(path: Path) -> dict[str, set[str]]:
     ):
         name = match.group(1)
         body = match.group(2)
+        # Strip JSDoc comments (/** ... */) before parsing field names
+        body = re.sub(r"/\*\*.*?\*/", "", body, flags=re.DOTALL)
         fields: set[str] = set()
         for field_match in re.finditer(r"(\w+)\??:\s", body):
             fields.add(field_match.group(1))
