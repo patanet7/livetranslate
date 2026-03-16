@@ -28,7 +28,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 
 # Install dependencies (production only)
-RUN uv sync --no-dev --frozen
+RUN uv sync --no-dev
 
 # =============================================================================
 # Stage 2: Runtime
