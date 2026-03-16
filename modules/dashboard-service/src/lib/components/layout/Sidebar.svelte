@@ -183,8 +183,5 @@
 				<PanelLeftCloseIcon class="size-4" />
 			{/if}
 		</button>
-		{#if !collapsed}
-			<p class="text-[10px] text-muted-foreground/60 text-center mt-1">SvelteKit Dashboard v2.0.0</p>
-		{/if}
 	</div>
 </aside>
