@@ -1,7 +1,7 @@
 /**
- * Tests for loopback store draft→final translation lifecycle.
+ * Tests for loopback store translation lifecycle.
  *
- * Covers: translationIsDraft field, last-writer-wins guards,
+ * Covers: translationState field, last-writer-wins guards,
  * chunk-on-draft clear, segment replacement preserves translation.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -50,7 +50,7 @@ function makeChunk(overrides: Partial<TranslationChunkMessage> = {}): Translatio
 	};
 }
 
-describe('Loopback Store — Draft Translation Lifecycle', () => {
+describe('Loopback Store — Translation Lifecycle', () => {
 	let store: typeof import('$lib/stores/loopback.svelte').loopbackStore;
 
 	beforeEach(async () => {
@@ -62,24 +62,22 @@ describe('Loopback Store — Draft Translation Lifecycle', () => {
 		store.clear();
 	});
 
-	it('addTranslation with is_draft=true sets translationIsDraft', () => {
+	it('addTranslation with is_draft=true sets translationState to draft', () => {
 		store.addSegment(makeSegment({ segment_id: 1, is_draft: true }));
 		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough draft' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('rough draft');
-		expect(caption.translationIsDraft).toBe(true);
-		expect(caption.translationComplete).toBe(false);
+		expect(caption.translationState).toBe('draft');
 	});
 
-	it('addTranslation with is_draft=false sets translationComplete', () => {
+	it('addTranslation with is_draft=false sets translationState to complete', () => {
 		store.addSegment(makeSegment({ segment_id: 1, is_draft: false }));
 		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final translation' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('final translation');
-		expect(caption.translationIsDraft).toBe(false);
-		expect(caption.translationComplete).toBe(true);
+		expect(caption.translationState).toBe('complete');
 	});
 
 	it('last-writer-wins: final blocks subsequent draft', () => {
@@ -91,10 +89,10 @@ describe('Loopback Store — Draft Translation Lifecycle', () => {
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('final');
-		expect(caption.translationComplete).toBe(true);
+		expect(caption.translationState).toBe('complete');
 	});
 
-	it('last-writer-wins: translationComplete blocks all updates', () => {
+	it('last-writer-wins: complete blocks all updates', () => {
 		store.addSegment(makeSegment({ segment_id: 1 }));
 		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'done' }));
 
@@ -112,26 +110,25 @@ describe('Loopback Store — Draft Translation Lifecycle', () => {
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('polished');
-		expect(caption.translationComplete).toBe(true);
-		expect(caption.translationIsDraft).toBe(false);
+		expect(caption.translationState).toBe('complete');
 	});
 
-	it('appendTranslationChunk clears draft text on first final chunk', () => {
+	it('appendTranslationChunk clears draft text on first streaming chunk', () => {
 		store.addSegment(makeSegment({ segment_id: 1 }));
 		// Draft translation arrives
 		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough draft' }));
-		expect(store.captions[0].translationIsDraft).toBe(true);
+		expect(store.captions[0].translationState).toBe('draft');
 
-		// First streaming final chunk — should CLEAR draft text, then append
+		// First streaming chunk — should CLEAR draft text, then append
 		store.appendTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hello' }));
 
 		const caption = store.captions[0];
 		// Should be 'Hello', NOT 'rough draftHello'
 		expect(caption.translation).toBe('Hello');
-		expect(caption.translationIsDraft).toBe(false);
+		expect(caption.translationState).toBe('streaming');
 	});
 
-	it('appendTranslationChunk ignores after translationComplete', () => {
+	it('appendTranslationChunk ignores after complete', () => {
 		store.addSegment(makeSegment({ segment_id: 1 }));
 		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final' }));
 
@@ -152,5 +149,21 @@ describe('Loopback Store — Draft Translation Lifecycle', () => {
 		const caption = store.captions[0];
 		expect(caption.isDraft).toBe(false);
 		expect(caption.translation).toBe('rough');  // preserved!
+	});
+
+	it('new segment starts with translationState pending', () => {
+		store.addSegment(makeSegment({ segment_id: 1 }));
+		expect(store.captions[0].translationState).toBe('pending');
+	});
+
+	it('streaming transitions: pending → streaming → complete', () => {
+		store.addSegment(makeSegment({ segment_id: 1 }));
+		expect(store.captions[0].translationState).toBe('pending');
+
+		store.appendTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hel' }));
+		expect(store.captions[0].translationState).toBe('streaming');
+
+		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'Hello' }));
+		expect(store.captions[0].translationState).toBe('complete');
 	});
 });

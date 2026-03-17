@@ -9,6 +9,8 @@ import type { SegmentMessage, InterimMessage, TranslationMessage, TranslationChu
 
 export type DisplayMode = 'split' | 'subtitle' | 'transcript' | 'interpreter';
 
+export type TranslationState = 'pending' | 'draft' | 'streaming' | 'complete';
+
 export interface CaptionEntry {
   id: number;
   segmentId: number;  // Server-side segment_id for translation matching
@@ -21,8 +23,7 @@ export interface CaptionEntry {
   isFinal: boolean;
   isDraft: boolean;        // True for fast first-pass captions
   translation: string | null;
-  translationIsDraft: boolean;   // true when current translation came from a draft
-  translationComplete: boolean;  // false until final TranslationMessage arrives
+  translationState: TranslationState;
   timestamp: number;
 }
 
@@ -90,8 +91,7 @@ function createLoopbackStore() {
       isFinal: msg.is_final,
       isDraft: msg.is_draft ?? false,
       translation: existingIdx >= 0 ? captions[existingIdx].translation : null,
-      translationIsDraft: existingIdx >= 0 ? captions[existingIdx].translationIsDraft : false,
-      translationComplete: existingIdx >= 0 ? captions[existingIdx].translationComplete : false,
+      translationState: existingIdx >= 0 ? captions[existingIdx].translationState : 'pending',
       timestamp: existingIdx >= 0 ? captions[existingIdx].timestamp : Date.now(),
     };
 
@@ -102,10 +102,10 @@ function createLoopbackStore() {
       if (!existing.isDraft && entry.isDraft) return;
 
       // Guard 2: If both are finals, the second is a new segment from a
-      // duplicate segment_id (counter race). Append instead of overwriting.
+      // duplicate segment_id (counter race). SegmentStore tracks lifecycle
+      // so this should be rare — append as a new caption.
       if (!existing.isDraft && !entry.isDraft) {
         entry.id = nextId++;
-        entry.segmentId = msg.segment_id + 100000;  // synthetic offset to avoid future collisions
         captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
       } else {
         // Normal: draft→final refinement — replace in-place (no layout shift)
@@ -134,14 +134,14 @@ function createLoopbackStore() {
     if (!caption) return;
 
     // Guard: ignore chunks after translation is already complete
-    if (caption.translationComplete) return;
+    if (caption.translationState === 'complete') return;
 
-    // Guard: first final chunk arriving on a draft translation — clear draft text
-    if (caption.translationIsDraft) {
+    // Guard: first streaming chunk arriving on a draft translation — clear draft text
+    if (caption.translationState === 'draft') {
       caption.translation = '';
-      caption.translationIsDraft = false;
     }
 
+    caption.translationState = 'streaming';
     caption.translation = caption.translation === null ? msg.delta : caption.translation + msg.delta;
   }
 
@@ -155,15 +155,14 @@ function createLoopbackStore() {
 
     const isDraft = !!(msg.is_draft ?? false);
 
-    // Last-writer-wins guard 1: translationComplete blocks all further updates
-    if (caption.translationComplete) return;
+    // Last-writer-wins guard 1: complete blocks all further updates
+    if (caption.translationState === 'complete') return;
 
-    // Last-writer-wins guard 2: don't downgrade — draft can't overwrite final
-    if (isDraft && !caption.translationIsDraft && caption.translation !== null) return;
+    // Last-writer-wins guard 2: don't downgrade — draft can't overwrite streaming/final
+    if (isDraft && caption.translationState !== 'pending' && caption.translationState !== 'draft') return;
 
     caption.translation = msg.text;
-    caption.translationIsDraft = isDraft;
-    caption.translationComplete = !isDraft;
+    caption.translationState = isDraft ? 'draft' : 'complete';
   }
 
   function startMeeting(sessionId: string, startedAt: string) {

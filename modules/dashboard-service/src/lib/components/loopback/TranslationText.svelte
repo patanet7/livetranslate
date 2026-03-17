@@ -3,7 +3,7 @@
    * Shared translation text renderer with phase-based visual feedback.
    *
    * Phases:
-   *   waiting   → pulsing dot, no text
+   *   pending   → pulsing dot, no text
    *   draft     → 65% opacity, solid dot
    *   streaming → 85% opacity, fast pulse + glow
    *   complete  → 100% opacity, no indicator
@@ -11,7 +11,7 @@
 
   interface Props {
     text: string;
-    phase: 'waiting' | 'draft' | 'streaming' | 'complete';
+    phase: 'pending' | 'draft' | 'streaming' | 'complete';
   }
 
   let { text, phase }: Props = $props();
@@ -19,10 +19,10 @@
 
 <span class="translation-text phase-{phase}">
   {#if text}{text}{/if}
-  {#if phase !== 'complete' && phase !== 'waiting'}
+  {#if phase !== 'complete' && phase !== 'pending'}
     <span class="indicator indicator-{phase}"></span>
-  {:else if phase === 'waiting'}
-    <span class="indicator indicator-waiting"></span>
+  {:else if phase === 'pending'}
+    <span class="indicator indicator-pending"></span>
   {/if}
 </span>
 
@@ -31,7 +31,7 @@
     transition: opacity 0.3s ease;
   }
 
-  .phase-waiting {
+  .phase-pending {
     opacity: 1;
   }
 
@@ -56,7 +56,7 @@
     vertical-align: middle;
   }
 
-  .indicator-waiting {
+  .indicator-pending {
     background: var(--color-translation, #90ee90);
     opacity: 0.7;
     animation: pulse-dot 1.2s ease-in-out infinite;

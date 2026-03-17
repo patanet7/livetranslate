@@ -54,7 +54,7 @@
         <div class="translation" style="font-size: {fontSize + 2}px">
           <TranslationText
             text={caption.translation ?? ''}
-            phase={caption.translationComplete ? 'complete' : caption.translationIsDraft ? 'draft' : caption.translation ? 'streaming' : 'waiting'}
+            phase={caption.translationState}
           />
         </div>
       </div>

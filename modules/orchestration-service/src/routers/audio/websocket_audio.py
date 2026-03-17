@@ -29,6 +29,7 @@ from clients.transcription_client import WebSocketTranscriptionClient
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models.ws_messages import (
+    BackendSwitchedMessage,
     ConfigMessage,
     ConnectedMessage,
     EndMeetingMessage,
@@ -203,7 +204,7 @@ async def websocket_audio_stream(websocket: WebSocket):
 
     # Per-session segment lifecycle tracker (replaces _stable_text_buffer,
     # _last_translated_stable, and _recent_segment_texts regex dedup)
-    segment_store: SegmentStore = _SegmentStore()
+    segment_store: SegmentStore = SegmentStore()
 
     # Lock for draft translations — non-blocking, drop when busy.
     # Lock (not Semaphore) because Lock has .locked() for non-blocking check.
@@ -428,6 +429,24 @@ async def websocket_audio_stream(websocket: WebSocket):
             "recoverable": data.get("recoverable", True),
         }))
 
+    async def handle_backend_switched(data: dict) -> None:
+        """Reset segment store on backend switch — word overlap patterns change."""
+        segment_store.reset()
+        # context_store intentionally NOT reset — prior translations remain valid
+        await safe_send(
+            BackendSwitchedMessage(
+                backend=data.get("backend", ""),
+                model=data.get("model", ""),
+                language=data.get("language", ""),
+            ).model_dump_json()
+        )
+        logger.info(
+            "backend_switched",
+            session_id=session_id,
+            backend=data.get("backend", ""),
+            model=data.get("model", ""),
+        )
+
     try:
         while True:
             data = await websocket.receive()
@@ -515,6 +534,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 )
                 transcription_client.on_segment(handle_transcription_segment)
                 transcription_client.on_language_detected(handle_language_detected)
+                transcription_client.on_backend_switched(handle_backend_switched)
                 transcription_client.on_error(handle_transcription_error)
 
                 try:

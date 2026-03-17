@@ -2,7 +2,7 @@
  * Shared helpers for paragraph-level translation state.
  * Used by SplitView, TranscriptView, and SubtitleView.
  */
-import type { CaptionEntry } from '$lib/stores/loopback.svelte';
+import type { CaptionEntry, TranslationState } from '$lib/stores/loopback.svelte';
 
 /** Combine translations from all captions in a paragraph. */
 export function paragraphTranslation(captions: CaptionEntry[]): string {
@@ -14,7 +14,7 @@ export function paragraphTranslation(captions: CaptionEntry[]): string {
 
 /** Does this paragraph have any captions still waiting for translation? */
 export function hasPendingTranslation(captions: CaptionEntry[]): boolean {
-	return captions.some((c) => !c.isDraft && !c.translationComplete);
+	return captions.some((c) => !c.isDraft && c.translationState !== 'complete');
 }
 
 /**
@@ -27,15 +27,13 @@ export function hasPendingTranslation(captions: CaptionEntry[]): boolean {
  * paragraph is "complete" once ANY caption has a final translation — the
  * other captions have draft text that's visually sufficient.
  */
-export function translationPhase(
-	captions: CaptionEntry[]
-): 'waiting' | 'draft' | 'streaming' | 'complete' {
-	const hasTranslation = captions.some((c) => c.translation !== null);
-	const anyFinalComplete = captions.some((c) => c.translationComplete);
-	const hasDraft = captions.some((c) => c.translationIsDraft && !c.translationComplete);
+export function translationPhase(captions: CaptionEntry[]): TranslationState {
+	const anyComplete = captions.some((c) => c.translationState === 'complete');
+	const anyStreaming = captions.some((c) => c.translationState === 'streaming');
+	const anyDraft = captions.some((c) => c.translationState === 'draft');
 
-	if (anyFinalComplete) return 'complete';
-	if (hasDraft) return 'draft';
-	if (hasTranslation) return 'streaming';
-	return 'waiting';
+	if (anyComplete) return 'complete';
+	if (anyStreaming) return 'streaming';
+	if (anyDraft) return 'draft';
+	return 'pending';
 }
