@@ -102,6 +102,10 @@ class HealthMonitor:
             f"Health monitor initialized with service URLs: {[config['url'] for config in self.service_configs.values()]}"
         )
 
+    async def get_comprehensive_health(self) -> dict[str, Any]:
+        """Alias for get_system_health (called by audio_core.py)."""
+        return await self.get_system_health()
+
     async def get_system_health(self) -> dict[str, Any]:
         """Get overall system health"""
         try:
