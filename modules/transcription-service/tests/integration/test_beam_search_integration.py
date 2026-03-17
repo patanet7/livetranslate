@@ -9,6 +9,8 @@ Following SimulStreaming specification:
 - Compare beam_size=1 (greedy) vs beam_size=5 (quality)
 
 NO MOCKS - Only real Whisper inference!
+
+Models are loaded ONCE per session via shared fixtures in conftest.py.
 """
 
 import sys
@@ -20,8 +22,6 @@ import pytest
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
-
-from whisper_service import ModelManager
 
 
 class TestBeamSearchIntegration:
@@ -36,17 +36,13 @@ class TestBeamSearchIntegration:
     """
 
     @pytest.mark.integration
-    def test_beam_search_loads_model_correctly(self):
+    def test_beam_search_loads_model_correctly(self, shared_whisper_model):
         """
         Test that beam search works with real Whisper model loading
         """
         print("\n[BEAM INTEGRATION] Testing model loading with beam search config...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        # Load model
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         assert model is not None
 
         # Create test audio
@@ -57,17 +53,17 @@ class TestBeamSearchIntegration:
         assert result_greedy is not None
         assert "text" in result_greedy
 
-        print(f"✅ Greedy decoding works: '{result_greedy['text']}'")
+        print(f"   Greedy decoding works: '{result_greedy['text']}'")
 
         # Test beam search (beam_size=5)
         result_beam = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
         assert result_beam is not None
         assert "text" in result_beam
 
-        print(f"✅ Beam search works: '{result_beam['text']}'")
+        print(f"   Beam search works: '{result_beam['text']}'")
 
     @pytest.mark.integration
-    def test_beam_size_affects_inference(self):
+    def test_beam_size_affects_inference(self, shared_whisper_model):
         """
         Test that different beam sizes are actually used during inference
 
@@ -75,10 +71,7 @@ class TestBeamSearchIntegration:
         """
         print("\n[BEAM INTEGRATION] Testing beam size variations...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Test multiple beam sizes
@@ -92,10 +85,10 @@ class TestBeamSearchIntegration:
 
         # All should complete successfully
         assert len(results) == 3
-        print("✅ All beam sizes processed successfully")
+        print("   All beam sizes processed successfully")
 
     @pytest.mark.integration
-    def test_beam_search_with_safe_inference(self):
+    def test_beam_search_with_safe_inference(self, shared_model_manager):
         """
         Test beam search through ModelManager.safe_inference()
 
@@ -103,9 +96,7 @@ class TestBeamSearchIntegration:
         """
         print("\n[BEAM INTEGRATION] Testing safe_inference with beam search...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
+        manager = shared_model_manager
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Greedy mode (beam_size=1)
@@ -124,10 +115,10 @@ class TestBeamSearchIntegration:
         assert result_beam.text is not None
         print(f"   Beam=5: '{result_beam.text}'")
 
-        print("✅ safe_inference works with beam search")
+        print("   safe_inference works with beam search")
 
     @pytest.mark.integration
-    def test_beam_search_with_longer_audio(self):
+    def test_beam_search_with_longer_audio(self, shared_whisper_model):
         """
         Test beam search with longer audio segments
 
@@ -135,10 +126,7 @@ class TestBeamSearchIntegration:
         """
         print("\n[BEAM INTEGRATION] Testing beam search with longer audio...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
 
         # Test with different durations
         durations = [1, 3, 5]  # seconds
@@ -151,10 +139,10 @@ class TestBeamSearchIntegration:
             assert result is not None
             print(f"   {duration}s audio: processed successfully")
 
-        print("✅ Beam search handles varying audio lengths")
+        print("   Beam search handles varying audio lengths")
 
     @pytest.mark.integration
-    def test_beam_search_with_temperature(self):
+    def test_beam_search_with_temperature(self, shared_whisper_model):
         """
         Test beam search with temperature sampling
 
@@ -162,10 +150,7 @@ class TestBeamSearchIntegration:
         """
         print("\n[BEAM INTEGRATION] Testing beam search with temperature...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Deterministic (temperature=0.0)
@@ -178,10 +163,10 @@ class TestBeamSearchIntegration:
         assert result_sample is not None
         print(f"   Sampling (T=0.7): '{result_sample['text']}'")
 
-        print("✅ Temperature parameter works with beam search")
+        print("   Temperature parameter works with beam search")
 
     @pytest.mark.integration
-    def test_beam_search_performance_benchmark(self):
+    def test_beam_search_performance_benchmark(self, shared_whisper_model):
         """
         Benchmark beam search vs greedy decoding
 
@@ -191,10 +176,7 @@ class TestBeamSearchIntegration:
 
         import time
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         timings = {}
@@ -213,7 +195,7 @@ class TestBeamSearchIntegration:
         assert timings[5] > timings[1], "Beam search should take longer than greedy"
         assert timings[5] < timings[1] * 10, "Beam search should not be 10x slower"
 
-        print(f"✅ Beam search performance acceptable (slowdown: {timings[5]/timings[1]:.2f}x)")
+        print(f"   Beam search performance acceptable (slowdown: {timings[5]/timings[1]:.2f}x)")
 
 
 class TestBeamSearchQualityMetrics:
@@ -224,7 +206,7 @@ class TestBeamSearchQualityMetrics:
     """
 
     @pytest.mark.integration
-    def test_beam_search_consistency(self):
+    def test_beam_search_consistency(self, shared_whisper_model):
         """
         Test that beam search produces consistent results
 
@@ -232,10 +214,7 @@ class TestBeamSearchQualityMetrics:
         """
         print("\n[BEAM QUALITY] Testing beam search consistency...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Run twice with same parameters
@@ -246,10 +225,10 @@ class TestBeamSearchQualityMetrics:
         # Should produce identical results (deterministic)
         assert result1["text"] == result2["text"]
 
-        print("✅ Beam search is deterministic with temperature=0.0")
+        print("   Beam search is deterministic with temperature=0.0")
 
     @pytest.mark.integration
-    def test_beam_search_with_domain_prompt(self):
+    def test_beam_search_with_domain_prompt(self, shared_whisper_model):
         """
         Test beam search combined with domain-specific prompt
 
@@ -257,10 +236,7 @@ class TestBeamSearchQualityMetrics:
         """
         print("\n[BEAM QUALITY] Testing beam search with domain prompt...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Domain-specific prompt
@@ -273,7 +249,7 @@ class TestBeamSearchQualityMetrics:
         assert result is not None
         assert "text" in result
 
-        print("✅ Beam search works with domain prompts")
+        print("   Beam search works with domain prompts")
 
 
 # Run tests

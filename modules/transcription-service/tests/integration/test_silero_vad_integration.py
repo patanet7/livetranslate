@@ -288,53 +288,41 @@ class TestSileroVADFiltering:
         print("✅ VAD mechanism operational")
 
     @pytest.mark.integration
-    def test_vad_integration_with_whisper_pipeline(self, silero_vad_model):
+    def test_vad_integration_with_whisper_pipeline(self, silero_vad_model, shared_model_manager):
         """
         Test VAD integration with Whisper transcription pipeline
 
         VAD should filter silence BEFORE Whisper processes audio
         """
-        import gc
-
         print("\n[VAD FILTERING] Testing Whisper pipeline integration...")
 
         from silero_vad_iterator import FixedVADIterator
-        from whisper_service import ModelManager
 
         vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
-        # Load Whisper
-        models_dir = Path(__file__).parent.parent / ".models"
-        whisper_manager = ModelManager(models_dir=str(models_dir))
+        # Use session-scoped shared manager (model already loaded)
         try:
-            whisper_manager.load_model("large-v3")
+            shared_model_manager.load_model("large-v3")
         except Exception:
             pytest.skip("large-v3 model not available")
 
-        try:
-            chunks_processed = 0
-            chunks_filtered = 0
+        chunks_processed = 0
+        chunks_filtered = 0
 
-            for i in range(5):
-                chunk = np.zeros(1600, dtype=np.float32)
-                vad_result = vad(chunk, return_seconds=True)
+        for i in range(5):
+            chunk = np.zeros(1600, dtype=np.float32)
+            vad_result = vad(chunk, return_seconds=True)
 
-                if vad_result is None or "start" not in vad_result:
-                    chunks_filtered += 1
-                    print(f"   Chunk {i}: FILTERED (silence)")
-                else:
-                    chunks_processed += 1
-                    print(f"   Chunk {i}: PROCESSED (speech)")
+            if vad_result is None or "start" not in vad_result:
+                chunks_filtered += 1
+                print(f"   Chunk {i}: FILTERED (silence)")
+            else:
+                chunks_processed += 1
+                print(f"   Chunk {i}: PROCESSED (speech)")
 
-            print("✅ VAD integration with Whisper pipeline works")
-            print(f"   Chunks filtered: {chunks_filtered}")
-            print(f"   Chunks processed: {chunks_processed}")
-        finally:
-            whisper_manager.dec_attns.clear()
-            del whisper_manager
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+        print("   VAD integration with Whisper pipeline works")
+        print(f"   Chunks filtered: {chunks_filtered}")
+        print(f"   Chunks processed: {chunks_processed}")
 
     @pytest.mark.integration
     def test_vad_state_reset(self, silero_vad_model):

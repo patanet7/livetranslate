@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-14T16:57:02.680173",
+  "generated_at": "2026-03-17T16:39:49.124739",
   "tests": {
     "jfk_english": {
       "best_accuracy": 100.0,
@@ -23,8 +23,8 @@
     },
     "test_history_tracking": {
       "best_accuracy": 74.0,
-      "best_timestamp": "2026-01-18T22:27:39.902365",
-      "history_length": 10
+      "best_timestamp": "2026-03-17T16:39:49.050263",
+      "history_length": 5
     }
   }
 }

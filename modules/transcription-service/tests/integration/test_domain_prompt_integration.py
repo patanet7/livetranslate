@@ -9,6 +9,8 @@ Following SimulStreaming specification:
 - REAL transcription with domain prompts
 
 NO MOCKS - Only real Whisper inference!
+
+Models are loaded ONCE per session via shared fixtures in conftest.py.
 """
 
 import sys
@@ -21,7 +23,6 @@ sys.path.insert(0, str(SRC_DIR))
 import numpy as np
 import pytest
 from domain_prompt_manager import DomainPromptManager, create_domain_prompt
-from whisper_service import ModelManager
 
 
 class TestDomainPromptIntegration:
@@ -36,7 +37,7 @@ class TestDomainPromptIntegration:
     """
 
     @pytest.mark.integration
-    def test_domain_prompt_in_real_inference(self):
+    def test_domain_prompt_in_real_inference(self, shared_whisper_model):
         """
         Test domain prompting with real Whisper inference
 
@@ -44,10 +45,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing domain prompts...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Medical domain prompt
@@ -66,10 +64,10 @@ class TestDomainPromptIntegration:
 
         print(f"   Without prompt: '{result_no_prompt['text']}'")
         print(f"   With prompt: '{result_with_prompt['text']}'")
-        print("✅ Domain prompts accepted by Whisper")
+        print("   Domain prompts accepted by Whisper")
 
     @pytest.mark.integration
-    def test_medical_domain_prompting(self):
+    def test_medical_domain_prompting(self, shared_whisper_model):
         """
         Test medical domain prompting with real inference
 
@@ -77,10 +75,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing medical domain...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Create medical domain prompt
@@ -101,10 +96,10 @@ class TestDomainPromptIntegration:
         )
 
         assert result is not None
-        print("✅ Medical domain prompt works")
+        print("   Medical domain prompt works")
 
     @pytest.mark.integration
-    def test_legal_domain_prompting(self):
+    def test_legal_domain_prompting(self, shared_whisper_model):
         """
         Test legal domain prompting with real inference
 
@@ -112,10 +107,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing legal domain...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Create legal domain prompt
@@ -130,10 +122,10 @@ class TestDomainPromptIntegration:
         )
 
         assert result is not None
-        print("✅ Legal domain prompt works")
+        print("   Legal domain prompt works")
 
     @pytest.mark.integration
-    def test_technical_domain_prompting(self):
+    def test_technical_domain_prompting(self, shared_whisper_model):
         """
         Test technical/software domain prompting
 
@@ -141,10 +133,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing technical domain...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Create technical domain prompt
@@ -165,10 +154,10 @@ class TestDomainPromptIntegration:
         )
 
         assert result is not None
-        print("✅ Technical domain prompt works")
+        print("   Technical domain prompt works")
 
     @pytest.mark.integration
-    def test_domain_prompt_manager(self):
+    def test_domain_prompt_manager(self, shared_whisper_model):
         """
         Test DomainPromptManager with real Whisper inference
 
@@ -176,10 +165,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing DomainPromptManager...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Use DomainPromptManager
@@ -197,10 +183,10 @@ class TestDomainPromptIntegration:
         )
 
         assert result is not None
-        print("✅ DomainPromptManager works with real inference")
+        print("   DomainPromptManager works with real inference")
 
     @pytest.mark.integration
-    def test_custom_terminology_injection(self):
+    def test_custom_terminology_injection(self, shared_whisper_model):
         """
         Test injecting custom terminology into prompts
 
@@ -208,10 +194,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing custom terminology...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Custom company-specific terms
@@ -226,10 +209,10 @@ class TestDomainPromptIntegration:
         )
 
         assert result is not None
-        print("✅ Custom terminology injection works")
+        print("   Custom terminology injection works")
 
     @pytest.mark.integration
-    def test_domain_prompt_with_beam_search(self):
+    def test_domain_prompt_with_beam_search(self, shared_whisper_model):
         """
         Test domain prompting combined with beam search
 
@@ -237,10 +220,7 @@ class TestDomainPromptIntegration:
         """
         print("\n[DOMAIN INTEGRATION] Testing domain prompt + beam search...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000 * 2, dtype=np.float32)
 
         medical_prompt = create_domain_prompt(
@@ -257,7 +237,7 @@ class TestDomainPromptIntegration:
 
         assert result is not None
         print(f"   Result: '{result['text']}'")
-        print("✅ Domain prompt + beam search works")
+        print("   Domain prompt + beam search works")
 
 
 class TestDomainPromptQuality:
@@ -268,7 +248,7 @@ class TestDomainPromptQuality:
     """
 
     @pytest.mark.integration
-    def test_prompt_consistency(self):
+    def test_prompt_consistency(self, shared_whisper_model):
         """
         Test that same prompt produces consistent results
 
@@ -276,10 +256,7 @@ class TestDomainPromptQuality:
         """
         print("\n[DOMAIN QUALITY] Testing prompt consistency...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         prompt = "Medical: hypertension, diabetes"
@@ -296,10 +273,10 @@ class TestDomainPromptQuality:
         # Should be identical (deterministic)
         assert result1["text"] == result2["text"]
 
-        print("✅ Domain prompts are deterministic")
+        print("   Domain prompts are deterministic")
 
     @pytest.mark.integration
-    def test_long_domain_prompt(self):
+    def test_long_domain_prompt(self, shared_whisper_model):
         """
         Test handling of long domain-specific prompts
 
@@ -307,10 +284,7 @@ class TestDomainPromptQuality:
         """
         print("\n[DOMAIN QUALITY] Testing long prompts...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Long medical prompt with many terms
@@ -336,10 +310,10 @@ class TestDomainPromptQuality:
         )
 
         assert result is not None
-        print("✅ Long prompts handled correctly")
+        print("   Long prompts handled correctly")
 
     @pytest.mark.integration
-    def test_empty_vs_domain_prompt_comparison(self):
+    def test_empty_vs_domain_prompt_comparison(self, shared_whisper_model):
         """
         Compare transcription with and without domain prompt
 
@@ -347,10 +321,7 @@ class TestDomainPromptQuality:
         """
         print("\n[DOMAIN QUALITY] Comparing empty vs domain prompt...")
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Without domain prompt
@@ -366,7 +337,7 @@ class TestDomainPromptQuality:
 
         print(f"   Empty prompt: '{result_empty['text']}'")
         print(f"   Domain prompt: '{result_domain['text']}'")
-        print("✅ Domain prompt comparison complete")
+        print("   Domain prompt comparison complete")
 
 
 # Run tests
