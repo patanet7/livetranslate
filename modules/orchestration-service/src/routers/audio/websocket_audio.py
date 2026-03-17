@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
@@ -43,12 +44,13 @@ from livetranslate_common.models.ws_messages import (
     TranslationMessage,
     parse_ws_message,
 )
+from livetranslate_common.models import TranslationRequest
 from meeting.downsampler import downsample_to_16k
+from translation.segment_store import SegmentStore
 
 if TYPE_CHECKING:
     from meeting.pipeline import MeetingPipeline
     from translation.context_store import DirectionalContextStore
-    from translation.segment_store import SegmentStore
     from translation.service import TranslationService
 
 logger = get_logger()
@@ -201,7 +203,6 @@ async def websocket_audio_stream(websocket: WebSocket):
 
     # Per-session segment lifecycle tracker (replaces _stable_text_buffer,
     # _last_translated_stable, and _recent_segment_texts regex dedup)
-    from translation.segment_store import SegmentStore as _SegmentStore
     segment_store: SegmentStore = _SegmentStore()
 
     # Lock for draft translations — non-blocking, drop when busy.
@@ -306,6 +307,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 return
 
             segment_store.on_draft_received(msg.segment_id, msg.text, msg.language, effective_target)
+            segment_store.evict_old()
 
             logger.debug(
                 "translation_trigger",
@@ -315,7 +317,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 is_draft=True,
             )
 
-            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg, ctx_store, seg_store):
+            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg, ctx_store, seg_store, pl):
                 """Draft translation with lock + timeout."""
                 await lock.acquire()
                 try:
@@ -328,7 +330,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                             source_lang=lang,
                             target_lang=tgt,
                             speaker_name=spk,
-                            pipeline=pipeline,
+                            pipeline=pl,
                             is_draft=True,
                             context_store=ctx_store,
                             segment_store=seg_store,
@@ -358,6 +360,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     translation_service.config,
                     context_store,
                     segment_store,
+                    pipeline,
                 )
             )
             session_tasks.add(task)
@@ -368,6 +371,7 @@ async def websocket_audio_stream(websocket: WebSocket):
         rec, translate_text = segment_store.on_final_received(
             msg.segment_id, msg.text, msg.is_final, msg.language, effective_target,
         )
+        segment_store.evict_old()
 
         if not translate_text:
             return  # accumulated into pending_sentence, waiting for sentence boundary
@@ -809,10 +813,8 @@ async def _translate_and_send(
       - Writes to context window, persists to DB in meeting mode
       - Sends translation_chunk messages + TranslationMessage(is_draft=False)
     """
-    import time as _time
-
     try:
-        start = _time.monotonic()
+        start = time.monotonic()
 
         if is_draft:
             # --- Draft: non-streaming, fail-fast, no context ---
@@ -823,7 +825,7 @@ async def _translate_and_send(
                 max_tokens=translation_service.config.draft_max_tokens,
                 max_retries=0,
             )
-            latency_ms = (_time.monotonic() - start) * 1000
+            latency_ms = (time.monotonic() - start) * 1000
 
             logger.info(
                 "translation_complete",
@@ -896,8 +898,6 @@ async def _translate_and_send(
                 is_draft=False,
                 error=str(stream_exc),
             )
-            from livetranslate_common.models import TranslationRequest
-
             request = TranslationRequest(
                 text=text,
                 source_language=source_lang,
@@ -907,7 +907,7 @@ async def _translate_and_send(
             response = await translation_service.translate(request)
             translation = response.translated_text
 
-        latency_ms = (_time.monotonic() - start) * 1000
+        latency_ms = (time.monotonic() - start) * 1000
 
         # Add to context window (finals only — never drafts)
         if context_store:
@@ -975,8 +975,6 @@ async def _warm_up_llm(translation_service: TranslationService) -> None:
     real final segment arrives.
     """
     try:
-        from livetranslate_common.models import TranslationRequest
-
         request = TranslationRequest(
             text="hello",
             source_language="en",

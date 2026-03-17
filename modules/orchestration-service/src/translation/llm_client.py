@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import AsyncIterator
 
@@ -85,20 +86,18 @@ class LLMClient:
         target_language: str,
         context: list[TranslationContext],
         glossary_terms: dict[str, str] | None = None,
-        is_draft: bool = False,
         cross_context: list[TranslationContext] | None = None,
     ) -> list[dict]:
         """Build LLM messages for translation.
 
-        Args:
-            is_draft: When True, uses a shorter system prompt (no context guard)
-                and compact user message format for lower latency.
+        System prompt variant is selected based on whether context is present:
+        - With context: includes "Never repeat context" guard to prevent
+          the LLM from regurgitating prior examples.
+        - Without context: shorter prompt for lower latency.
 
-        If glossary_terms is provided AND the existing TranslationPromptBuilder
-        is available, delegates to it for richer prompt construction (glossary
-        injection, speaker attribution, etc.). Otherwise uses the inline prompt.
-
-        See: modules/orchestration-service/src/services/translation_prompt_builder.py
+        If glossary_terms is provided, the terms are injected inline before
+        the text to translate. See:
+        modules/orchestration-service/src/services/translation_prompt_builder.py
         """
         # Validate glossary terms to prevent prompt injection via oversized entries
         if glossary_terms:
@@ -254,7 +253,6 @@ class LLMClient:
 
     def _extract_translation(self, response: str) -> str:
         """Clean up LLM response to extract just the translation."""
-        import re
         text = response.strip()
         # Strip Qwen3 <think>...</think> reasoning blocks
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()

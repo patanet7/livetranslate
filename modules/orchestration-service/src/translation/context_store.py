@@ -39,7 +39,7 @@ class DirectionalContextStore:
         if opposite not in self._windows:
             return []
         entries = self._windows[opposite].get_context()
-        # Return last 2 entries (token-level truncation deferred to Phase 5)
+        # Last 2 entries: enough referent context without inflating the prompt.
         return entries[-2:] if entries else []
 
     def add(

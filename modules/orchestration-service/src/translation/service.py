@@ -139,18 +139,16 @@ class TranslationService:
         self,
         source_lang: str = "",
         target_lang: str = "",
-        speaker: str | None = None,
     ) -> list[TranslationContext]:
-        """Get context for a direction. Speaker param is ignored (backward compat)."""
+        """Return context entries for the given direction."""
         return self.context_store.get(source_lang, target_lang)
 
     def clear_context(
         self,
         source_lang: str = "",
         target_lang: str = "",
-        speaker: str | None = None,
     ) -> None:
-        """Clear context. If both langs empty, clear all. Otherwise clear one direction."""
+        """Clear context. If both langs are empty, clears all directions."""
         if not source_lang and not target_lang:
             self.context_store.clear_all()
         else:

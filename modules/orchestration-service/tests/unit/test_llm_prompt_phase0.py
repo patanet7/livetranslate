@@ -85,7 +85,7 @@ class TestDraftFinalSystemPrompt:
     """Task 0.5: System prompt has draft/final variants."""
 
     def test_final_with_context_has_never_repeat(self, client):
-        """Final path (has context) includes 'Never repeat context' guard."""
+        """With context present, system prompt includes 'Never repeat context' guard."""
         context = [
             TranslationContext(text="Hello", translation="你好"),
         ]
@@ -94,35 +94,32 @@ class TestDraftFinalSystemPrompt:
             source_language="en",
             target_language="zh",
             context=context,
-            is_draft=False,
         )
         system_msg = messages[0]["content"]
         assert "Never repeat context" in system_msg
 
     def test_draft_no_context_shorter_prompt(self, client):
-        """Draft path (no context) has shorter system prompt."""
+        """Without context (draft path), system prompt omits the repeat guard."""
         messages = client._build_messages(
             text="Hello",
             source_language="en",
             target_language="zh",
             context=[],
-            is_draft=True,
         )
         system_msg = messages[0]["content"]
-        # Draft prompt should NOT have "Never repeat context"
+        # No context → shorter prompt, no "Never repeat context"
         assert "Never repeat context" not in system_msg
         # Should still have core translation instruction
         assert "English" in system_msg
         assert "Chinese" in system_msg
 
     def test_final_no_context_no_repeat_guard(self, client):
-        """Final path without context does not need 'Never repeat context'."""
+        """Without context, system prompt does not include 'Never repeat context'."""
         messages = client._build_messages(
             text="Hello",
             source_language="en",
             target_language="zh",
             context=[],
-            is_draft=False,
         )
         system_msg = messages[0]["content"]
         assert "Never repeat context" not in system_msg
@@ -143,7 +140,7 @@ class TestDraftFinalUserMessage:
     """Task 0.6: User message format differs for draft vs final."""
 
     def test_final_with_context_uses_new_label(self, client):
-        """Final path with context uses [New:] label."""
+        """With context, user message uses [New:] label before the text."""
         context = [
             TranslationContext(text="Hello", translation="你好"),
         ]
@@ -152,20 +149,18 @@ class TestDraftFinalUserMessage:
             source_language="en",
             target_language="zh",
             context=context,
-            is_draft=False,
         )
         user_msg = messages[1]["content"]
         assert "[New:]" in user_msg
         assert "Goodbye" in user_msg
 
     def test_draft_no_context_uses_translate_prefix(self, client):
-        """Draft path (no context) uses compact 'Translate: ...' format."""
+        """Without context, user message uses compact 'Translate: ...' format."""
         messages = client._build_messages(
             text="Hello world",
             source_language="en",
             target_language="zh",
             context=[],
-            is_draft=True,
         )
         user_msg = messages[1]["content"]
         assert "Translate: Hello world" in user_msg
@@ -177,7 +172,6 @@ class TestDraftFinalUserMessage:
             source_language="en",
             target_language="zh",
             context=[],
-            is_draft=False,
         )
         user_msg = messages[1]["content"]
         assert "[Translate this:]" not in user_msg
