@@ -39,6 +39,28 @@ class TranslationService:
         self._process_task: asyncio.Task | None = None
         self._concurrency = asyncio.Semaphore(min(config.max_queue_depth, 3))
 
+    async def translate_draft(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+        context: list[TranslationContext] | None = None,
+    ) -> str:
+        """Draft translation: fast, fail-fast, no context write-back.
+
+        Uses draft_max_tokens for shorter output and max_retries=0 for
+        immediate failure. The caller passes context from context_store.get()
+        — this method never reads or writes the internal context store.
+        """
+        return await self._client.translate(
+            text=text,
+            source_language=source_lang,
+            target_language=target_lang,
+            context=context,
+            max_tokens=self.config.draft_max_tokens,
+            max_retries=0,
+        )
+
     async def translate(
         self,
         request: TranslationRequest,

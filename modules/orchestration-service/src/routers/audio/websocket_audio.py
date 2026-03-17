@@ -817,13 +817,17 @@ async def _translate_and_send(
         start = time.monotonic()
 
         if is_draft:
-            # --- Draft: non-streaming, fail-fast, no context ---
-            translation = await translation_service._client.translate(
+            # --- Draft: non-streaming, fail-fast, provisional context ---
+            # Read finals from context for better quality, but never write back.
+            draft_context = None
+            if context_store:
+                full_ctx = context_store.get(source_lang, target_lang)
+                draft_context = full_ctx[-3:] if full_ctx else None
+            translation = await translation_service.translate_draft(
                 text=text,
-                source_language=source_lang,
-                target_language=target_lang,
-                max_tokens=translation_service.config.draft_max_tokens,
-                max_retries=0,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                context=draft_context,
             )
             latency_ms = (time.monotonic() - start) * 1000
 
