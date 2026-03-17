@@ -48,8 +48,7 @@ regexes = [
     '''localhost:\d+''',
     '''127\.0\.0\.1:\d+''',
     '''0\.0\.0\.0:\d+''',
-    # UUID patterns (not secrets)
-    '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+    # NOTE: UUID allowlist removed — many API keys (Fireflies, Azure, etc.) are UUID-formatted
     # Generic placeholder patterns
     '''<[A-Z_]+>''',
     '''\$\{[A-Z_]+\}''',
@@ -84,8 +83,8 @@ keywords = ["redis"]
 
 [[rules]]
 id = "livetranslate-api-key"
-description = "Detects hardcoded API keys"
-regex = '''(?i)(api[_-]?key|apikey)\s*[=:]\s*["']([a-zA-Z0-9_\-]{20,})["']'''
+description = "Detects hardcoded API keys (quoted and unquoted)"
+regex = '''(?i)(api[_-]?key|apikey)\s*[=:]\s*["']?([a-zA-Z0-9_\-]{20,})["']?'''
 secretGroup = 2
 keywords = ["api_key", "apikey"]
 
@@ -140,8 +139,8 @@ keywords = ["discord"]
 # Rule allowlists for specific files
 [[rules]]
 id = "generic-api-key"
-description = "Generic API key pattern"
-regex = '''(?i)(api[_-]?key|apikey|api_secret|api-secret)\s*[=:]\s*["']([^"']+)["']'''
+description = "Generic API key pattern (quoted and unquoted)"
+regex = '''(?i)(api[_-]?key|apikey|api_secret|api-secret)\s*[=:]\s*["']?([^\s"']+)["']?'''
 secretGroup = 2
 [rules.allowlist]
 paths = [

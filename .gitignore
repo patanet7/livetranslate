@@ -2,9 +2,19 @@
 # LiveTranslate Project .gitignore
 # ==============================================================================
 
-# Claude Code worktrees
+# Claude Code
+.claude/settings.local.json
 .claude/worktrees/
 .worktrees/
+
+# Superpowers (ephemeral tool output)
+.superpowers/
+
+# Hypothesis test database
+.hypothesis/
+
+# pip cache
+.pip-cache/
 
 # Python
 __pycache__/
@@ -247,6 +257,10 @@ dev-debug.log
 *.p12
 .env.local
 .env.production
+.env.database
+
+# Service .env files (use .env.example for templates)
+modules/*/.env
 
 # ==============================================================================
 # Test Outputs
