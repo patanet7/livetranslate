@@ -27,7 +27,7 @@
 		"vitest": "^4.0.18"
 	},
 	"dependencies": {
-		"@internationalized/date": "^3.11.0",
+		"@internationalized/date": "^3.12.0",
 		"@lucide/svelte": "^0.577.0",
 		"bits-ui": "^2.16.3",
 		"clsx": "^2.1.1",
