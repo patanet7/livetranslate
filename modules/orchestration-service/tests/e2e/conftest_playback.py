@@ -4,8 +4,14 @@ Loads transcription replay fixtures (pre-recorded segment sequences) and
 instantiates real TranslationService + RollingContextWindow for testing
 translation behavior without needing the transcription service or browser.
 
-Requires vLLM-MLX LLM on :8006 (or any OpenAI-compatible endpoint).
+Requires an OpenAI-compatible LLM endpoint (vLLM-MLX, Ollama, etc.).
 Gate: tests skip if LLM_BASE_URL env var is not set.
+
+IMPORTANT: On Apple Silicon with split vLLM-MLX inference (just dev),
+running these tests concurrently with the orchestration service can cause
+Metal GPU contention crashes. Run standalone:
+  just dev-llm  # start LLM only in one terminal
+  just test-e2e-playback  # run tests in another
 """
 from __future__ import annotations
 
@@ -60,7 +66,10 @@ async def translation_service():
     config = TranslationConfig()  # reads LLM_* env vars
     svc = TranslationService(config)
     yield svc
-    await svc.close()
+    try:
+        await svc.close()
+    except RuntimeError:
+        pass  # "Event loop is closed" — safe to ignore during teardown
 
 
 @pytest_asyncio.fixture

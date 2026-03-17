@@ -381,11 +381,12 @@ benchmark-tests:
 create-e2e-fixtures:
     uv run python tools/create_e2e_fixtures.py
 
-# Run backend translation-only playback tests (needs vLLM-MLX LLM on :8006)
+# Run backend translation playback tests (needs LLM on :8006, run standalone — not with `just dev`)
+# On Apple Silicon: `just dev-llm` in one terminal, `just test-e2e-playback` in another
 test-e2e-playback:
     cd {{orchestration_dir}} && \
     LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
-    uv run pytest tests/e2e/test_translation_playback.py -v -m e2e --timeout=120
+    uv run pytest tests/e2e/test_translation_playback.py tests/e2e/test_mixed_language_playback.py -v -m e2e --timeout=120
 
 # Full benchmark: VAC sweep + pipeline benchmark across all meeting languages (stub)
 # Use this for CI dry-run validation. Set stub=false to use real backend.
