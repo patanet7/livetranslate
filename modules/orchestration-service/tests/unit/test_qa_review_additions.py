@@ -12,7 +12,6 @@ from translation.segment_record import SegmentPhase, SegmentRecord
 from translation.segment_store import SegmentStore
 from translation.context_store import DirectionalContextStore
 from translation.llm_client import LLMClient
-from translation.config import TranslationConfig
 from livetranslate_common.models import TranslationContext
 
 
@@ -188,16 +187,12 @@ class TestDirectionalContextStoreCrossCaseInsensitive:
 class TestBuildMessagesGlossary:
     """Glossary injection in _build_messages — not covered in existing tests."""
 
-    def _make_client(self) -> LLMClient:
-        config = TranslationConfig(
-            base_url="http://localhost:11434/v1",
-            model="test",
-        )
-        return LLMClient(config)
+    @pytest.fixture
+    def client(self, llm_config):
+        return LLMClient(llm_config)
 
-    def test_glossary_terms_appear_in_user_message(self):
+    def test_glossary_terms_appear_in_user_message(self, client):
         """Glossary terms are included in the prompt in 'Terms: k=v' format."""
-        client = self._make_client()
         messages = client._build_messages(
             text="The engineer mentioned the SDK",
             source_language="en",
@@ -209,9 +204,8 @@ class TestBuildMessagesGlossary:
         assert "Terms:" in user_msg
         assert "SDK=软件开发工具包" in user_msg or "engineer=工程师" in user_msg
 
-    def test_glossary_newlines_are_sanitized(self):
+    def test_glossary_newlines_are_sanitized(self, client):
         """Newlines in glossary keys/values are replaced with spaces (injection guard)."""
-        client = self._make_client()
         messages = client._build_messages(
             text="test",
             source_language="en",
@@ -223,9 +217,8 @@ class TestBuildMessagesGlossary:
         assert "key\ninjection" not in user_msg
         assert "val\ninjection" not in user_msg
 
-    def test_glossary_truncated_to_50_terms(self):
+    def test_glossary_truncated_to_50_terms(self, client):
         """Oversized glossary is truncated to first 50 terms (injection guard)."""
-        client = self._make_client()
         huge_glossary = {f"term{i}": f"val{i}" for i in range(60)}
         messages = client._build_messages(
             text="test",
@@ -239,9 +232,8 @@ class TestBuildMessagesGlossary:
         term_count = user_msg.count("term")
         assert term_count <= 50
 
-    def test_no_glossary_no_terms_line(self):
+    def test_no_glossary_no_terms_line(self, client):
         """Without glossary, 'Terms:' line is absent."""
-        client = self._make_client()
         messages = client._build_messages(
             text="hello",
             source_language="en",
@@ -259,13 +251,12 @@ class TestBuildMessagesSystemPromptBranching:
     Tests confirm this so a refactor doesn't accidentally change it.
     """
 
-    def _make_client(self) -> LLMClient:
-        config = TranslationConfig(base_url="http://localhost:11434/v1", model="test")
-        return LLMClient(config)
+    @pytest.fixture
+    def client(self, llm_config):
+        return LLMClient(llm_config)
 
-    def test_with_context_gets_never_repeat(self):
+    def test_with_context_gets_never_repeat(self, client):
         """With context present, system prompt includes 'Never repeat context' guard."""
-        client = self._make_client()
         context = [TranslationContext(text="Hello", translation="你好")]
         messages = client._build_messages(
             text="Goodbye",
@@ -276,9 +267,8 @@ class TestBuildMessagesSystemPromptBranching:
         system_msg = messages[0]["content"]
         assert "Never repeat context" in system_msg
 
-    def test_without_context_no_repeat_guard(self):
+    def test_without_context_no_repeat_guard(self, client):
         """Without context, system prompt omits the 'Never repeat context' guard."""
-        client = self._make_client()
         messages = client._build_messages(
             text="Hello",
             source_language="en",
@@ -288,9 +278,8 @@ class TestBuildMessagesSystemPromptBranching:
         system_msg = messages[0]["content"]
         assert "Never repeat context" not in system_msg
 
-    def test_nothink_suffix_always_appended(self):
+    def test_nothink_suffix_always_appended(self, client):
         """The /nothink suffix is always appended for Qwen3 compatibility."""
-        client = self._make_client()
         # With context
         messages_ctx = client._build_messages(
             text="hello",
@@ -313,59 +302,46 @@ class TestBuildMessagesSystemPromptBranching:
 class TestExtractTranslation:
     """Tests for LLMClient._extract_translation response cleaning."""
 
-    def _make_client(self) -> LLMClient:
-        config = TranslationConfig(base_url="http://localhost:11434/v1", model="test")
-        return LLMClient(config)
+    @pytest.fixture
+    def client(self, llm_config):
+        return LLMClient(llm_config)
 
-    def test_plain_translation_returned_as_is(self):
-        client = self._make_client()
+    def test_plain_translation_returned_as_is(self, client):
         assert client._extract_translation("你好世界") == "你好世界"
 
-    def test_think_block_stripped(self):
-        client = self._make_client()
+    def test_think_block_stripped(self, client):
         result = client._extract_translation("<think>Let me think</think>你好")
         assert result == "你好"
 
-    def test_unclosed_think_block_discarded(self):
-        client = self._make_client()
+    def test_unclosed_think_block_discarded(self, client):
         result = client._extract_translation("<think>reasoning that never closes")
         assert result == ""
 
-    def test_double_quotes_stripped(self):
-        client = self._make_client()
+    def test_double_quotes_stripped(self, client):
         assert client._extract_translation('"你好世界"') == "你好世界"
 
-    def test_single_quotes_stripped(self):
-        client = self._make_client()
+    def test_single_quotes_stripped(self, client):
         assert client._extract_translation("'你好世界'") == "你好世界"
 
-    def test_curly_quotes_stripped(self):
-        client = self._make_client()
-        # Unicode left/right double quotation marks
+    def test_curly_quotes_stripped(self, client):
         assert client._extract_translation("\u201c你好世界\u201d") == "你好世界"
 
-    def test_translation_prefix_stripped(self):
-        client = self._make_client()
+    def test_translation_prefix_stripped(self, client):
         assert client._extract_translation("Translation: 你好世界") == "你好世界"
 
-    def test_output_prefix_stripped(self):
-        client = self._make_client()
+    def test_output_prefix_stripped(self, client):
         assert client._extract_translation("Output: 你好") == "你好"
 
-    def test_chinese_translation_prefix_stripped(self):
-        client = self._make_client()
+    def test_chinese_translation_prefix_stripped(self, client):
         assert client._extract_translation("翻译: 你好") == "你好"
 
-    def test_whitespace_stripped(self):
-        client = self._make_client()
+    def test_whitespace_stripped(self, client):
         assert client._extract_translation("  你好  ") == "你好"
 
-    def test_empty_string_returned_as_empty(self):
-        client = self._make_client()
+    def test_empty_string_returned_as_empty(self, client):
         assert client._extract_translation("") == ""
 
-    def test_think_block_followed_by_content(self):
-        client = self._make_client()
+    def test_think_block_followed_by_content(self, client):
         result = client._extract_translation("<think>reasoning</think>\n\n你好世界")
         assert result == "你好世界"
 

@@ -170,8 +170,8 @@ class TestTranslateAndSendDraft:
                 pipeline=None,
                 is_draft=True,
             )
-        except Exception:
-            pass  # Expected — bad URL
+        except (RuntimeError, OSError):
+            pass  # Expected — bad URL causes connection failure
         finally:
             await service.close()
 
@@ -199,8 +199,8 @@ class TestTranslateAndSendDraft:
                 pipeline=None,
                 is_draft=True,
             )
-        except Exception:
-            pass
+        except (RuntimeError, OSError):
+            pass  # Expected — bad URL causes connection failure
 
         # Context should still have exactly 1 entry (the manual one), not 2
         assert len(service.get_context("en", "es")) == 1
@@ -240,8 +240,8 @@ class TestTranslateAndSendDraft:
                 is_draft=True,
                 context_store=store,
             )
-        except Exception:
-            pass
+        except (RuntimeError, OSError):
+            pass  # Expected — bad URL causes connection failure
 
         # Context store should still have exactly 5 (drafts never write back)
         assert len(store.get("en", "es")) == 5
@@ -268,8 +268,8 @@ class TestTranslateAndSendDraft:
                 pipeline=None,
                 is_draft=False,
             )
-        except Exception:
-            pass
+        except (RuntimeError, OSError):
+            pass  # Expected — bad URL causes connection failure
 
         # With bad URL, translate fails → context stays empty (success-only write)
         assert len(service.get_context("en", "es")) == 0
