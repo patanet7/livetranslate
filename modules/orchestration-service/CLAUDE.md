@@ -28,6 +28,25 @@ Keep the `revision` string short (≤32 chars). Examples:
 - `008_chat_msg_speaker_cols` (25 chars) ✓
 - `008_add_chat_message_speaker_columns` (36 chars) ✗ TOO LONG
 
+## Translation Module (`src/translation/`)
+
+| File | Purpose |
+|------|---------|
+| `context_store.py` | `DirectionalContextStore` — per-`(source_lang, target_lang)` rolling context windows |
+| `context.py` | `RollingContextWindow` — token-budgeted FIFO context window |
+| `segment_record.py` | `SegmentRecord` dataclass + `SegmentPhase` enum (draft/final lifecycle) |
+| `segment_store.py` | `SegmentStore` — per-session draft/final tracker, sentence accumulation, eviction |
+| `config.py` | `TranslationConfig` pydantic-settings (`LLM_` prefix) |
+| `service.py` | `TranslationService` — orchestrates LLM calls, draft/final routing |
+| `llm_client.py` | HTTP client for Ollama OpenAI-compatible API (streaming + non-streaming) |
+
+### Draft/Final Routing
+
+- **Draft segments** (`is_draft=True`): non-streaming, no context write, provisional context read, drop-if-busy (`_draft_lock`), `LLM_DRAFT_TIMEOUT_S` wall-clock timeout.
+- **Non-final finals** (`is_draft=False, is_final=False`): accumulated in `SegmentStore._pending_sentence`, no translation issued.
+- **Sentence-boundary finals** (`is_draft=False, is_final=True`): flush `_pending_sentence`, streaming translation, context updated on completion.
+- **Eviction**: `segment_store.evict_old(keep_last=50)` called after every draft/final received. Protected: any `segment_id` in `_pending_segment_ids`.
+
 ## Fireflies API
 
 - **Rate limits:** Free/Pro = 50 requests/day; Business/Enterprise = 60 requests/minute

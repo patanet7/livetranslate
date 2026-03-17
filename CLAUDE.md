@@ -57,6 +57,14 @@ Real-time audio capture → transcription → translation page in the SvelteKit 
 - **Database Integration**: PostgreSQL persistence (`src/database/bot_session_manager.py`)
 - **Schema**: `scripts/bot-sessions-schema.sql` - Comprehensive PostgreSQL schema
 
+#### Translation Pipeline ✅
+- **Location**: `modules/orchestration-service/src/translation/`
+- **DirectionalContextStore**: Per-`(source_lang, target_lang)` rolling context windows (`src/translation/context_store.py`)
+- **SegmentStore**: Draft/final lifecycle tracker, sentence accumulation, eviction (`src/translation/segment_store.py`)
+- **SegmentRecord / SegmentPhase**: Single-segment state dataclass + phase enum (`src/translation/segment_record.py`)
+- **TranslationConfig**: pydantic-settings with `LLM_` prefix, draft/final token budgets (`src/translation/config.py`)
+- **Eviction**: `SegmentStore.evict_old(keep_last=50)` called after every draft/final received in `websocket_audio.py`
+
 #### Configuration Synchronization System ✅
 - **ConfigurationSyncManager**: `modules/orchestration-service/src/audio/config_sync.py`
 - **Dashboard Settings**: `modules/dashboard-service/src/pages/Settings/`
@@ -180,9 +188,13 @@ just benchmark-all-stub
 `TranslationConfig` (pydantic-settings, env_prefix=`LLM_`):
 - `LLM_BASE_URL` — LLM API endpoint (default: `http://localhost:11434/v1`)
 - `LLM_MODEL` — model name (default: `qwen3.5:7b`)
-- `LLM_TEMPERATURE` — generation temperature (default: `0.3`)
-- `LLM_CONTEXT_WINDOW_SIZE` — rolling context entries (default: `5`)
-- `LLM_MAX_CONTEXT_TOKENS` — token budget for context (default: `500`)
+- `LLM_TEMPERATURE` — generation temperature (default: `0.7`)
+- `LLM_CONTEXT_WINDOW_SIZE` — rolling context entries per direction (default: `5`)
+- `LLM_MAX_CONTEXT_TOKENS` — token budget for same-direction context (default: `800`)
+- `LLM_CROSS_DIRECTION_MAX_TOKENS` — token budget for cross-direction referent context (default: `200`)
+- `LLM_MAX_TOKENS` — max output tokens for final translation (default: `512`)
+- `LLM_DRAFT_MAX_TOKENS` — max output tokens for draft translation (default: `256`)
+- `LLM_DRAFT_TIMEOUT_S` — wall-clock timeout for draft translations (default: `4`)
 
 ## Gotchas
 
