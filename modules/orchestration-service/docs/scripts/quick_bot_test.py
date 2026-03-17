@@ -10,10 +10,10 @@ This script:
 4. Provides clear success/failure feedback
 
 Usage:
-    python quick_bot_test.py
+    uv run python docs/scripts/quick_bot_test.py
 
 Or provide a custom meeting URL:
-    python quick_bot_test.py --url https://meet.google.com/your-meeting-code
+    uv run python docs/scripts/quick_bot_test.py --url https://meet.google.com/your-meeting-code
 """
 
 import argparse
@@ -46,7 +46,7 @@ async def start_bot(base_url: str, meeting_url: str) -> str:
     """Start a bot and return connection ID"""
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
-            f"{base_url}/api/bots/start",
+            f"{base_url}/api/start",
             json={
                 "meeting_url": meeting_url,
                 "user_token": "quick-test-token",
@@ -67,7 +67,7 @@ async def start_bot(base_url: str, meeting_url: str) -> str:
 async def get_status(base_url: str, connection_id: str) -> dict:
     """Get bot status"""
     async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.get(f"{base_url}/api/bots/status/{connection_id}")
+        response = await client.get(f"{base_url}/api/status/{connection_id}")
         if response.status_code == 200:
             return response.json()
         return None
@@ -161,7 +161,7 @@ async def main():
         print(f"{RED}❌ Orchestration service not available at {args.service}{RESET}")
         print(f"{YELLOW}💡 Tip: Make sure the service is running with:{RESET}")
         print("   cd modules/orchestration-service")
-        print("   python src/main.py")
+        print("   uv run python src/main_fastapi.py")
         sys.exit(1)
 
     print(f"{GREEN}✅ Orchestration service is running{RESET}\n")

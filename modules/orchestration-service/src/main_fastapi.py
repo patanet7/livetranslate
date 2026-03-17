@@ -619,7 +619,7 @@ log_router_details("bot_management_router", bot_management_router, "/api")  # Ad
 conflicts = check_route_conflicts("/api", "bot_management_router", registered_routes)
 app.include_router(
     bot_management_router, prefix="/api"
-)  # Add /api prefix so routes become /api/bots/*
+)  # Add /api prefix so routes become /api/start, /api/status/*, etc.
 registered_routes.append(("/api", "bot_management_router"))
 router_logger.info("[OK] bot_management_router registered successfully")
 

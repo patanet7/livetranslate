@@ -14,24 +14,22 @@ class TestFeaturePreservation:
     @pytest.mark.integration
     @pytest.mark.feature_preservation
     @pytest.mark.asyncio
-    async def test_google_meet_bot_functionality(self):
-        """Test that Google Meet bot still works"""
+    async def test_docker_bot_manager_functionality(self):
+        """Test that the canonical Docker bot manager still works"""
 
         try:
-            from modules.orchestration_service.src.bot.bot_manager import GoogleMeetBotManager
+            from modules.orchestration_service.src.bot.docker_bot_manager import (
+                DockerBotManager,
+            )
         except ImportError:
-            pytest.skip("GoogleMeetBotManager not available")
+            pytest.skip("DockerBotManager not available")
 
-        # Note: This is a basic existence test
-        # Full bot testing requires browser automation environment
-
-        manager = GoogleMeetBotManager()
+        manager = DockerBotManager(enable_database=False)
 
         # Verify manager has core methods
-        assert hasattr(manager, "create_bot_session"), "Missing create_bot_session method"
-        assert hasattr(manager, "join_meeting") or hasattr(
-            manager, "start_bot"
-        ), "Missing bot start methods"
+        assert hasattr(manager, "start_bot"), "Missing start_bot method"
+        assert hasattr(manager, "stop_bot"), "Missing stop_bot method"
+        assert hasattr(manager, "handle_bot_callback"), "Missing callback handler"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation

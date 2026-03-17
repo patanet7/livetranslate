@@ -1,4 +1,13 @@
-# Google Meet Bot System - Complete Integration
+# Google Meet Bot System - Legacy Integration Notes
+
+The current canonical meeting bot runtime lives in [`modules/meeting-bot-service`](/Users/thomaspatane/GitHub/personal/livetranslate/modules/meeting-bot-service).
+
+The current canonical orchestration control path lives in:
+
+- [`modules/orchestration-service/src/bot/docker_bot_manager.py`](/Users/thomaspatane/GitHub/personal/livetranslate/modules/orchestration-service/src/bot/docker_bot_manager.py)
+- [`modules/orchestration-service/src/routers/bot/bot_docker_management.py`](/Users/thomaspatane/GitHub/personal/livetranslate/modules/orchestration-service/src/routers/bot/bot_docker_management.py)
+
+This document remains useful for legacy internals such as virtual webcam, correlation, and older Python-native integration code, but it should not be treated as the default runtime entrypoint for new bot work.
 
 **Professional Google Meet bot integration with virtual webcam generation and speaker attribution**
 

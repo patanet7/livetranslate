@@ -120,7 +120,7 @@ async def manual_login_setup(email: str, profile_path: str):
             print()
             print("Example API call:")
             print(f"""
-curl -X POST http://localhost:3000/api/bots/start \\
+curl -X POST http://localhost:3000/api/start \\
   -H "Content-Type: application/json" \\
   -d '{{
     "meeting_url": "https://meet.google.com/xxx-xxxx-xxx",

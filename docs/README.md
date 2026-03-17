@@ -15,6 +15,7 @@ This is the canonical index for active project documentation.
 - [Level 1 - Context](./01-context/README.md)
 - [Level 2 - Containers](./02-containers/README.md)
 - [Level 3 - Components](./03-components/README.md)
+- [Bot System](./03-components/bot-system.md)
 - [Cross-Service Contracts](./CROSS_SERVICE_CONTRACTS.md)
 
 ## Service Documentation

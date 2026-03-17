@@ -57,12 +57,20 @@ uv sync --all-packages --group dev
 uv run python src/main.py
 ```
 
-Terminal 3, frontend:
+Terminal 3, dashboard:
 
 ```bash
-cd modules/frontend-service
-pnpm install
-pnpm dev --host 0.0.0.0 --port 5173
+cd modules/dashboard-service
+npm install
+npm run dev
+```
+
+Terminal 4, meeting bot runtime:
+
+```bash
+cd modules/meeting-bot-service
+npm install
+npm run api
 ```
 
 ## Health Checks
@@ -70,6 +78,7 @@ pnpm dev --host 0.0.0.0 --port 5173
 ```bash
 curl http://localhost:3000/health
 curl http://localhost:5001/health
+curl http://localhost:5005/api/health
 ```
 
 ## URLs
@@ -77,6 +86,17 @@ curl http://localhost:5001/health
 - Frontend: `http://localhost:5173`
 - Orchestration API: `http://localhost:3000`
 - API Docs: `http://localhost:3000/docs`
+- Meeting Bot Service: `http://localhost:5005`
+
+## Bot Notes
+
+The canonical meeting bot runtime lives in `modules/meeting-bot-service`.
+
+The canonical orchestration bot-control routes are exposed by the orchestration service at:
+
+- `POST /api/start`
+- `GET /api/status/{connection_id}`
+- `POST /api/stop/{connection_id}`
 
 ## Next Guides
 
