@@ -6,18 +6,21 @@ LiveTranslate runs as a multi-service system with clear runtime responsibilities
 
 | Service | Port | Path | Primary Responsibility |
 |---|---:|---|---|
-| Frontend | 5173 | `modules/frontend-service` | Browser UI, dashboards, operator workflows |
-| Orchestration | 3000 | `modules/orchestration-service` | API gateway, workflow coordination, session management |
-| Whisper | 5001 | `modules/whisper-service` | Transcription and speech-related processing |
-| Translation | 5003 | `modules/translation-service` | Text translation and backend routing |
+| Dashboard | 5173 (dev) / 3000 (prod) | `modules/dashboard-service` | Real-time UI, loopback page, settings, meeting controls |
+| Orchestration | 3000 | `modules/orchestration-service` | API gateway, WebSocket hub, translation orchestration |
+| Transcription | 5001 | `modules/transcription-service` | Speech-to-text with VAD (pluggable backends) |
+| vLLM-MLX STT | 8005 | Inference service | Whisper transcription inference (Apple Silicon) |
+| vLLM-MLX LLM | 8006 | Inference service | Qwen3-4B-4bit translation inference (Apple Silicon) |
+| Ollama | 11434 | Inference service | Alternative LLM API for translation |
 | Redis | 6379 | compose-managed | cache/event bus support |
 | PostgreSQL | 5432 | compose-managed | persistence |
 
 ## Communication Paths
 
-- Frontend -> Orchestration (HTTP/WebSocket).
-- Orchestration -> Whisper (HTTP).
-- Orchestration -> Translation (HTTP).
+- Dashboard -> Orchestration (HTTP/WebSocket).
+- Orchestration -> Transcription (HTTP).
+- Orchestration -> vLLM-MLX :8006 or Ollama (LLM API for translation).
+- Transcription -> vLLM-MLX :8005 (Whisper inference).
 - Orchestration -> PostgreSQL/Redis.
 
 ## Local Runtime Profiles

@@ -14,40 +14,38 @@ LiveTranslate is a comprehensive, production-ready system for real-time audio tr
 
 ### Hardware-Optimized Service Architecture
 
-The system is organized into **4 core services** optimized for specific hardware acceleration:
+The system is organized into **3 core services + external LLM** optimized for specific hardware acceleration:
 
-1. **Whisper Service** (Port 5001) - **[NPU OPTIMIZED]** ✅
-   - Real-time speech-to-text transcription (OpenVINO optimized Whisper)
-   - Advanced speaker diarization with multiple embedding methods
+1. **Transcription Service** (Port 5001) - Pluggable backends ✅
+   - Real-time speech-to-text transcription (vLLM-MLX on Apple Silicon, faster-whisper on GPU)
+   - Silero Voice Activity Detection
+   - VRAM budgeting and model management
    - Multi-format audio processing (WAV, MP3, WebM, OGG, MP4)
-   - Voice Activity Detection (WebRTC + Silero)
    - Enterprise WebSocket infrastructure with connection pooling
 
-2. **Translation Service** (Port 5003) - **[GPU OPTIMIZED]** ✅
-   - **Llama 3.1-8B-Instruct**: Primary translation model with direct transformers integration
-   - **Multi-backend Support**: vLLM (with compatibility fallback), NLLB-200, Ollama, Triton
-   - **Real-time Translation Streaming**: WebSocket-based streaming with sub-200ms latency
-   - **Quality Scoring**: Confidence metrics and backend performance tracking
-   - **Intelligent Fallback Chain**: Llama → NLLB → Ollama → External APIs
-
-3. **Orchestration Service** (Port 3000) - **[CPU OPTIMIZED]** ✅
+2. **Orchestration Service** (Port 3000) - **[CPU OPTIMIZED]** ✅
    - FastAPI backend with async/await patterns
    - Enterprise WebSocket connection management (10,000+ concurrent)
    - Service health monitoring and auto-recovery
-   - API Gateway with load balancing and circuit breaking
+   - LLM-based translation via external service (vLLM-MLX or Ollama)
    - **Google Meet Bot Management**: Complete bot lifecycle, official API integration, PostgreSQL persistence
    - **Virtual Webcam System**: Professional translation overlays with speaker attribution
    - **Browser Audio Capture**: Specialized Google Meet audio extraction with multiple fallback methods
    - **Time Correlation Engine**: Advanced timeline matching between Google Meet captions and internal transcriptions
    - **Configuration Synchronization**: Real-time config sync between all services
 
-4. **Frontend Service** (Port 5173) - **[BROWSER OPTIMIZED]** ✅
-   - **Modern React 18**: TypeScript + Material-UI + Vite with Redux Toolkit state management
-   - **Real-time Audio Testing**: Comprehensive audio capture, processing, and visualization
+3. **Dashboard Service** (Port 5173) - **[BROWSER OPTIMIZED]** ✅
+   - **SvelteKit + Svelte 5 runes**: Modern reactive UI framework
+   - **Loopback Page** (`/loopback`): Real-time audio capture, transcription, and translation
+   - **Real-time Audio Testing**: Audio capture (microphone/system/both), visualization, live streaming
    - **Translation Testing Interface**: Live translation testing with multiple target languages
    - **Bot Management Dashboard**: Complete Google Meet bot lifecycle management
    - **Configuration Management**: Real-time settings sync with all backend services
    - **Analytics Dashboard**: Session statistics, performance metrics, and service monitoring
+
+4. **External LLM** - Translation inference ✅
+   - Local: vLLM-MLX (`:8006`, `mlx-community/Qwen3-4B-4bit`)
+   - Remote: Ollama (`:11434`, `qwen3.5:7b`)
 
 ### Supporting Infrastructure
 - **Google Meet Bot System**: Complete bot integration with official Google Meet API, virtual webcam generation
@@ -63,23 +61,24 @@ The system is organized into **4 core services** optimized for specific hardware
 Documentation is organized around current operational usage and C4 architecture levels:
 
 - **[Documentation Hub](./docs/README.md)** - Canonical navigation for active docs
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Full system topology and design
 - **[Quick Start Guide](./docs/guides/quick-start.md)** - Local startup workflows
 - **[Database Setup Guide](./docs/guides/database-setup.md)** - PostgreSQL/Redis bootstrap
-- **[Translation Testing Guide](./docs/guides/translation-testing.md)** - End-to-end and integration checks
 - **[C4 Level 1: Context](./docs/01-context/README.md)**
 - **[C4 Level 2: Containers](./docs/02-containers/README.md)**
 - **[C4 Level 3: Components](./docs/03-components/README.md)**
-- **[Documentation Maintenance Standards](./docs/MAINTENANCE.md)** - Keep docs current and clean
+
+**Note on Legacy Services**: `modules/frontend-service/`, `modules/translation-service/`, and `modules/speaker-service/` have been archived. See [Service Architecture](#hardware-optimized-service-architecture) for active services.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Docker Desktop** (Windows/Mac/Linux) - Version 20.10+ recommended
-- **Poetry 1.8+** (backend dependency management)
-- **Node.js 18+ with pnpm 8+** (frontend tooling; run `corepack enable` once)
-- **8GB RAM minimum** (16GB+ recommended for GPU acceleration)
+- **Python 3.12-3.13** (3.14+ not supported)
+- **UV** (dependency management, installed with Python)
+- **Node.js 18+** (frontend tooling)
+- **8GB RAM minimum** (16GB+ recommended for model inference)
 - **10GB storage** for models and data
-- **Optional**: NVIDIA GPU (CUDA 11.8+) or Intel NPU for acceleration
+- **Optional**: NVIDIA GPU (CUDA) or Apple Silicon for acceleration
 - **Optional**: PostgreSQL database for bot session persistence
 
 ### 1. Clone and Setup
@@ -88,92 +87,33 @@ Documentation is organized around current operational usage and C4 architecture 
 git clone <repository-url>
 cd livetranslate
 
-# Copy environment template (recommended)
-cp env.template .env
-# Edit .env file to customize configuration
+# Install dependencies (CRITICAL: --all-packages required for workspace packages)
+uv sync --all-packages --group dev
 ```
 
-### 2. Choose Your Deployment Method
-
-#### Option A: Docker Compose (Hot Reload + Local Inference)
+### 2. Run Services
 ```bash
-# Bootstrap environment variables (creates .env.local if missing)
-just bootstrap-env
+# Transcription Service (GPU/Apple Silicon)
+uv run python modules/transcription-service/src/main.py
 
-# Start orchestration, frontend, redis, whisper, and translation services
-just compose-up
+# Orchestration Service
+uv run python modules/orchestration-service/src/main_fastapi.py
 
-# Tail logs or stop services
-just compose-logs
-just compose-down
+# Dashboard Service (SvelteKit)
+cd modules/dashboard-service && npm install && npm run dev
+
+# External LLM (choose one):
+# Local: vLLM-MLX (Apple Silicon)
+python -m vllm.entrypoints.openai.api_server --model mlx-community/Qwen3-4B-4bit --port 8006
+
+# Or remote: Ollama (GPU)
+ollama run qwen3.5:7b
 ```
 
-By default this launches the real Whisper and Translation containers on CPU (no GPU required) alongside orchestration and the frontend dev server. To include Postgres or other profiles:
-
-```bash
-just compose-up profiles="core,inference,infra"
-# include workers for config sync processing
-# just compose-up profiles="core,inference,infra,workers"
-
-```
-
-Need quick mocks instead of the full inference stack? Start the mock profile and point orchestration at it by updating `.env.local`:
-
-```bash
-COMPOSE_PROFILES="core,mock" just compose-up
-# .env.local
-AUDIO_SERVICE_URL=http://whisper-mock:5001
-TRANSLATION_SERVICE_URL=http://translation-mock:5003
-```
-
-#### Option B: Development Environment (Recommended)
-> Requires Poetry and Node.js 18+. The script installs backend deps via `poetry install --with dev,audio` and ensures pnpm is available.
-```bash
-# Start complete development environment
-./start-development.ps1
-
-# Access services:
-# Frontend: http://localhost:5173
-# Backend:  http://localhost:3000
-# API Docs: http://localhost:3000/docs
-```
-
-#### Option C: Individual Service Development
-```bash
-# Backend Service (FastAPI + Poetry)
-cd modules/orchestration-service
-poetry install --with dev,audio
-poetry run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload
-
-# Frontend Service (React + pnpm)
-cd modules/frontend-service
-pnpm install
-pnpm dev --host 0.0.0.0 --port 5173
-
-# Optional: spin up inference services individually
-cd modules/whisper-service && docker compose up --build
-cd modules/translation-service && docker compose -f docker-compose-simple.yml up --build
-```
-
-#### Option D: Full System (All Services)
-```bash
-# Start all services with comprehensive setup
-docker-compose -f docker-compose.comprehensive.yml up -d
-
-# Check service health
-docker-compose -f docker-compose.comprehensive.yml ps
-```
-
-#### Option E: Core Services Only (Lightweight)
-```bash
-# Start essential services only
-docker-compose -f docker-compose.comprehensive.yml up -d frontend whisper translation whisper-redis translation-redis
-
-# Verify services are running
-curl http://localhost:3000/api/health
-curl http://localhost:5001/health
-curl http://localhost:5003/api/health
-```
+Access services:
+- **Dashboard**: http://localhost:5173 (dev) or http://localhost:3000 (prod)
+- **Orchestration API**: http://localhost:3000
+- **Loopback**: http://localhost:5173/loopback
 
 ## 🛠️ Developer Workflow
 
@@ -181,154 +121,121 @@ curl http://localhost:5003/api/health
   ```bash
   pre-commit install
   ```
-  Run linting/formatting on demand with `just pre-commit-run`.
-- Queue publishing is enabled by default; override via `.env.local`:
+  Run linting/formatting on demand with `ruff check --fix .` and `ruff format .`
+
+- Run tests:
   ```bash
-  EVENT_BUS_ENABLED=false
-  EVENT_BUS_REDIS_URL=redis://localhost:6379/0
-  ```
-- Switch configuration sync to worker mode (default `api`):
-  ```bash
-  CONFIG_SYNC_MODE=worker
+  just test-orchestration
+  just test-transcription
+  just coverage-backend
   ```
 
+- Run Playwright E2E tests (requires `just dev` running):
+  ```bash
+  just test-playwright
+  just test-e2e-playback
+  ```
 
-### 3. Access the System
-- **Web Interface**: http://localhost:5173 (Development) or http://localhost:3000 (Production)
-- **Backend API**: http://localhost:3000
-- **API Documentation**: http://localhost:3000/docs
-- **Performance Dashboard**: Built into web interface (Performance/Monitoring tab)
-
-### 4. First Usage ✅ **NOW FULLY OPERATIONAL**
-1. Open the web interface in your browser
-2. **Meeting Test Dashboard**: Navigate to real-time streaming interface ✅ **WORKING**
-3. **Start Streaming**: Click "Start Streaming" with configurable chunk sizes ✅ **FIXED 422 ERRORS**
-4. **Model Selection**: Choose from dynamically loaded Whisper models ✅ **FIXED NAMING**
-5. **Multi-language Translation**: Select target languages for real-time translation
-6. **View Results**: See real-time transcription and translation results as they arrive
-7. **Device Monitoring**: Monitor NPU/GPU/CPU status across all services  
-8. **Bot Management**: Use Bot Management dashboard for Google Meet integration
+### 3. First Usage
+1. Open dashboard at http://localhost:5173
+2. Navigate to **Loopback** page for live transcription/translation
+3. Select audio source (microphone, system, or both)
+4. Choose transcription model and target languages
+5. View real-time captions and translations
+6. Use **Bot Management** dashboard for Google Meet integration
 
 ## 📡 Service Endpoints & Ports
 
-| Service | Port | Primary Endpoint | Purpose | Health Check |
-|---------|------|------------------|---------|--------------|
-| **Frontend** | 5173 | http://localhost:5173 | Modern React web interface | N/A |
-| **Orchestration** | 3000 | http://localhost:3000 | Backend API & bot management | `/api/health` |
-| **Whisper** | 5001 | http://localhost:5001 | Speech-to-text transcription | `/health` |
-| **Translation** | 5003 | http://localhost:5003 | Multi-language translation | `/api/health` |
-| **Monitoring** | 3001 | http://localhost:3001 | Grafana dashboards | `/api/health` |
-| **Prometheus** | 9090 | http://localhost:9090 | Metrics collection | `/-/healthy` |
+| Service | Port | Purpose | Health Check |
+|---------|------|---------|--------------|
+| **Dashboard** | 5173 (dev) / 3000 (prod) | SvelteKit web interface | N/A |
+| **Orchestration** | 3000 | Backend API, WebSocket hub | `/api/health` |
+| **Transcription** | 5001 | Speech-to-text service | `/health` |
+| **vLLM-MLX (STT)** | 8005 | Whisper inference (Apple Silicon) | `/v1/models` |
+| **vLLM-MLX (LLM)** | 8006 | Qwen3-4B translation inference | `/v1/models` |
+| **Ollama** | 11434 | Alternative LLM backend | `/api/tags` |
+| **Monitoring** | 3001 | Grafana dashboards | `/api/health` |
+| **Prometheus** | 9090 | Metrics collection | `/-/healthy` |
 
 ### WebSocket Endpoints
 | Service | WebSocket URL | Purpose |
 |---------|---------------|---------|
-| **Whisper** | ws://localhost:5001/ws | Real-time transcription streaming |
-| **Translation** | ws://localhost:5003/translate/stream | Real-time translation streaming |
+| **Dashboard** | ws://localhost:5173/ws | Audio streaming, real-time updates |
 | **Orchestration** | ws://localhost:3000/ws | System coordination & updates |
 
 ## 🔧 Starting Individual Services
 
 Each service can be started independently for distributed deployment or development:
 
-### Whisper Service (Speech-to-Text)
+### Transcription Service (Port 5001)
 ```bash
-cd modules/whisper-service
-
-# Docker deployment
-docker-compose up -d
-
-# Local development
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python src/api_server.py
-
-# NPU acceleration (Intel systems)
-docker-compose -f docker-compose.npu.yml up -d
+uv run python modules/transcription-service/src/main.py
 
 # Test the service
 curl http://localhost:5001/health
-curl -X POST -F "file=@test.wav" http://localhost:5001/transcribe/whisper-small.en
 ```
 
-### Translation Service
+### Orchestration Service (Port 3000)
 ```bash
-cd modules/translation-service
-
-# Direct Llama 3.1 with transformers (Recommended)
-./start-local.sh
-
-# Docker with GPU acceleration
-docker-compose -f docker-compose-gpu.yml up -d
-
-# Docker simple setup (CPU)
-docker-compose -f docker-compose-simple.yml up -d
-
-# Local development with conda environment
-conda activate vllm-cuda
-export TRANSLATION_MODEL="./models/Llama-3.1-8B-Instruct"
-python src/api_server.py
+uv run python modules/orchestration-service/src/main_fastapi.py
 
 # Test the service
-curl http://localhost:5003/api/health
-curl -X POST http://localhost:5003/translate \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Hello world", "target_language": "Spanish"}'
+curl http://localhost:3000/api/health
 ```
 
-### Speaker Service (Diarization)
+### Dashboard Service
 ```bash
-cd modules/speaker-service
+cd modules/dashboard-service
 
-# Docker deployment
-docker-compose up -d
+# Install and run
+npm install
+npm run dev
 
-# Local development
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python src/api_server.py
-
-# Test the service
-curl http://localhost:5002/health
-curl -X POST -F "file=@audio.wav" http://localhost:5002/diarize
+# Access at http://localhost:5173
 ```
 
-### Frontend Service
+### External LLM Services
+
+**vLLM-MLX (Apple Silicon)**
 ```bash
-cd modules/frontend-service
+python -m vllm.entrypoints.openai.api_server \
+  --model mlx-community/Qwen3-4B-4bit \
+  --port 8006
 
-# Docker deployment
-docker-compose up -d
-
-# Local development
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python src/frontend_service.py
-
-# Access web interface
-# Open http://localhost:3000
+# Test: curl http://localhost:8006/v1/models
 ```
 
-### Monitoring Stack
+**Ollama (GPU)**
 ```bash
-cd modules/monitoring-service
+ollama run qwen3.5:7b
 
-# Start full monitoring stack
-docker-compose up -d
-
-# Access dashboards
-# Grafana: http://localhost:3001 (admin/admin)
-# Prometheus: http://localhost:9090
+# Or specify port: OLLAMA_HOST=0.0.0.0:11434 ollama serve
 ```
 
-## 📊 API Endpoints
+### Legacy Services (Archived)
+The following services have been archived and are no longer active:
+- `modules/frontend-service/` (React) — replaced by dashboard-service
+- `modules/translation-service/` — translation now in orchestration via LLM
+- `modules/speaker-service/` — diarization functionality integrated elsewhere
+- `modules/whisper-service/` — renamed to transcription-service
 
-### Whisper Service API (Port 5001)
+## 📊 Key API Endpoints
 
-#### Core Transcription
+See `/docs` on running services for interactive API documentation.
+
+### Orchestration Service (Port 3000)
+```bash
+# Health check
+GET /api/health
+
+# Shared contracts (pydantic v2)
+GET /api/models/{model_name}
+
+# WebSocket audio streaming
+WS /ws
+```
+
+### Transcription Service (Port 5001)
 ```bash
 # Health check
 GET /health
@@ -336,273 +243,25 @@ GET /health
 # List available models
 GET /models
 
-# Basic transcription
+# Transcribe audio file
 POST /transcribe
 Content-Type: multipart/form-data
 Body: file=audio.wav
-
-# Model-specific transcription
-POST /transcribe/{model_name}
-Content-Type: multipart/form-data
-Body: file=audio.wav, language=en, task=transcribe
-
-# Enhanced transcription with audio processing
-POST /transcribe/enhanced/{model_name}
-Content-Type: multipart/form-data
-Body: file=audio.wav, enhance_audio=true, noise_reduction=true
 ```
 
-#### Real-time Streaming
+### External LLM (OpenAI-compatible API)
 ```bash
-# Configure streaming parameters
-POST /stream/configure
-Content-Type: application/json
-Body: {"chunk_size": 1024, "overlap": 0.1, "vad_enabled": true}
+# List models
+GET /v1/models
 
-# Start streaming session
-POST /stream/start
-Content-Type: application/json
-Body: {"model_name": "whisper-small.en", "language": "auto"}
-
-# Send audio chunk
-POST /stream/audio
-Content-Type: multipart/form-data
-Body: audio_chunk=<binary_data>, session_id=<id>
-
-# Get rolling transcriptions
-GET /stream/transcriptions?session_id=<id>&limit=10
-
-# Stop streaming
-POST /stream/stop
-Content-Type: application/json
-Body: {"session_id": "<id>"}
-```
-
-#### Session Management
-```bash
-# Create session
-POST /sessions
-Content-Type: application/json
-Body: {"model_name": "whisper-small.en", "language": "auto"}
-
-# Get session info
-GET /sessions/{session_id}
-
-# Close session
-DELETE /sessions/{session_id}
-```
-
-#### WebSocket Infrastructure
-```bash
-# System status and monitoring
-GET /status                    # Service status and metrics
-GET /connections              # Active WebSocket connections
-GET /errors                   # Error statistics
-GET /heartbeat               # Heartbeat monitoring stats
-GET /router                  # Message routing information
-GET /performance             # Performance metrics and optimization stats
-
-# Authentication
-POST /auth/login             # User authentication
-POST /auth/guest            # Guest token creation
-POST /auth/validate         # Token validation
-POST /auth/logout           # Logout
-GET /auth/stats             # Authentication statistics
-
-# Session Persistence & Reconnection
-GET /reconnection                        # Reconnection statistics
-GET /sessions/{session_id}/info         # Detailed session information
-GET /sessions/{session_id}/messages     # Buffered messages for session
-```
-
-#### WebSocket Events (ws://localhost:5001/ws)
-```bash
-# Connection Management
-connect                      # Establish WebSocket connection
-disconnect                   # Close WebSocket connection
-join_session                 # Join transcription session
-leave_session               # Leave transcription session
-
-# Real-time Transcription
-transcribe_stream           # Stream audio for real-time transcription
-
-# Connection Health
-ping                        # Send ping
-pong                        # Respond to ping
-heartbeat                   # Heartbeat monitoring
-
-# Advanced Features
-authenticate                # WebSocket authentication
-route_message              # Message routing
-subscribe_events           # Subscribe to event notifications
-unsubscribe_events         # Unsubscribe from events
-reconnect_session          # Reconnect to existing session
-get_session_info           # Get session information
-buffer_message             # Buffer message for session
-```
-
-### Translation Service API (Port 5003)
-
-#### Core Translation
-```bash
-# Health check
-GET /health
-GET /api/health
-
-# Service status
-GET /api/status
-
-# Translate text
-POST /translate
+# Create chat completion (translation)
+POST /v1/chat/completions
 Content-Type: application/json
 Body: {
-  "text": "Hello world",
-  "target_language": "Spanish",
-  "source_language": "English", # optional
-  "use_local": true,             # optional
-  "quality_threshold": 0.8       # optional
+  "model": "qwen3.5:7b",
+  "messages": [{"role": "user", "content": "..."}],
+  "temperature": 0.7
 }
-
-# Streaming translation
-POST /translate/stream
-Content-Type: application/json
-Body: {"session_id": "<id>", "text": "Hello", "target_language": "es"}
-
-# Language detection
-POST /detect_language
-Content-Type: application/json
-Body: {"text": "Hello world"}
-
-# Get supported languages
-GET /languages
-```
-
-#### Session Management
-```bash
-# Create translation session
-POST /sessions
-Content-Type: application/json
-Body: {"source_lang": "en", "target_lang": "es", "quality_threshold": 0.8}
-
-# Get session
-GET /sessions/{session_id}
-
-# Close session
-DELETE /sessions/{session_id}
-```
-
-#### WebSocket Events (ws://localhost:5003/translate/stream)
-```bash
-connect                     # Connect to translation stream
-disconnect                  # Disconnect from stream
-join_session               # Join translation session
-leave_session              # Leave translation session
-translate_stream           # Stream text for real-time translation
-```
-
-### Speaker Service API (Port 5002)
-
-#### Core Diarization
-```bash
-# Health check
-GET /health
-
-# Diarize audio file
-POST /diarize
-Content-Type: multipart/form-data
-Body: file=audio.wav, min_speakers=1, max_speakers=10
-
-# Configure streaming
-POST /stream/configure
-Content-Type: application/json
-Body: {"min_speakers": 1, "max_speakers": 5, "chunk_duration": 2.0}
-
-# Start streaming diarization
-POST /stream/start
-Content-Type: application/json
-Body: {"session_id": "<optional>"}
-
-# Send audio chunk
-POST /stream/audio
-Content-Type: multipart/form-data
-Body: audio_chunk=<binary>, session_id=<id>
-
-# Get speaker segments
-GET /stream/segments?session_id=<id>&limit=10
-
-# Stop streaming
-POST /stream/stop
-Content-Type: application/json
-Body: {"session_id": "<id>"}
-```
-
-#### Speaker Management
-```bash
-# Configure known speakers
-POST /config/speakers
-Content-Type: application/json
-Body: {"speakers": [{"id": "speaker1", "name": "John", "samples": ["..."]}]}
-
-# Clear speaker configuration
-POST /config/clear
-
-# Align transcription with speakers
-POST /align
-Content-Type: application/json
-Body: {"transcription": "...", "speaker_segments": [...]}
-
-# Service status
-GET /status
-```
-
-#### WebSocket Events (ws://localhost:5002/stream)
-```bash
-connect                    # Connect to diarization stream
-disconnect                 # Disconnect
-join_session              # Join diarization session
-leave_session             # Leave session
-diarize_stream            # Stream audio for real-time diarization
-```
-
-### Frontend Service API (Port 3000)
-
-#### Web Interface
-```bash
-# Main interface
-GET /                      # Main web application
-GET /settings             # Settings page
-
-# Health check
-GET /api/health
-```
-
-#### Pipeline Integration
-```bash
-# Start complete pipeline
-POST /api/pipeline/start
-Content-Type: application/json
-Body: {"audio_source": "microphone", "target_language": "es"}
-
-# Stop pipeline
-POST /api/pipeline/stop/{session_id}
-
-# Process audio through pipeline
-POST /api/pipeline/process
-Content-Type: multipart/form-data
-Body: file=audio.wav, session_id=<id>
-
-# Get pipeline sessions
-GET /api/pipeline/sessions
-
-# Get specific session
-GET /api/pipeline/sessions/{session_id}
-```
-
-#### WebSocket Events (ws://localhost:3000/ws)
-```bash
-pipeline_start            # Start complete processing pipeline
-pipeline_audio            # Send audio to pipeline
-pipeline_stop             # Stop pipeline processing
 ```
 
 ## 🤖 Google Meet Bot Management System
@@ -822,13 +481,16 @@ const constraints = {
 **Status**: ✅ **RESOLVED** - Dynamic model loading working correctly
 
 #### Remaining Common Issues
-- **Port conflicts**: Ensure ports 3000, 5001, 5003 are available
-- **Docker memory**: Increase Docker memory limit to 8GB+ for model loading
-- **Model downloads**: First run may take time to download Whisper models
+- **Port conflicts**: Ensure ports 3000, 5001, 8005, 8006, 11434 are available
+- **Python version**: Ensure Python >=3.12,<3.14 (3.14+ not supported due to grpcio/onnxruntime)
+- **Model downloads**: First run may take time to download models
+- **GPU memory**: Allocate sufficient VRAM for transcription and translation models
 
-#### ✅ **Audio Flow Now Fully Operational**
-**Complete Pipeline**: Frontend → Orchestration → Whisper → Translation → Response
-**Features Working**: Real-time streaming, dynamic models, hardware acceleration, error recovery
+#### Dependency Management
+- **Always use UV**: `uv sync --all-packages --group dev` (not pip, PDM, or Poetry)
+- **--all-packages required**: Installs workspace packages (livetranslate-common, etc.)
+- **Pytest**: `uv run pytest ...` (not `python -m pytest`)
+- **Code formatting**: `ruff check --fix .` and `ruff format .` (not Black/isort/flake8)
 
 ## 🚀 Planning
 

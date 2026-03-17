@@ -21,10 +21,15 @@ This is the canonical index for active project documentation.
 
 - [Modules Index](../modules/README.md)
 - [Orchestration Service](../modules/orchestration-service/README.md)
-- [Whisper Service](../modules/whisper-service/README.md)
-- [Translation Service](../modules/translation-service/README.md)
-- [Frontend Service](../modules/frontend-service/README.md)
+- [Transcription Service](../modules/transcription-service/README.md)
+- [Dashboard Service](../modules/dashboard-service/README.md)
 - [Shared Module](../modules/shared/README.md)
+
+### Archived Services
+
+- [Whisper Service](../modules/whisper-service/README.md) (replaced by Transcription Service)
+- [Translation Service](../modules/translation-service/README.md) (translation now integrated into Orchestration Service via LLM API)
+- [Frontend Service](../modules/frontend-service/README.md) (replaced by Dashboard Service)
 
 ## Operations, Quality, and Decisions
 

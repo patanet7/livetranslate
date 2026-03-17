@@ -15,9 +15,9 @@ Thank you for your interest in contributing to LiveTranslate! This document prov
 
 ### Prerequisites
 
-- Python 3.12+
+- Python >=3.12,<3.14
 - Node.js 18+
-- PDM (Python Dependency Manager)
+- UV (package installer)
 - Docker and Docker Compose
 - Git
 
@@ -29,29 +29,23 @@ Thank you for your interest in contributing to LiveTranslate! This document prov
    cd livetranslate
    ```
 
-2. **Install PDM** (if not already installed)
+2. **Install UV** (if not already installed)
    ```bash
-   pip install pdm
+   pip install uv
    ```
+   See [UV documentation](https://docs.astral.sh/uv/) for alternative installation methods.
 
-3. **Install dependencies for each service**
+3. **Install dependencies**
    ```bash
-   # Orchestration Service
-   cd modules/orchestration-service
-   pdm install
-
-   # Whisper Service
-   cd ../whisper-service
-   pdm install
-
-   # Translation Service
-   cd ../translation-service
-   pdm install
+   # From repository root, install all workspace packages
+   uv sync --all-packages --group dev
 
    # Frontend Service
-   cd ../frontend-service
+   cd modules/dashboard-service
    npm install
    ```
+
+   Note: `--all-packages` is required to install workspace packages (livetranslate-common).
 
 4. **Set up pre-commit hooks**
    ```bash
@@ -127,15 +121,14 @@ All tests in this repository must be **behavioral/integration tests** that test 
 
 ```bash
 # Run all tests for a service
-cd modules/orchestration-service
-pdm run pytest
+uv run pytest modules/orchestration-service/tests/ -v
 
 # Run specific test markers
-pdm run pytest -m "integration"
-pdm run pytest -m "behavioral"
+uv run pytest -m "integration"
+uv run pytest -m "behavioral"
 
 # Run with coverage
-pdm run pytest --cov=src --cov-report=html
+uv run pytest --cov=src --cov-report=html
 ```
 
 ### Test Output Location
@@ -166,10 +159,10 @@ pdm run pytest --cov=src --cov-report=html
 ### Python
 
 - **Line length**: 100 characters
-- **Formatter**: Ruff (replaces Black + isort)
+- **Formatter**: Ruff
 - **Linter**: Ruff
 - **Type checker**: mypy (strict mode)
-- **Python version**: 3.12+
+- **Python version**: >=3.12,<3.14
 
 ### TypeScript/JavaScript
 
@@ -180,7 +173,7 @@ pdm run pytest --cov=src --cov-report=html
 ### Configuration
 
 All services use standardized configuration:
-- `pyproject.toml` for Python projects (PDM format)
+- `pyproject.toml` for Python projects
 - `ruff.toml` at root for shared Ruff config
 - `.editorconfig` for cross-editor consistency
 

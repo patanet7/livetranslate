@@ -8,7 +8,7 @@ This guide uses current repository workflows and avoids legacy commands.
 - Python 3.12+
 - Node.js 20+ and `pnpm`
 - `just` (recommended) or direct `docker compose` commands
-- `pdm` (primary Python workflow in this repo) or Poetry fallback
+- `uv` (Python package manager)
 
 ## Option A: Local Compose Profiles (Recommended)
 
@@ -45,27 +45,19 @@ Terminal 1, orchestration:
 
 ```bash
 cd modules/orchestration-service
-(pdm install --no-self || poetry install --no-root)
-(pdm run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload || poetry run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload)
+uv sync --all-packages --group dev
+uv run uvicorn src.main_fastapi:app --host 0.0.0.0 --port 3000 --reload
 ```
 
-Terminal 2, whisper:
+Terminal 2, transcription:
 
 ```bash
-cd modules/whisper-service
-(pdm install --no-self || poetry install --no-root)
-(pdm run python src/main.py || poetry run python src/main.py)
+cd modules/transcription-service
+uv sync --all-packages --group dev
+uv run python src/main.py
 ```
 
-Terminal 3, translation:
-
-```bash
-cd modules/translation-service
-(pdm install --no-self || poetry install --no-root)
-(pdm run python src/api_server_fastapi.py || poetry run python src/api_server_fastapi.py)
-```
-
-Terminal 4, frontend:
+Terminal 3, frontend:
 
 ```bash
 cd modules/frontend-service
@@ -76,9 +68,8 @@ pnpm dev --host 0.0.0.0 --port 5173
 ## Health Checks
 
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:3000/health
 curl http://localhost:5001/health
-curl http://localhost:5003/api/health
 ```
 
 ## URLs

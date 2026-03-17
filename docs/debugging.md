@@ -26,10 +26,10 @@ Launch configurations are provided in `.vscode/launch.json`:
 ```bash
 # Run with verbose logging
 cd modules/orchestration-service
-LOG_LEVEL=DEBUG pdm run python src/main_fastapi.py
+LOG_LEVEL=DEBUG uv run python src/main_fastapi.py
 
 # Profile with py-spy
-pip install py-spy
+uv pip install py-spy
 py-spy top --pid <PID>
 ```
 
@@ -82,10 +82,10 @@ logging.getLogger("websockets").setLevel(logging.DEBUG)
 
 ```bash
 # Profile with cProfile
-python -m cProfile -o output.prof src/main_fastapi.py
+uv run python -m cProfile -o output.prof src/main_fastapi.py
 
 # Visualize with snakeviz
-pip install snakeviz
+uv pip install snakeviz
 snakeviz output.prof
 ```
 
@@ -93,8 +93,8 @@ snakeviz output.prof
 
 ```bash
 # Profile memory usage
-pip install memory_profiler
-python -m memory_profiler src/main_fastapi.py
+uv pip install memory_profiler
+uv run python -m memory_profiler src/main_fastapi.py
 ```
 
 ## Common Errors

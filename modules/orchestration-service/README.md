@@ -55,7 +55,7 @@ The Orchestration Service is a CPU-optimized backend microservice that provides:
 - **Enterprise Monitoring Stack**: Integrated Prometheus, Grafana, AlertManager, Loki
 - **🆕 Google Meet Bot Management**: Complete bot lifecycle with audio capture and virtual webcam generation
 
-**Note**: Frontend UI has been moved to `modules/frontend-service/` for clean separation of concerns
+**Note**: Frontend UI has been moved to `modules/dashboard-service/` (SvelteKit). Legacy React frontend in `modules/frontend-service/` is being deprecated.
 
 ## 🚀 Quick Start
 
@@ -81,24 +81,8 @@ curl http://localhost:3000/api/audio/presets/list  # Professional presets (NEW)
 open http://localhost:5173                # Frontend service
 ```
 
-### Method 2: Legacy Flask (Maintenance Mode)
+### Method 2: Production Deployment (use Method 1 instead)
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-export WHISPER_SERVICE_URL=http://localhost:5001
-export TRANSLATION_SERVICE_URL=http://localhost:5003
-
-# Start legacy service
-python src/orchestration_service.py --legacy
-
-# Check health
-curl http://localhost:3000/api/health
-```
-
-### Method 3: Production Deployment
 
 ```bash
 # Build production images
@@ -118,7 +102,7 @@ docker run -d \
 
 ## 📊 Service Integration Dashboard
 
-**Frontend Service**: http://localhost:5173 (Meeting Test Dashboard, Audio Testing)
+**Dashboard Service**: http://localhost:5173 (SvelteKit, Meeting Test Dashboard, Audio Testing)
 **Backend API**: http://localhost:3000 (Dynamic Models, Device Information)
 **API Documentation**: http://localhost:3000/docs (Complete API reference)
 **Audio Processing**: http://localhost:3000/api/audio (Modular pipeline, analysis, presets) ✅ NEW

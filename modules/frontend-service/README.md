@@ -1,5 +1,7 @@
 # Frontend Service - Modern React User Interface
 
+> **Status: Legacy** — This React frontend is being replaced by the SvelteKit dashboard. See `modules/dashboard-service/`.
+
 **Technology Stack**: React 18 + TypeScript + Material-UI + Vite + Redux Toolkit
 
 Modern React-based frontend for the LiveTranslate system, providing a comprehensive user interface for audio testing, bot management, and real-time system monitoring with professional-grade features.

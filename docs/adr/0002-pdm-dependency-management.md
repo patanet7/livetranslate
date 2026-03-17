@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by UV — see project CLAUDE.md for current dependency management.
 
 ## Context
 
