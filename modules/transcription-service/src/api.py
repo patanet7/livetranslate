@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 from livetranslate_common.logging import get_logger
 
 from backends.manager import BackendManager
-from language_detection import LanguageDetector
+from language_detection import LanguageDetector, WhisperLanguageDetector
 from registry import ModelRegistry
 from transcription.hallucination_filter import HallucinationFilter
 from vac_online_processor import VACOnlineProcessor
@@ -91,7 +91,7 @@ class SessionState:
     initial_prompt: str | None = None
     glossary_terms: list[str] | None = None
     current_backend_key: str | None = None
-    lang_detector: LanguageDetector = field(default_factory=LanguageDetector)
+    lang_detector: WhisperLanguageDetector = field(default_factory=WhisperLanguageDetector)
     vac_processor: VACOnlineProcessor | None = None
 
 
@@ -409,7 +409,7 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     }))
                 else:
                     chunk_duration_s = len(inference_audio) / 16000.0
-                    switched = state.lang_detector.update(result.language, chunk_duration_s)
+                    switched = state.lang_detector.update(result.language, chunk_duration_s, result.confidence)
                     if switched:
                         await ws.send_text(json.dumps({
                             "type": "language_detected",

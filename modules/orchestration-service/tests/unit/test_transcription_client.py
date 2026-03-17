@@ -182,6 +182,59 @@ class TestSendConfigJson:
         await client.close()
 
     @pytest.mark.asyncio
+    async def test_send_config_with_lock_language_true(self):
+        """lock_language=True tells transcription service to force language."""
+        client = WebSocketTranscriptionClient()
+        mock_ws = _make_mock_ws()
+
+        with patch("clients.transcription_client.websockets.connect", new_callable=AsyncMock, return_value=mock_ws):
+            await client.connect()
+
+        await client.send_config(language="en", lock_language=True)
+
+        payload = json.loads(mock_ws.send.call_args[0][0])
+        assert payload["type"] == "config"
+        assert payload["language"] == "en"
+        assert payload["lock_language"] is True
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_send_config_with_lock_language_false(self):
+        """lock_language=False re-enables auto-detect."""
+        client = WebSocketTranscriptionClient()
+        mock_ws = _make_mock_ws()
+
+        with patch("clients.transcription_client.websockets.connect", new_callable=AsyncMock, return_value=mock_ws):
+            await client.connect()
+
+        await client.send_config(language=None, lock_language=False)
+
+        payload = json.loads(mock_ws.send.call_args[0][0])
+        assert payload["type"] == "config"
+        assert payload["language"] is None
+        assert payload["lock_language"] is False
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_send_config_omits_lock_language_when_unchanged(self):
+        """Omitting lock_language parameter should not include it in the message."""
+        client = WebSocketTranscriptionClient()
+        mock_ws = _make_mock_ws()
+
+        with patch("clients.transcription_client.websockets.connect", new_callable=AsyncMock, return_value=mock_ws):
+            await client.connect()
+
+        await client.send_config(language="en")
+
+        payload = json.loads(mock_ws.send.call_args[0][0])
+        assert payload == {"type": "config", "language": "en"}
+        assert "lock_language" not in payload
+
+        await client.close()
+
+    @pytest.mark.asyncio
     async def test_send_config_raises_when_not_connected(self):
         client = WebSocketTranscriptionClient()
 

@@ -167,3 +167,98 @@ describe('Loopback Store — Translation Lifecycle', () => {
 		expect(store.captions[0].translationState).toBe('complete');
 	});
 });
+
+describe('Loopback Store — localStorage Persistence', () => {
+	let store: typeof import('$lib/stores/loopback.svelte').loopbackStore;
+	const storage = new Map<string, string>();
+
+	// Mock localStorage for Node environment
+	beforeEach(async () => {
+		storage.clear();
+		const mockStorage = {
+			getItem: (key: string) => storage.get(key) ?? null,
+			setItem: (key: string, value: string) => { storage.set(key, value); },
+			removeItem: (key: string) => { storage.delete(key); },
+			clear: () => { storage.clear(); },
+			get length() { return storage.size; },
+			key: (i: number) => [...storage.keys()][i] ?? null,
+		};
+		Object.defineProperty(globalThis, 'localStorage', { value: mockStorage, writable: true, configurable: true });
+
+		const mod = await import('$lib/stores/loopback.svelte');
+		store = mod.loopbackStore;
+		store.clear();
+	});
+
+	it('persists targetLanguage to localStorage on change', () => {
+		store.targetLanguage = 'ja';
+
+		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		expect(saved.targetLanguage).toBe('ja');
+	});
+
+	it('persists sourceLanguage to localStorage on change', () => {
+		store.sourceLanguage = 'en';
+
+		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		expect(saved.sourceLanguage).toBe('en');
+	});
+
+	it('persists displayMode to localStorage on change', () => {
+		store.displayMode = 'transcript';
+
+		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		expect(saved.displayMode).toBe('transcript');
+	});
+
+	it('persists interpreterLangA and interpreterLangB', () => {
+		store.interpreterLangA = 'ja';
+		store.interpreterLangB = 'en';
+
+		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		expect(saved.interpreterLangA).toBe('ja');
+		expect(saved.interpreterLangB).toBe('en');
+	});
+
+	it('restores settings from localStorage on load', () => {
+		// Pre-populate localStorage
+		storage.set('livetranslate:loopback-config', JSON.stringify({
+			sourceLanguage: 'en',
+			targetLanguage: 'ja',
+			displayMode: 'transcript',
+			interpreterLangA: 'ja',
+			interpreterLangB: 'en',
+		}));
+
+		store.restoreFromLocalStorage();
+
+		expect(store.sourceLanguage).toBe('en');
+		expect(store.targetLanguage).toBe('ja');
+		expect(store.displayMode).toBe('transcript');
+		expect(store.interpreterLangA).toBe('ja');
+		expect(store.interpreterLangB).toBe('en');
+	});
+
+	it('gracefully handles missing localStorage', () => {
+		// No localStorage entry — restoreFromLocalStorage should not throw
+		store.restoreFromLocalStorage();
+		expect(store.targetLanguage).toBeDefined();
+	});
+
+	it('gracefully handles corrupted localStorage', () => {
+		storage.set('livetranslate:loopback-config', 'not-json{{{');
+		// Should not throw
+		store.restoreFromLocalStorage();
+		expect(store.targetLanguage).toBeDefined();
+	});
+
+	it('does NOT persist transient state (captions, connection)', () => {
+		store.targetLanguage = 'ja';
+		store.connectionState = 'connected';
+
+		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		expect(saved.connectionState).toBeUndefined();
+		expect(saved.captions).toBeUndefined();
+		expect(saved.isCapturing).toBeUndefined();
+	});
+});

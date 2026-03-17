@@ -112,6 +112,7 @@ class WebSocketTranscriptionClient:
     async def send_config(
         self,
         language: str | None | object = _UNCHANGED,
+        lock_language: bool | object = _UNCHANGED,
         initial_prompt: str | None | object = _UNCHANGED,
         glossary_terms: list[str] | None | object = _UNCHANGED,
     ) -> None:
@@ -119,6 +120,10 @@ class WebSocketTranscriptionClient:
 
         Pass ``language=None`` to explicitly request auto-detect (sends
         ``"language": null``).  Omitting the parameter means "don't change".
+
+        ``lock_language=True`` tells the transcription service to force the
+        given language (no auto-switching). ``lock_language=False`` re-enables
+        auto-detect.
         """
         if not self._ws:
             raise RuntimeError("Not connected to transcription service")
@@ -126,6 +131,8 @@ class WebSocketTranscriptionClient:
         msg: dict[str, Any] = {"type": "config"}
         if language is not _UNCHANGED:
             msg["language"] = language  # None → null → auto-detect
+        if lock_language is not _UNCHANGED:
+            msg["lock_language"] = lock_language
         if initial_prompt is not _UNCHANGED:
             msg["initial_prompt"] = initial_prompt
         if glossary_terms is not _UNCHANGED:

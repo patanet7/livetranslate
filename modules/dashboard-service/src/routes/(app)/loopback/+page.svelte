@@ -183,6 +183,8 @@
 
     // Send initial config so server knows target language, source language,
     // and model from the toolbar state at capture start (not just on change).
+    // Always send `language` (even null for auto-detect) so the server has
+    // the complete state after a page refresh.
     if (loopbackStore.displayMode === 'interpreter') {
       ws.sendMessage({
         type: 'config',
@@ -192,7 +194,7 @@
       ws.sendMessage({
         type: 'config',
         target_language: loopbackStore.targetLanguage,
-        ...(loopbackStore.sourceLanguage ? { language: loopbackStore.sourceLanguage } : {}),
+        language: loopbackStore.sourceLanguage,
       });
     }
 

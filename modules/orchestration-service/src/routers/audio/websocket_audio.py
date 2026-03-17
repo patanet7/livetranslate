@@ -57,6 +57,75 @@ logger = get_logger()
 
 router = APIRouter()
 
+
+class SessionConfig:
+    """Encapsulates language/mode state for a loopback session.
+
+    Extracted from the websocket handler for testability. Manages:
+    - source_language / target_language / lock_language
+    - interpreter_languages (bidirectional mode)
+    - Mode transitions (split ↔ interpreter) with language save/restore
+    - Text buffer clearing on transitions
+    """
+
+    def __init__(self) -> None:
+        self.source_language: str | None = None
+        self.target_language: str | None = TARGET_LANGUAGE
+        self.lock_language: bool = False
+        self.interpreter_languages: tuple[str, str] | None = None
+        self._pre_interpreter_source_language: str | None = None
+        self._pre_interpreter_lock_language: bool = False
+        self._last_translation_direction: str | None = None
+        self._stable_text_buffer: str = ""
+        self._last_translated_stable: str = ""
+
+    def set_source_language(self, language: str | None) -> None:
+        """Set source language explicitly. Enables lock_language for non-None."""
+        self.source_language = language
+        self.lock_language = language is not None
+
+    def enter_interpreter(self, languages: tuple[str, str]) -> None:
+        """Enter interpreter mode: save current source, force auto-detect."""
+        self._pre_interpreter_source_language = self.source_language
+        self._pre_interpreter_lock_language = self.lock_language
+        self.interpreter_languages = languages
+        self.source_language = None
+        self.lock_language = False
+        self._clear_text_buffers()
+
+    def leave_interpreter(self) -> None:
+        """Leave interpreter mode: restore previous source language."""
+        self.interpreter_languages = None
+        self.source_language = self._pre_interpreter_source_language
+        self.lock_language = self._pre_interpreter_lock_language
+        self._clear_text_buffers()
+
+    def get_effective_target(self, detected_language: str) -> str | None:
+        """Get translation target for a detected source language.
+
+        In interpreter mode: flips between the two languages.
+        In split mode: always returns target_language.
+        """
+        if self.interpreter_languages:
+            lang_a, lang_b = self.interpreter_languages
+            if detected_language == lang_a:
+                return lang_b
+            elif detected_language == lang_b:
+                return lang_a
+            else:
+                return None
+        return self.target_language
+
+    def _clear_text_buffers(self) -> None:
+        self._stable_text_buffer = ""
+        self._last_translated_stable = ""
+        self._last_translation_direction = None
+
+
+def _make_config_handler() -> SessionConfig:
+    """Factory for testable SessionConfig instances."""
+    return SessionConfig()
+
 # Module-level session tracking (for health check and observability)
 _active_sessions: dict[str, dict] = {}
 
@@ -197,10 +266,13 @@ async def websocket_audio_stream(websocket: WebSocket):
     segment_counter = 0  # fallback counter for backends that don't send segment_id
     sample_rate = DEFAULT_SAMPLE_RATE
     channels = DEFAULT_CHANNELS
+    cfg = SessionConfig()  # language/mode state
+    # Aliases for backwards compatibility within this function
     source_language: str | None = None
     target_language: str | None = TARGET_LANGUAGE
     interpreter_languages: tuple[str, str] | None = None
     _last_translation_direction: str | None = None  # "a→b" or "b→a" for context clearing
+    _pre_interpreter_source_language: str | None = None
 
     # Accumulator for stable text across segments (for sentence-level translation)
     _stable_text_buffer: str = ""
@@ -724,8 +796,13 @@ async def websocket_audio_stream(websocket: WebSocket):
                 raw_has_language = "language" in json.loads(raw_text)
                 if raw_has_language:
                     source_language = msg.language  # str or None (auto)
+                    # lock_language: explicit source → lock; None/auto → unlock
+                    lock_lang = msg.language is not None
                     if transcription_client and transcription_client.connected:
-                        await transcription_client.send_config(language=msg.language)
+                        await transcription_client.send_config(
+                            language=msg.language,
+                            lock_language=lock_lang,
+                        )
                 if msg.target_language is not None:
                     previous = target_language
                     target_language = msg.target_language
@@ -742,25 +819,45 @@ async def websocket_audio_stream(websocket: WebSocket):
                 # Interpreter mode: store language pair, force auto-detect
                 if msg.interpreter_languages is not None:
                     if len(msg.interpreter_languages) == 2:
+                        # Save source_language before entering interpreter
+                        _pre_interpreter_source_language = source_language
                         interpreter_languages = (msg.interpreter_languages[0], msg.interpreter_languages[1])
                         _last_translation_direction = None
+                        _stable_text_buffer = ""
+                        _last_translated_stable = ""
                         # Force auto-detect so Whisper identifies each segment's language
                         source_language = None
                         if transcription_client and transcription_client.connected:
-                            await transcription_client.send_config(language=None)
-                        # DirectionalContextStore handles per-direction isolation —
-                        # no need to clear when entering interpreter mode.
+                            await transcription_client.send_config(
+                                language=None,
+                                lock_language=False,
+                            )
                         logger.info(
                             "interpreter_mode_enabled",
                             session_id=session_id,
                             lang_a=interpreter_languages[0],
                             lang_b=interpreter_languages[1],
+                            saved_source=_pre_interpreter_source_language,
                         )
                     else:
-                        # Empty list or invalid — disable interpreter mode
+                        # Empty list or invalid — disable interpreter mode, restore source
+                        restored = _pre_interpreter_source_language
                         interpreter_languages = None
                         _last_translation_direction = None
-                        logger.info("interpreter_mode_disabled", session_id=session_id)
+                        _stable_text_buffer = ""
+                        _last_translated_stable = ""
+                        source_language = restored
+                        if transcription_client and transcription_client.connected:
+                            lock_lang = restored is not None
+                            await transcription_client.send_config(
+                                language=restored,
+                                lock_language=lock_lang,
+                            )
+                        logger.info(
+                            "interpreter_mode_disabled",
+                            session_id=session_id,
+                            restored_source=restored,
+                        )
 
             # --- end_session ---
             elif isinstance(msg, EndSessionMessage):

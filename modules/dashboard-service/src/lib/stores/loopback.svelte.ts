@@ -3,11 +3,42 @@
  *
  * Manages: captions, translations, connection state, meeting state,
  * display mode, and audio source configuration.
+ *
+ * Persists UI config (source/target language, display mode, interpreter
+ * languages) to localStorage so page refreshes don't lose settings.
  */
 
 import type { SegmentMessage, InterimMessage, TranslationMessage, TranslationChunkMessage } from '$lib/types/ws-messages';
 
 export type DisplayMode = 'split' | 'subtitle' | 'transcript' | 'interpreter';
+
+const STORAGE_KEY = 'livetranslate:loopback-config';
+
+interface PersistedConfig {
+  sourceLanguage: string | null;
+  targetLanguage: string;
+  displayMode: DisplayMode;
+  interpreterLangA: string;
+  interpreterLangB: string;
+}
+
+function saveToLocalStorage(config: PersistedConfig): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  } catch {
+    // localStorage unavailable (private browsing, quota exceeded) — silently fail
+  }
+}
+
+function loadFromLocalStorage(): Partial<PersistedConfig> | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as Partial<PersistedConfig>;
+  } catch {
+    return null;
+  }
+}
 
 export type TranslationState = 'pending' | 'draft' | 'streaming' | 'complete';
 
@@ -62,6 +93,31 @@ function createLoopbackStore() {
   let lastError = $state<string | null>(null);
   let nextId = 0;
   const speakerColorMap = new Map<string, string>();
+
+  function persistConfig(): void {
+    saveToLocalStorage({
+      sourceLanguage,
+      targetLanguage,
+      displayMode,
+      interpreterLangA,
+      interpreterLangB,
+    });
+  }
+
+  function restoreFromLocalStorage(): void {
+    const saved = loadFromLocalStorage();
+    if (!saved) return;
+    if (saved.sourceLanguage !== undefined) sourceLanguage = saved.sourceLanguage;
+    if (saved.targetLanguage !== undefined) targetLanguage = saved.targetLanguage;
+    if (saved.displayMode !== undefined) displayMode = saved.displayMode;
+    if (saved.interpreterLangA !== undefined) interpreterLangA = saved.interpreterLangA;
+    if (saved.interpreterLangB !== undefined) interpreterLangB = saved.interpreterLangB;
+  }
+
+  // Restore persisted settings on creation (browser only)
+  if (typeof localStorage !== 'undefined') {
+    restoreFromLocalStorage();
+  }
 
   function getSpeakerColor(speakerId: string | null): string {
     if (!speakerId) return SPEAKER_COLORS[0];
@@ -196,7 +252,7 @@ function createLoopbackStore() {
     get interimText() { return interimText; },
     get interimConfidence() { return interimConfidence; },
     get displayMode() { return displayMode; },
-    set displayMode(v: DisplayMode) { displayMode = v; },
+    set displayMode(v: DisplayMode) { displayMode = v; persistConfig(); },
     get connectionState() { return connectionState; },
     set connectionState(v: typeof connectionState) { connectionState = v; },
     get isCapturing() { return isCapturing; },
@@ -213,15 +269,15 @@ function createLoopbackStore() {
     get recordingChunks() { return recordingChunks; },
     set recordingChunks(v: number) { recordingChunks = v; },
     get sourceLanguage() { return sourceLanguage; },
-    set sourceLanguage(v: string | null) { sourceLanguage = v; },
+    set sourceLanguage(v: string | null) { sourceLanguage = v; persistConfig(); },
     get detectedLanguage() { return detectedLanguage; },
     set detectedLanguage(v: string | null) { detectedLanguage = v; },
     get targetLanguage() { return targetLanguage; },
-    set targetLanguage(v: string) { targetLanguage = v; },
+    set targetLanguage(v: string) { targetLanguage = v; persistConfig(); },
     get interpreterLangA() { return interpreterLangA; },
-    set interpreterLangA(v: string) { interpreterLangA = v; },
+    set interpreterLangA(v: string) { interpreterLangA = v; persistConfig(); },
     get interpreterLangB() { return interpreterLangB; },
-    set interpreterLangB(v: string) { interpreterLangB = v; },
+    set interpreterLangB(v: string) { interpreterLangB = v; persistConfig(); },
     get chunksSent() { return chunksSent; },
     set chunksSent(v: number) { chunksSent = v; },
     get segmentsReceived() { return segmentsReceived; },
@@ -236,6 +292,7 @@ function createLoopbackStore() {
     startMeeting,
     endMeeting,
     clear,
+    restoreFromLocalStorage,
   };
 }
 
