@@ -99,6 +99,49 @@ class TestDirectionTracking:
         assert flips == 0
 
 
+class TestInterpreterRoutingSpec:
+    """Task-spec named tests: exact routing cases from the production handler.
+
+    These replicate the routing logic from websocket_audio.py lines 291-309
+    using the module-level compute_effective_target helper defined above.
+    """
+
+    def test_zh_routes_to_en(self) -> None:
+        """interpreter=("zh","en"), detected="zh" -> effective="en"."""
+        result = compute_effective_target("zh", ("zh", "en"), None)
+        assert result == "en", f"Expected 'en', got {result!r}"
+
+    def test_en_routes_to_zh(self) -> None:
+        """interpreter=("zh","en"), detected="en" -> effective="zh"."""
+        result = compute_effective_target("en", ("zh", "en"), None)
+        assert result == "zh", f"Expected 'zh', got {result!r}"
+
+    def test_ja_routes_to_none(self) -> None:
+        """interpreter=("zh","en"), detected="ja" -> None (skip translation)."""
+        result = compute_effective_target("ja", ("zh", "en"), None)
+        assert result is None, (
+            f"Language outside interpreter pair must route to None (skip), got {result!r}"
+        )
+
+    def test_no_interpreter_uses_target(self) -> None:
+        """interpreter=None, target="es" -> "es" (normal mode passthrough)."""
+        result = compute_effective_target("fr", None, "es")
+        assert result == "es", f"Expected 'es' in normal mode, got {result!r}"
+
+    def test_same_lang_as_target_skips(self) -> None:
+        """Non-interpreter mode returns target_language regardless of detected lang.
+
+        The handler skips translation when source==target, but the routing
+        function itself returns the configured target unchanged — "en". The skip
+        decision is made at a higher level in the handler.
+        """
+        result = compute_effective_target("en", None, "en")
+        assert result == "en", (
+            f"Routing returns target 'en' unchanged; skip logic is in the handler, "
+            f"got {result!r}"
+        )
+
+
 class TestConfigMessageInterpreter:
     """ConfigMessage handling for interpreter_languages."""
 

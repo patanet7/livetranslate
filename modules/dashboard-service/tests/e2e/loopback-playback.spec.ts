@@ -399,7 +399,9 @@ test.describe('Loopback Playback E2E', () => {
 		await expect(startButton).toBeVisible({ timeout: 10_000 });
 		await startButton.click();
 
-		// Wait for at least one final translation
+		// Wait for at least one final translation; if LLM is slow or unavailable,
+		// still check whether any chunks arrived and log the result.
+		let finalTranslationArrived = false;
 		try {
 			await page.waitForFunction(
 				() => {
@@ -408,36 +410,41 @@ test.describe('Loopback Playback E2E', () => {
 				},
 				{ timeout: FIRST_SEGMENT_TIMEOUT_MS + 30_000 }
 			);
-
-			const messages = await getWsMessages(page);
-			const chunks = messages.filter((m: any) => m.type === 'translation_chunk');
-			const finals = messages.filter((m: any) => m.type === 'translation' && !m.is_draft);
-
-			if (chunks.length > 0 && finals.length > 0) {
-				// Verify: for at least one transcript_id, chunks appear before final
-				const finalIds = new Set(finals.map((f: any) => f.transcript_id));
-				const chunkIds = new Set(chunks.map((c: any) => c.transcript_id));
-				const overlap = [...finalIds].filter((id) => chunkIds.has(id));
-
-				if (overlap.length > 0) {
-					console.log(
-						`Streaming verified: ${chunks.length} chunks, ${finals.length} finals, ` +
-						`${overlap.length} transcript_ids with both`
-					);
-				}
-			} else {
-				console.log(
-					`Streaming check: ${chunks.length} chunks, ${finals.length} finals ` +
-					`(LLM may not be running or streaming disabled)`
-				);
-			}
+			finalTranslationArrived = true;
 		} catch {
-			console.log('No final translation received within timeout');
+			console.log('No final translation received within timeout — checking for chunks anyway');
 		}
 
-		const stopButton = page.getByRole('button', { name: /stop capture/i });
-		if (await stopButton.isVisible()) {
-			await stopButton.click();
+		const messages = await getWsMessages(page);
+		const chunks = messages.filter((m: any) => m.type === 'translation_chunk');
+		const finals = messages.filter((m: any) => m.type === 'translation' && !m.is_draft);
+
+		if (finalTranslationArrived && chunks.length > 0 && finals.length > 0) {
+			// Verify: for at least one transcript_id, chunks appear before final
+			const finalIds = new Set(finals.map((f: any) => f.transcript_id));
+			const chunkIds = new Set(chunks.map((c: any) => c.transcript_id));
+			const overlap = [...finalIds].filter((id) => chunkIds.has(id));
+
+			if (overlap.length > 0) {
+				console.log(
+					`Streaming verified: ${chunks.length} chunks, ${finals.length} finals, ` +
+					`${overlap.length} transcript_ids with both`
+				);
+			}
+		} else {
+			console.log(
+				`Streaming check: ${chunks.length} chunks, ${finals.length} finals ` +
+				`(LLM may not be running or streaming disabled)`
+			);
+		}
+
+		try {
+			const stopButton = page.getByRole('button', { name: /stop capture/i });
+			if (await stopButton.isVisible()) {
+				await stopButton.click();
+			}
+		} catch {
+			// Page may have closed due to timeout — acceptable
 		}
 	});
 
@@ -585,12 +592,17 @@ test.describe('Loopback Mixed-Language E2E', () => {
 		await startButton.click();
 
 		// Wait for segments in the WS stream
+		// Wait for segments from BOTH languages — the mixed fixture has ~50s Chinese then ~30s English.
+		// We need to wait long enough for the English portion to be transcribed too.
 		await page.waitForFunction(
 			() => {
 				const msgs = (window as any).__e2e_messages ?? [];
-				return msgs.filter((m: any) => m.type === 'segment').length >= 3;
+				const segs = msgs.filter((m: any) => m.type === 'segment');
+				const hasCjk = segs.some((s: any) => /[\u4e00-\u9fff]/.test(s.text ?? ''));
+				const hasLatin = segs.some((s: any) => /[a-zA-Z]{4,}/.test(s.text ?? '') && !/[\u4e00-\u9fff]/.test(s.text ?? ''));
+				return hasCjk && hasLatin;
 			},
-			{ timeout: FIRST_SEGMENT_TIMEOUT_MS }
+			{ timeout: TEST_TIMEOUT_MS - 30_000 }
 		);
 
 		await page.screenshot({
@@ -598,27 +610,81 @@ test.describe('Loopback Mixed-Language E2E', () => {
 			fullPage: true,
 		});
 
-		// Verify both panels are rendered (may be empty if LLM not running)
+		// Verify both panels are visible
 		const panelA = page.locator('[data-testid="panel-lang-a"]');
 		const panelB = page.locator('[data-testid="panel-lang-b"]');
 		await expect(panelA).toBeVisible();
 		await expect(panelB).toBeVisible();
 
-		// If translations arrived, verify they landed in the panels
-		try {
-			await page.waitForSelector(
-				'[data-testid="panel-lang-a"] [data-testid="paragraph"], ' +
-				'[data-testid="panel-lang-b"] [data-testid="paragraph"]',
-				{ timeout: 30_000 }
+		// Assert panel-a receives CJK content (Chinese speech → lang-a as native or translated)
+		await expect(
+			panelA.locator('[data-testid="paragraph"]').first()
+		).toBeVisible({ timeout: 10_000 });
+
+		const panelAText = await panelA.textContent() ?? '';
+		expect(/[\u4e00-\u9fff]/.test(panelAText)).toBe(true);
+
+		await page.screenshot({
+			path: path.join(SCREENSHOT_DIR, '11a-interpreter-panel-a-cjk.png'),
+			fullPage: true,
+		});
+
+		// Assert panel-b receives Latin content (English speech → lang-b as native or translated)
+		// Both languages already confirmed in WS stream — panel-b should have content.
+		await expect(
+			panelB.locator('[data-testid="paragraph"]').first()
+		).toBeVisible({ timeout: 10_000 });
+
+		const panelBText = await panelB.textContent() ?? '';
+		expect(/[a-zA-Z]{4,}/.test(panelBText)).toBe(true);
+
+		await page.screenshot({
+			path: path.join(SCREENSHOT_DIR, '11b-interpreter-panel-b-latin.png'),
+			fullPage: true,
+		});
+
+		// Assert WS messages have segments from both language directions
+		const messages = await getWsMessages(page);
+		const segments = messages.filter((m: any) => m.type === 'segment');
+
+		const hasCjkSegment = segments.some((s: any) => /[\u4e00-\u9fff]/.test(s.text ?? ''));
+		const hasLatinSegment = segments.some((s: any) =>
+			/[a-zA-Z]{4,}/.test(s.text ?? '') && !/[\u4e00-\u9fff]/.test(s.text ?? '')
+		);
+		expect(hasCjkSegment).toBe(true);
+		expect(hasLatinSegment).toBe(true);
+
+		// Verify translations have correct routing (if LLM is running)
+		// Translation is a soft check — the LLM may be down, but transcription routing must work.
+		const translations = messages.filter((m: any) => m.type === 'translation' && !m.is_draft);
+		const crossDirTranslations = translations.filter(
+			(t: any) => t.source_lang && t.target_lang && t.source_lang !== t.target_lang
+		);
+
+		if (crossDirTranslations.length > 0) {
+			// If translations arrived, verify no self-translations
+			const selfTranslations = translations.filter(
+				(t: any) => t.source_lang === t.target_lang
 			);
-			console.log('Interpreter mode: content appeared in at least one panel');
-		} catch {
-			console.log('No paragraphs in interpreter panels — LLM may not be running');
+			expect(selfTranslations.length).toBe(0);
+			console.log(
+				`Interpreter mode FULLY verified: CJK+Latin segments, ` +
+				`${crossDirTranslations.length} cross-direction translations, 0 self-translations`
+			);
+		} else {
+			console.log(
+				`Interpreter mode PARTIALLY verified: CJK in panel-a, Latin in panel-b, ` +
+				`bidirectional routing correct, but LLM produced 0 translations (MT may be down)`
+			);
 		}
 
-		const stopButton = page.getByRole('button', { name: /stop capture/i });
-		if (await stopButton.isVisible()) {
-			await stopButton.click();
+		try {
+			const stopButton = page.getByRole('button', { name: /stop capture/i });
+			if (await stopButton.isVisible()) {
+				await stopButton.click();
+			}
+		} catch {
+			// Page may have closed due to timeout
 		}
 	});
 
@@ -683,9 +749,13 @@ test.describe('Loopback Mixed-Language E2E', () => {
 			console.log('No translation arrived within timeout — LLM may not be running');
 		}
 
-		const stopButton = page.getByRole('button', { name: /stop capture/i });
-		if (await stopButton.isVisible()) {
-			await stopButton.click();
+		try {
+			const stopButton = page.getByRole('button', { name: /stop capture/i });
+			if (await stopButton.isVisible()) {
+				await stopButton.click();
+			}
+		} catch {
+			// Page may have closed due to timeout
 		}
 	});
 });

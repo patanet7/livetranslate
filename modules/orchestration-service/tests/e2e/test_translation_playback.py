@@ -134,6 +134,54 @@ async def test_draft_final_lifecycle(translation_service, replay_segments_zh):
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
+async def test_second_translation_uses_context(translation_service, replay_segments_zh):
+    """Verify context accumulates across consecutive translations.
+
+    Translates two final segments sequentially and checks that the context
+    window grows after each, proving context is available to the LLM for the
+    second call (rolling context window is populated before the second translate).
+    """
+    from livetranslate_common.models import TranslationRequest
+
+    final_segments = [s for s in replay_segments_zh if not s["is_draft"]]
+    assert len(final_segments) >= 2, "Need at least 2 final segments"
+
+    # Translate segment 1
+    request_1 = TranslationRequest(
+        text=final_segments[0]["text"],
+        source_language="zh",
+        target_language="en",
+    )
+    await translation_service.translate(request_1)
+
+    ctx_after_1 = translation_service.get_context("zh", "en")
+    assert len(ctx_after_1) == 1, (
+        f"After 1st translation, context should have 1 entry, got {len(ctx_after_1)}"
+    )
+
+    # Translate segment 2 — context is non-empty, so LLM receives prior entry
+    request_2 = TranslationRequest(
+        text=final_segments[1]["text"],
+        source_language="zh",
+        target_language="en",
+    )
+    response_2 = await translation_service.translate(request_2)
+
+    assert len(response_2.translated_text) > 0, "Second translation is empty"
+
+    ctx_after_2 = translation_service.get_context("zh", "en")
+    assert len(ctx_after_2) == 2, (
+        f"After 2nd translation, context should have 2 entries, got {len(ctx_after_2)}"
+    )
+
+    # Verify both entries are populated
+    for i, entry in enumerate(ctx_after_2):
+        assert len(entry.text) > 0, f"Context entry {i} source text is empty"
+        assert len(entry.translation) > 0, f"Context entry {i} translation is empty"
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
 async def test_sentence_accumulation_and_flush(translation_service, replay_segments_zh):
     """Replay non-final segments followed by final → verify accumulated text translates."""
     from livetranslate_common.models import TranslationRequest

@@ -1,11 +1,15 @@
-"""B1.3 / B1.4: Mixed-language playback and context isolation tests.
+"""B1.3 / B1.4 / B1.5: Mixed-language playback and context isolation tests.
 
 B1.3: Replay mixed zh/en transcription segments and verify that ZH segments
       are routed to English translation while EN segments are skipped (same
       as the effective target language).
 
-B1.4: After translating ZH segments, clear context and translate an EN
-      segment — verify context is clean with only the EN entry.
+B1.4: Translate 3 ZH→EN segments, then 2 EN→ZH segments WITHOUT clearing
+      context. Assert both directional windows retain their entries, proving
+      DirectionalContextStore isolation without requiring clear_context().
+
+B1.5: Translate English segments with target_language="zh" and verify the
+      output contains CJK characters.
 
 Gate: requires LLM_BASE_URL env var.
 
@@ -172,17 +176,20 @@ async def test_mixed_segments_route_to_correct_target(
 
 
 # ---------------------------------------------------------------------------
-# B1.4: Context stays clean after language switch
+# B1.4: Context stays clean after language switch (DirectionalContextStore isolation)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_context_stays_clean_after_language_switch(translation_service) -> None:
-    """B1.4: Translate 3 ZH texts, verify context=3, clear, translate 1 EN text,
-    verify context=1 with correct content.
+    """B1.4: Translate 3 ZH→EN then 2 EN→ZH with NO clear_context() between them.
 
-    Mirrors the direction-flip behavior in websocket_audio.py where clear_context()
-    is called before the first segment of the new direction is translated.
+    Production (post-architect review) does NOT call clear_context() on direction
+    flip. DirectionalContextStore provides per-direction isolation automatically.
+
+    Asserts:
+    - get_context("zh","en") has 3 entries (still there after direction switch)
+    - get_context("en","zh") has 2 entries (accumulated in new direction)
     """
     _skip_if_no_llm()
 
@@ -194,7 +201,12 @@ async def test_context_stays_clean_after_language_switch(translation_service) ->
         "亚太地区表现最好，增长了百分之二十二",
     ]
 
-    # Phase 1: translate 3 ZH→EN segments, building context
+    en_texts = [
+        "Translation is working with Ollama locally",
+        "The quarterly results exceeded all expectations",
+    ]
+
+    # Phase 1: translate 3 ZH→EN segments, building zh->en context
     for text in zh_texts:
         request = TranslationRequest(
             text=text,
@@ -205,36 +217,67 @@ async def test_context_stays_clean_after_language_switch(translation_service) ->
 
     ctx_after_zh = translation_service.get_context("zh", "en")
     assert len(ctx_after_zh) == 3, (
-        f"After 3 ZH translations, context should have 3 entries, got {len(ctx_after_zh)}"
+        f"After 3 ZH translations, zh->en context should have 3 entries, got {len(ctx_after_zh)}"
     )
 
-    # Phase 2: direction flip — clear context (as websocket_audio.py does)
-    translation_service.clear_context()
-    ctx_after_clear = translation_service.get_context("zh", "en")
-    assert len(ctx_after_clear) == 0, (
-        f"Context should be empty after clear, got {len(ctx_after_clear)}"
+    # Phase 2: direction flip — NO clear_context() (production behavior)
+    # Translate 2 EN→ZH segments in the new direction
+    for text in en_texts:
+        en_request = TranslationRequest(
+            text=text,
+            source_language="en",
+            target_language="zh",
+        )
+        en_response = await translation_service.translate(en_request)
+        assert len(en_response.translated_text) > 0, f"EN→ZH translation is empty for: {text}"
+
+    # zh->en must STILL have 3 entries — DirectionalContextStore isolation
+    ctx_zh_en = translation_service.get_context("zh", "en")
+    assert len(ctx_zh_en) == 3, (
+        f"zh->en context must retain 3 entries after direction switch (no clear), "
+        f"got {len(ctx_zh_en)}"
     )
 
-    # Phase 3: translate 1 EN→ZH segment in the new direction
-    en_text = "Translation is working with Ollama locally"
-    en_request = TranslationRequest(
-        text=en_text,
-        source_language="en",
-        target_language="zh",
-    )
-    en_response = await translation_service.translate(en_request)
-
-    assert len(en_response.translated_text) > 0, "EN→ZH translation is empty"
-
-    # Context must have exactly 1 entry — only the EN segment
-    ctx_after_en = translation_service.get_context("en", "zh")
-    assert len(ctx_after_en) == 1, (
-        f"After 1 EN translation, context should have 1 entry, got {len(ctx_after_en)}"
+    # en->zh must have 2 entries — new direction accumulated independently
+    ctx_en_zh = translation_service.get_context("en", "zh")
+    assert len(ctx_en_zh) == 2, (
+        f"en->zh context must have 2 entries, got {len(ctx_en_zh)}"
     )
 
-    # The single context entry must be the EN source, not any ZH source
-    assert ctx_after_en[0].text == en_text, (
-        f"Context entry should be the EN source text '{en_text}', "
-        f"got '{ctx_after_en[0].text}'"
-    )
-    assert len(ctx_after_en[0].translation) > 0, "Context entry translation must be non-empty"
+
+# ---------------------------------------------------------------------------
+# B1.5: EN→ZH translation produces Chinese output
+# ---------------------------------------------------------------------------
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_en_zh_translation_produces_chinese(translation_service) -> None:
+    """B1.5: Translate 2 English segments with target_language="zh".
+
+    Asserts that output contains a meaningful number of CJK characters,
+    proving the LLM is producing Chinese output (not passthrough or garbled).
+    """
+    _skip_if_no_llm()
+
+    from livetranslate_common.models import TranslationRequest
+
+    en_texts = [
+        "Welcome to today's meeting, everyone",
+        "Our third quarter revenue reached twenty-five million dollars",
+    ]
+
+    for text in en_texts:
+        request = TranslationRequest(
+            text=text,
+            source_language="en",
+            target_language="zh",
+        )
+        response = await translation_service.translate(request)
+        translated = response.translated_text
+
+        assert len(translated) > 0, f"EN→ZH translation is empty for: {text}"
+
+        cjk_count = sum(1 for c in translated if "\u4e00" <= c <= "\u9fff")
+        assert cjk_count > 3, (
+            f"EN→ZH output must contain CJK characters (got {cjk_count}): {translated[:80]}"
+        )
