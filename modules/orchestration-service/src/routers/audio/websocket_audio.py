@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 import uuid
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -208,6 +209,11 @@ async def websocket_audio_stream(websocket: WebSocket):
     # Track recent segment texts for repetition detection (defense-in-depth)
     _recent_segment_texts: deque[str] = deque(maxlen=5)
 
+    # Mapping from segment_id → MeetingChunk.id for linking translations to
+    # their source transcript. Bounded to prevent unbounded growth in long sessions.
+    _segment_to_chunk_id: dict[int, uuid.UUID] = {}
+    _SEGMENT_CHUNK_MAP_MAX = 200
+
     # Lock for draft translations — non-blocking, drop when busy.
     # Lock (not Semaphore) because Lock has .locked() for non-blocking check.
     _draft_lock = asyncio.Lock()
@@ -286,6 +292,31 @@ async def websocket_audio_stream(websocket: WebSocket):
                 "language": msg.language,
                 "speaker_id": msg.speaker_id,
             })
+
+        # Persist transcript chunk to DB in meeting mode (non-draft only).
+        # Stores both is_final=True (sentence boundaries) and is_final=False
+        # (accumulating text) so the full transcript stream is captured.
+        if pipeline and pipeline.is_meeting and pipeline.session_manager and not msg.is_draft:
+            try:
+                chunk = await pipeline.session_manager.add_transcript(
+                    session_id=pipeline.session_id,
+                    text=msg.text,
+                    timestamp_ms=msg.start_ms or int(time.time() * 1000),
+                    language=msg.language or "",
+                    confidence=msg.confidence or 0.0,
+                    is_final=msg.is_final,
+                    speaker_id=msg.speaker_id,
+                )
+                _segment_to_chunk_id[msg.segment_id] = chunk.id
+                # Evict oldest entries using insertion order (O(1) per eviction)
+                while len(_segment_to_chunk_id) > _SEGMENT_CHUNK_MAP_MAX:
+                    _segment_to_chunk_id.pop(next(iter(_segment_to_chunk_id)))
+            except Exception as persist_exc:
+                logger.warning(
+                    "transcript_persist_failed",
+                    segment_id=msg.segment_id,
+                    error=str(persist_exc),
+                )
 
         # Compute effective target for this segment
         if interpreter_languages:
@@ -490,6 +521,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     pipeline=pipeline,
                     is_draft=False,
                     fixture_recorder=fixture_recorder,
+                    chunk_id=_segment_to_chunk_id.get(msg.segment_id),
                 )
             )
             session_tasks.add(task)
@@ -828,6 +860,7 @@ async def _translate_and_send(
     is_draft: bool = False,
     fixture_recorder: FixtureRecorder | None = None,
     context_store: DirectionalContextStore | None = None,
+    chunk_id: uuid.UUID | None = None,
 ) -> None:
     """Translate a segment and forward to the frontend.
 
@@ -979,7 +1012,7 @@ async def _translate_and_send(
         if pipeline and pipeline.is_meeting and pipeline.session_manager:
             try:
                 await pipeline.session_manager.save_translation(
-                    chunk_id=None,
+                    chunk_id=chunk_id,
                     translated_text=translation,
                     source_language=source_lang,
                     target_language=target_lang,

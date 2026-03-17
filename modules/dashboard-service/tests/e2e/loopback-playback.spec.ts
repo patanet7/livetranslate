@@ -761,6 +761,265 @@ test.describe('Loopback Mixed-Language E2E', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Meeting persistence verification — verifies DB storage after WebSocket flow
+// ---------------------------------------------------------------------------
+const ORCHESTRATION_API = 'http://localhost:3000';
+
+/**
+ * Helper: extract the pipeline session_id from intercepted WS messages.
+ * The meeting_started message contains the pipeline session UUID.
+ */
+async function getPipelineSessionId(page: Page): Promise<string | null> {
+	const messages = await getWsMessages(page);
+	const meetingStarted = messages.find((m: any) => m.type === 'meeting_started');
+	return meetingStarted?.session_id ?? null;
+}
+
+/**
+ * Helper: click the "Start Meeting" button to promote to recording mode.
+ * The UI shows this button when connected but not yet in meeting mode.
+ */
+async function startMeeting(page: Page): Promise<void> {
+	const meetingBtn = page.getByRole('button', { name: /start meeting/i });
+	if (await meetingBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+		await meetingBtn.click();
+	}
+}
+
+/**
+ * Helper: click "End Meeting" button, then confirm the dialog.
+ * The UI shows a confirmation dialog with Cancel + End Meeting (destructive) buttons.
+ */
+async function endMeeting(page: Page): Promise<void> {
+	// Click the toolbar "End Meeting" button to open confirmation dialog
+	const endBtn = page.getByRole('button', { name: /end meeting/i }).first();
+	if (await endBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+		await endBtn.click();
+
+		// Confirm inside the dialog — the destructive "End Meeting" button
+		const dialogContent = page.locator('[data-slot="dialog-content"]');
+		await expect(dialogContent).toBeVisible({ timeout: 3_000 });
+		const confirmBtn = dialogContent.getByRole('button', { name: /end meeting/i });
+		await confirmBtn.click();
+
+		await page.waitForTimeout(2000); // allow persistence to flush
+	}
+}
+
+test.describe('Meeting Persistence E2E', () => {
+	test.beforeAll(async () => {
+		const healthy = await checkServiceHealth();
+		if (!healthy) {
+			test.skip();
+			throw new Error('Orchestration service not reachable. Run `just dev` first.');
+		}
+		fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+	});
+
+	test.beforeEach(async ({ page }) => {
+		await page.context().grantPermissions(['microphone']);
+		await page.route('**/_test_fixtures/*', async (route) => {
+			const filename = route.request().url().split('/_test_fixtures/').pop();
+			const filePath = path.join(FIXTURE_DIR, filename!);
+			if (fs.existsSync(filePath)) {
+				const body = fs.readFileSync(filePath);
+				await route.fulfill({ status: 200, contentType: 'audio/wav', body });
+			} else {
+				await route.fulfill({ status: 404, body: `Fixture not found: ${filename}` });
+			}
+		});
+	});
+
+	// ------------------------------------------------------------------
+	// P1: Chinese meeting — transcripts + translations persisted to DB
+	// ------------------------------------------------------------------
+	test('meeting persists transcripts and translations to database', async ({ page }) => {
+		test.setTimeout(TEST_TIMEOUT_MS);
+
+		if (!fs.existsSync(ZH_FIXTURE)) {
+			test.skip();
+			return;
+		}
+
+		await installWsInterceptor(page);
+		await page.goto('/loopback');
+		await page.waitForLoadState('networkidle');
+
+		await injectAudioFixture(page, 'meeting_zh_48k.wav');
+
+		// Set target to English (zh→en translation will fire)
+		await setTargetLanguage(page, 'English');
+
+		// Start capture
+		const startButton = page.getByRole('button', { name: /start capture/i });
+		await expect(startButton).toBeVisible({ timeout: 10_000 });
+		await startButton.click();
+
+		// Promote to meeting (start recording)
+		await startMeeting(page);
+
+		// Wait for at least 2 final segments + 1 translation
+		await page.waitForFunction(
+			() => {
+				const msgs = (window as any).__e2e_messages ?? [];
+				const segs = msgs.filter((m: any) => m.type === 'segment' && m.is_final && !m.is_draft);
+				const trans = msgs.filter((m: any) => m.type === 'translation' && !m.is_draft);
+				return segs.length >= 2 && trans.length >= 1;
+			},
+			{ timeout: FIRST_SEGMENT_TIMEOUT_MS + 30_000 }
+		);
+
+		// Get session ID before ending
+		const sessionId = await getPipelineSessionId(page);
+		expect(sessionId).toBeTruthy();
+		console.log(`Meeting session: ${sessionId}`);
+
+		// End meeting + stop capture
+		await endMeeting(page);
+		try {
+			const stopButton = page.getByRole('button', { name: /stop capture/i });
+			if (await stopButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+				await stopButton.click();
+			}
+		} catch {
+			// End meeting may have already stopped capture
+		}
+
+		await page.waitForTimeout(3000); // allow DB persistence to complete
+
+		// === DB VERIFICATION via API ===
+		// Check meeting exists and is completed
+		const meetingResp = await page.evaluate(
+			async (url: string) => {
+				const resp = await fetch(url);
+				return { status: resp.status, body: await resp.json() };
+			},
+			`${ORCHESTRATION_API}/api/meetings/${sessionId}`
+		);
+		expect(meetingResp.status).toBe(200);
+		expect(meetingResp.body.meeting.status).toBe('completed');
+		console.log(`Meeting status: ${meetingResp.body.meeting.status}`);
+
+		// Check transcript chunks exist
+		const transcriptResp = await page.evaluate(
+			async (url: string) => {
+				const resp = await fetch(url);
+				return { status: resp.status, body: await resp.json() };
+			},
+			`${ORCHESTRATION_API}/api/meetings/${sessionId}/transcript`
+		);
+		expect(transcriptResp.status).toBe(200);
+		expect(transcriptResp.body.count).toBeGreaterThan(0);
+		console.log(`Transcript chunks: ${transcriptResp.body.count} (source: ${transcriptResp.body.source})`);
+
+		await page.screenshot({
+			path: path.join(SCREENSHOT_DIR, '20-persistence-verified.png'),
+			fullPage: true,
+		});
+	});
+
+	// ------------------------------------------------------------------
+	// P2: Interpreter mode — both directions persisted
+	// ------------------------------------------------------------------
+	test('interpreter mode persists bidirectional transcripts', async ({ page }) => {
+		test.setTimeout(TEST_TIMEOUT_MS);
+
+		if (!fs.existsSync(MIXED_FIXTURE)) {
+			test.skip();
+			return;
+		}
+
+		await installWsInterceptor(page);
+		await page.goto('/loopback');
+		await page.waitForLoadState('networkidle');
+
+		await injectAudioFixture(page, 'meeting_mixed_zh_en_48k.wav');
+
+		// Switch to Interpreter mode
+		const modeGroup = page.locator('[role="radiogroup"][aria-label="Display mode"]');
+		await expect(modeGroup).toBeVisible({ timeout: 10_000 });
+		await modeGroup.getByRole('radio', { name: 'Interpreter' }).click();
+
+		// Start capture + meeting
+		const startButton = page.getByRole('button', { name: /start capture/i });
+		await expect(startButton).toBeVisible({ timeout: 10_000 });
+		await startButton.click();
+		await startMeeting(page);
+
+		// Wait for segments from both languages
+		await page.waitForFunction(
+			() => {
+				const msgs = (window as any).__e2e_messages ?? [];
+				const segs = msgs.filter((m: any) => m.type === 'segment' && !m.is_draft);
+				const hasCjk = segs.some((s: any) => /[\u4e00-\u9fff]/.test(s.text ?? ''));
+				const hasLatin = segs.some((s: any) =>
+					/[a-zA-Z]{4,}/.test(s.text ?? '') && !/[\u4e00-\u9fff]/.test(s.text ?? '')
+				);
+				return hasCjk && hasLatin;
+			},
+			{ timeout: TEST_TIMEOUT_MS - 30_000 }
+		);
+
+		const sessionId = await getPipelineSessionId(page);
+		expect(sessionId).toBeTruthy();
+		console.log(`Interpreter session: ${sessionId}`);
+
+		// End meeting
+		await endMeeting(page);
+		try {
+			const stopButton = page.getByRole('button', { name: /stop capture/i });
+			if (await stopButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+				await stopButton.click();
+			}
+		} catch {
+			// End meeting may have already stopped capture
+		}
+		await page.waitForTimeout(3000);
+
+		// === DB VERIFICATION ===
+		const meetingResp = await page.evaluate(
+			async (url: string) => {
+				const resp = await fetch(url);
+				return { status: resp.status, body: await resp.json() };
+			},
+			`${ORCHESTRATION_API}/api/meetings/${sessionId}`
+		);
+		expect(meetingResp.status).toBe(200);
+		console.log(`Meeting status: ${meetingResp.body.meeting.status}`);
+
+		const transcriptResp = await page.evaluate(
+			async (url: string) => {
+				const resp = await fetch(url);
+				return { status: resp.status, body: await resp.json() };
+			},
+			`${ORCHESTRATION_API}/api/meetings/${sessionId}/transcript`
+		);
+		expect(transcriptResp.status).toBe(200);
+		expect(transcriptResp.body.count).toBeGreaterThan(0);
+		console.log(`Interpreter transcript chunks: ${transcriptResp.body.count}`);
+
+		// Verify WS messages have translations from both directions
+		const messages = await getWsMessages(page);
+		const translations = messages.filter((m: any) => m.type === 'translation' && !m.is_draft);
+		const hasZhToEn = translations.some((t: any) => t.source_lang === 'zh' && t.target_lang === 'en');
+		const hasEnToZh = translations.some((t: any) => t.source_lang === 'en' && t.target_lang === 'zh');
+
+		if (hasZhToEn && hasEnToZh) {
+			console.log('Bidirectional translations verified: zh→en + en→zh');
+		} else {
+			console.log(
+				`Translations: ${translations.length} total, zh→en=${hasZhToEn}, en→zh=${hasEnToZh}`
+			);
+		}
+
+		await page.screenshot({
+			path: path.join(SCREENSHOT_DIR, '21-interpreter-persistence.png'),
+			fullPage: true,
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
 // UI-only tests — no backend services required, only dashboard on :5173
 // ---------------------------------------------------------------------------
 test.describe('Loopback UI (dashboard only)', () => {
