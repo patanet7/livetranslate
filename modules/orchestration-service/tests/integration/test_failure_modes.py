@@ -185,9 +185,8 @@ class TestTranslationUnreachableGracefulDegradation:
         with pytest.raises(Exception):
             await service.translate(request)
 
-        # Context window and queue should still be intact
-        assert service._contexts is not None
-        assert isinstance(service._contexts, dict)
+        # Context store and queue should still be intact
+        assert service.context_store is not None
         assert not service._queue.full()
 
         # Second call should also fail (not hang or panic)
