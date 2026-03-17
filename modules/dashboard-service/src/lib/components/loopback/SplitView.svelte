@@ -63,9 +63,9 @@
   }
 </script>
 
-<div class="split-view">
+<div class="split-view" data-testid="split-view">
   <!-- Original language panel -->
-  <div class="panel panel-original">
+  <div class="panel panel-original" data-testid="panel-original">
     <div class="panel-header">
       Original ({loopbackStore.detectedLanguage ?? loopbackStore.sourceLanguage ?? 'detecting...'})
     </div>
@@ -73,17 +73,19 @@
       {#each paragraphs as para (para.id)}
         <div
           class="paragraph"
+          data-testid="paragraph"
+          data-para-id={para.id}
           style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
         >
           {#if para.speakerId}
-            <span class="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
+            <span class="speaker" data-testid="speaker-label" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
               {para.speakerId}:
             </span>
           {/if}
           <span class="para-text">
             {#each para.captions as cap, i}
               {#if i > 0 && cap.stableText && !isCjk(cap.language)}{' '}{/if}
-              <span class:is-draft={cap.isDraft}>{cap.stableText}</span>
+              <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.segmentId}>{cap.stableText}</span>
               {#if cap.unstableText}<span class="unstable">{#if !isCjk(cap.language)}{' '}{/if}{cap.unstableText}</span>{/if}
             {/each}
           </span>
@@ -99,7 +101,7 @@
   </div>
 
   <!-- Translation panel -->
-  <div class="panel panel-translation">
+  <div class="panel panel-translation" data-testid="panel-translation">
     <div class="panel-header">
       Translation ({loopbackStore.targetLanguage})
     </div>
@@ -109,6 +111,9 @@
         {@const phase = translationPhase(para.captions)}
         <div
           class="paragraph"
+          data-testid="paragraph"
+          data-para-id={para.id}
+          data-translation-state={phase}
           style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
         >
           {#if para.speakerId}

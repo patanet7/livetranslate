@@ -83,9 +83,9 @@
   }
 </script>
 
-<div class="interpreter-view">
+<div class="interpreter-view" data-testid="interpreter-view">
   <!-- Language A panel: shows text that IS in Language A -->
-  <div class="panel panel-a">
+  <div class="panel panel-a" data-testid="panel-lang-a">
     <div class="panel-header panel-header-a">
       {langLabel(loopbackStore.interpreterLangA)} ({loopbackStore.interpreterLangA})
     </div>
@@ -96,6 +96,9 @@
         {@const phase = translationPhase(para.captions)}
         <div
           class="paragraph"
+          data-testid="paragraph"
+          data-para-id={para.id}
+          data-translation-state={native ? 'native' : phase}
           class:is-translation={!native}
           style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
         >
@@ -126,7 +129,7 @@
   </div>
 
   <!-- Language B panel: shows text that IS in Language B -->
-  <div class="panel panel-b">
+  <div class="panel panel-b" data-testid="panel-lang-b">
     <div class="panel-header panel-header-b">
       {langLabel(loopbackStore.interpreterLangB)} ({loopbackStore.interpreterLangB})
     </div>
@@ -137,6 +140,9 @@
         {@const phase = translationPhase(para.captions)}
         <div
           class="paragraph"
+          data-testid="paragraph"
+          data-para-id={para.id}
+          data-translation-state={native ? 'native' : phase}
           class:is-translation={!native}
           style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
         >

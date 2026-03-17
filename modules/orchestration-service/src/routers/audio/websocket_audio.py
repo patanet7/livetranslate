@@ -17,8 +17,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import time
 import uuid
+from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +29,6 @@ from clients.transcription_client import WebSocketTranscriptionClient
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models.ws_messages import (
-    BackendSwitchedMessage,
     ConfigMessage,
     ConnectedMessage,
     EndMeetingMessage,
@@ -45,9 +44,8 @@ from livetranslate_common.models.ws_messages import (
     TranslationMessage,
     parse_ws_message,
 )
-from livetranslate_common.models import TranslationRequest
 from meeting.downsampler import downsample_to_16k
-from translation.segment_store import SegmentStore
+from testing.fixture_recorder import RECORD_FIXTURES, FixtureRecorder
 
 if TYPE_CHECKING:
     from meeting.pipeline import MeetingPipeline
@@ -191,7 +189,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     pipeline = None
     transcription_client = None
     translation_service = None
-    context_store: DirectionalContextStore | None = None
+    fixture_recorder: FixtureRecorder | None = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -201,10 +199,14 @@ async def websocket_audio_stream(websocket: WebSocket):
     source_language: str | None = None
     target_language: str | None = TARGET_LANGUAGE
     interpreter_languages: tuple[str, str] | None = None
+    _last_translation_direction: str | None = None  # "a→b" or "b→a" for context clearing
 
-    # Per-session segment lifecycle tracker (replaces _stable_text_buffer,
-    # _last_translated_stable, and _recent_segment_texts regex dedup)
-    segment_store: SegmentStore = SegmentStore()
+    # Accumulator for stable text across segments (for sentence-level translation)
+    _stable_text_buffer: str = ""
+    _last_translated_stable: str = ""
+
+    # Track recent segment texts for repetition detection (defense-in-depth)
+    _recent_segment_texts: deque[str] = deque(maxlen=5)
 
     # Lock for draft translations — non-blocking, drop when busy.
     # Lock (not Semaphore) because Lock has .locked() for non-blocking check.
@@ -230,7 +232,7 @@ async def websocket_audio_stream(websocket: WebSocket):
 
     async def handle_transcription_segment(data: dict) -> None:
         """Transform transcription result → SegmentMessage → forward to frontend."""
-        nonlocal segment_counter, source_language
+        nonlocal segment_counter, source_language, _stable_text_buffer, _last_translated_stable, _last_translation_direction
 
         # Preserve transcription service's segment_id for draft→final matching.
         # The transcription service sends draft (seg_id=N) then final (seg_id=N)
@@ -273,6 +275,18 @@ async def websocket_audio_stream(websocket: WebSocket):
         if not await safe_send(msg.model_dump_json()):
             return  # frontend disconnected
 
+        if fixture_recorder:
+            fixture_recorder.log_event("segment", {
+                "segment_id": msg.segment_id,
+                "text": msg.text,
+                "stable_text": msg.stable_text,
+                "unstable_text": msg.unstable_text,
+                "is_draft": msg.is_draft,
+                "is_final": msg.is_final,
+                "language": msg.language,
+                "speaker_id": msg.speaker_id,
+            })
+
         # Compute effective target for this segment
         if interpreter_languages:
             lang_a, lang_b = interpreter_languages
@@ -282,8 +296,15 @@ async def websocket_audio_stream(websocket: WebSocket):
                 effective_target = lang_a
             else:
                 effective_target = None  # detected language matches neither — skip
-            # Direction flip is a no-op — DirectionalContextStore uses
-            # per-(source, target) keys, so each direction has independent context.
+            # DirectionalContextStore handles per-direction isolation — no clear needed on flip.
+            # Reset text accumulators on direction change (Chinese text should not bleed
+            # into English sentence buffer). SegmentStore will replace these in Phase 2.
+            if effective_target:
+                direction = f"{msg.language}→{effective_target}"
+                if _last_translation_direction and direction != _last_translation_direction:
+                    _stable_text_buffer = ""
+                    _last_translated_stable = ""
+                _last_translation_direction = direction
         else:
             effective_target = target_language
 
@@ -295,9 +316,19 @@ async def websocket_audio_stream(websocket: WebSocket):
         if len(msg.text.strip()) < 3:
             return  # segment already forwarded to frontend above; just skip translation
 
-        # --- Draft path: bypass accumulation, translate msg.text directly ---
+        # Guard: repetition detection (defense-in-depth, mirrors transcription filter)
+        seg_normalized = msg.text.strip().lower()
+        seg_repeat_count = sum(1 for t in _recent_segment_texts if t == seg_normalized)
+        _recent_segment_texts.append(seg_normalized)
+        if seg_repeat_count >= 2:
+            logger.debug("translation_skipped_repetition", seg_id=msg.segment_id, text=msg.text[:40])
+            return  # segment displayed but not translated
+
+        # --- Draft path: bypass stable_text, translate msg.text directly ---
         if msg.is_draft:
             # Non-blocking check: drop if another draft is in-flight.
+            # Safe because no await between this check and create_task below
+            # (single-threaded asyncio — no concurrent coroutine can acquire between).
             if _draft_lock.locked():
                 logger.debug(
                     "draft_translation_dropped",
@@ -307,9 +338,6 @@ async def websocket_audio_stream(websocket: WebSocket):
                 )
                 return
 
-            segment_store.on_draft_received(msg.segment_id, msg.text, msg.language, effective_target)
-            segment_store.evict_old()
-
             logger.debug(
                 "translation_trigger",
                 session_id=session_id,
@@ -318,7 +346,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 is_draft=True,
             )
 
-            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg, ctx_store, seg_store, pl):
+            async def _draft_translate(lock, svc, seg_id, text, lang, tgt, spk, cfg):
                 """Draft translation with lock + timeout."""
                 await lock.acquire()
                 try:
@@ -331,10 +359,9 @@ async def websocket_audio_stream(websocket: WebSocket):
                             source_lang=lang,
                             target_lang=tgt,
                             speaker_name=spk,
-                            pipeline=pl,
+                            pipeline=pipeline,
                             is_draft=True,
-                            context_store=ctx_store,
-                            segment_store=seg_store,
+                            fixture_recorder=fixture_recorder,
                         ),
                         timeout=cfg.draft_timeout_s,
                     )
@@ -359,56 +386,114 @@ async def websocket_audio_stream(websocket: WebSocket):
                     effective_target,
                     msg.speaker_id,
                     translation_service.config,
-                    context_store,
-                    segment_store,
-                    pipeline,
                 )
             )
             session_tasks.add(task)
             task.add_done_callback(session_tasks.discard)
+
+            # Don't update _last_translated_stable from the draft path.
+            # Draft gives fast UI feedback; the final path must re-translate
+            # the full text authoritatively. If we tracked draft text here,
+            # the final path's dedup would strip the overlapping prefix and
+            # only translate the tail fragment — overwriting the draft's full
+            # translation with a partial result.
             return
 
-        # --- Final path: SegmentStore accumulation + sentence boundary ---
-        rec, translate_text = segment_store.on_final_received(
-            msg.segment_id, msg.text, msg.is_final, msg.language, effective_target,
-        )
-        segment_store.evict_old()
+        # --- Final path: stable_text accumulation + sentence boundary detection ---
+        translate_text = ""
+        if msg.stable_text:
+            import re
+            incoming = msg.stable_text
+            original_incoming_len = len(incoming.split())
 
-        if not translate_text:
-            return  # accumulated into pending_sentence, waiting for sentence boundary
+            # Guard: strip overlap with already-translated text to prevent
+            # sending duplicate context to the LLM.
+            # Only dedup the VAC overlap window (typically ≤6 words).
+            if _last_translated_stable:
+                # Fast path: if incoming is entirely contained in what we
+                # already translated, skip it (handles duplicate segment_ids)
+                incoming_norm = re.sub(r"[^\w\s]", "", incoming).lower()
+                last_norm = re.sub(r"[^\w\s]", "", _last_translated_stable).lower()
+                if incoming_norm and incoming_norm in last_norm:
+                    incoming = ""
+                else:
+                    # Word-level prefix dedup for VAC overlap (bounded to 6 words
+                    # to avoid false matches across non-overlapping segments)
+                    prev_words = last_norm.split()
+                    new_words_raw = incoming.split()
+                    new_words = [re.sub(r"[^\w\s]", "", w).lower() for w in new_words_raw]
+                    max_check = min(len(prev_words), len(new_words), 6)
+                    for overlap_len in range(max_check, 0, -1):
+                        if prev_words[-overlap_len:] == new_words[:overlap_len]:
+                            incoming = " ".join(new_words_raw[overlap_len:])
+                            break
 
-        if segment_store.is_final_translated(msg.segment_id):
-            return
+                # Safety net: if dedup stripped more than half the incoming text,
+                # it's likely a false match across non-overlapping segments.
+                # Fall back to the full stable_text.
+                remaining_words = len(incoming.split()) if incoming.strip() else 0
+                if original_incoming_len > 4 and remaining_words < original_incoming_len * 0.5:
+                    logger.debug(
+                        "dedup_override_aggressive_strip",
+                        session_id=session_id,
+                        seg_id=msg.segment_id,
+                        original_words=original_incoming_len,
+                        remaining_words=remaining_words,
+                    )
+                    incoming = msg.stable_text  # restore full text
 
-        translate_text = translate_text.strip()
-        if not translate_text:
-            return
-
-        logger.debug(
-            "translation_trigger",
-            session_id=session_id,
-            seg_id=msg.segment_id,
-            translate_text=translate_text[:80],
-            is_draft=False,
-        )
-        task = asyncio.create_task(
-            _translate_and_send(
-                safe_send,
-                translation_service,
-                segment_id=msg.segment_id,
-                text=translate_text,
-                source_lang=msg.language,
-                target_lang=effective_target,
-                speaker_name=msg.speaker_id,
-                pipeline=pipeline,
-                is_draft=False,
-                context_store=context_store,
-                segment_store=segment_store,
-                interpreter_mode=interpreter_languages is not None,
+            if incoming.strip():
+                _stable_text_buffer += (" " if _stable_text_buffer else "") + incoming.strip()
+            # Check for sentence boundaries (period, question mark, exclamation)
+            # OR flush on is_final — conversational speech often lacks punctuation,
+            # and is_final means no more text is coming for this audio chunk.
+            should_flush = (
+                re.search(r"[.!?。！？]$", _stable_text_buffer.strip())  # noqa: RUF001
+                or msg.is_final
             )
-        )
-        session_tasks.add(task)
-        task.add_done_callback(session_tasks.discard)
+            if should_flush and _stable_text_buffer.strip():
+                translate_text = _stable_text_buffer.strip()
+                # Track what we've translated (keep last ~200 chars — shorter window
+                # reduces false substring matches across non-overlapping segments)
+                combined = _last_translated_stable + " " + translate_text
+                if len(combined) > 200:
+                    combined = combined[-200:]
+                    space_idx = combined.find(" ")
+                    if space_idx != -1:
+                        combined = combined[space_idx + 1:]
+                _last_translated_stable = combined
+                _stable_text_buffer = ""
+        elif msg.is_final:
+            # Fallback: use is_final when stable_text is not populated
+            translate_text = msg.text
+
+        if translate_text:
+            logger.debug(
+                "translation_trigger",
+                session_id=session_id,
+                seg_id=msg.segment_id,
+                translate_text=translate_text[:80],
+                stable_text=msg.stable_text[:40] if msg.stable_text else "",
+                last_translated=_last_translated_stable[:40] if _last_translated_stable else "",
+                buffer_len=len(_stable_text_buffer),
+                is_draft=False,
+            )
+            task = asyncio.create_task(
+                _translate_and_send(
+                    safe_send,
+                    translation_service,
+                    segment_id=msg.segment_id,
+                    text=translate_text,
+                    source_lang=msg.language,
+                    target_lang=effective_target,
+                    speaker_name=msg.speaker_id,
+                    pipeline=pipeline,
+                    is_draft=False,
+                    fixture_recorder=fixture_recorder,
+                )
+            )
+            session_tasks.add(task)
+            task.add_done_callback(session_tasks.discard)
 
     async def handle_language_detected(data: dict) -> None:
         """Forward language_detected to frontend."""
@@ -429,24 +514,6 @@ async def websocket_audio_stream(websocket: WebSocket):
             "recoverable": data.get("recoverable", True),
         }))
 
-    async def handle_backend_switched(data: dict) -> None:
-        """Reset segment store on backend switch — word overlap patterns change."""
-        segment_store.reset()
-        # context_store intentionally NOT reset — prior translations remain valid
-        await safe_send(
-            BackendSwitchedMessage(
-                backend=data.get("backend", ""),
-                model=data.get("model", ""),
-                language=data.get("language", ""),
-            ).model_dump_json()
-        )
-        logger.info(
-            "backend_switched",
-            session_id=session_id,
-            backend=data.get("backend", ""),
-            model=data.get("model", ""),
-        )
-
     try:
         while True:
             data = await websocket.receive()
@@ -455,6 +522,9 @@ async def websocket_audio_stream(websocket: WebSocket):
             if data.get("bytes"):
                 if transcription_client and transcription_client.connected:
                     audio = np.frombuffer(data["bytes"], dtype=np.float32)
+
+                    if fixture_recorder:
+                        fixture_recorder.write_audio(audio)
 
                     if pipeline:
                         downsampled = await pipeline.process_audio(audio)
@@ -512,6 +582,8 @@ async def websocket_audio_stream(websocket: WebSocket):
 
                 sample_rate = msg.sample_rate
                 channels = msg.channels
+                if RECORD_FIXTURES:
+                    fixture_recorder = FixtureRecorder(session_id, sample_rate=sample_rate)
 
                 # Create MeetingPipeline (optional — works without DB)
                 pipeline = await _try_create_pipeline(sample_rate, channels)
@@ -534,14 +606,13 @@ async def websocket_audio_stream(websocket: WebSocket):
                 )
                 transcription_client.on_segment(handle_transcription_segment)
                 transcription_client.on_language_detected(handle_language_detected)
-                transcription_client.on_backend_switched(handle_backend_switched)
                 transcription_client.on_error(handle_transcription_error)
 
                 try:
                     await transcription_client.connect()
 
                     # Optionally init translation service + warm up LLM
-                    translation_service, context_store = _try_create_translation_service()
+                    translation_service = _try_create_translation_service()
                     if translation_service:
                         # Skip warm-up if already warmed at startup (lifespan)
                         already_warm = getattr(websocket.app.state, "translation_service_warmed", False)
@@ -626,10 +697,10 @@ async def websocket_audio_stream(websocket: WebSocket):
                 if msg.target_language is not None:
                     previous = target_language
                     target_language = msg.target_language
-                    # Clear only the affected direction — old target language examples
+                    # Clear only the old direction's context — old target language examples
                     # would confuse the LLM into producing wrong-language output.
-                    if context_store and previous and previous != target_language and source_language:
-                        context_store.clear_direction(source_language, previous)
+                    if translation_service and previous != target_language:
+                        translation_service.clear_context(source_lang=source_language or "", target_lang=previous)
                     logger.info(
                         "target_language_updated",
                         session_id=session_id,
@@ -640,12 +711,13 @@ async def websocket_audio_stream(websocket: WebSocket):
                 if msg.interpreter_languages is not None:
                     if len(msg.interpreter_languages) == 2:
                         interpreter_languages = (msg.interpreter_languages[0], msg.interpreter_languages[1])
+                        _last_translation_direction = None
                         # Force auto-detect so Whisper identifies each segment's language
                         source_language = None
                         if transcription_client and transcription_client.connected:
                             await transcription_client.send_config(language=None)
-                        # No context clearing needed — DirectionalContextStore uses
-                        # per-(source, target) keys, isolation is automatic.
+                        # DirectionalContextStore handles per-direction isolation —
+                        # no need to clear when entering interpreter mode.
                         logger.info(
                             "interpreter_mode_enabled",
                             session_id=session_id,
@@ -655,6 +727,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     else:
                         # Empty list or invalid — disable interpreter mode
                         interpreter_languages = None
+                        _last_translation_direction = None
                         logger.info("interpreter_mode_disabled", session_id=session_id)
 
             # --- end_session ---
@@ -671,37 +744,6 @@ async def websocket_audio_stream(websocket: WebSocket):
                             )
                         except (TimeoutError, asyncio.CancelledError):
                             pass
-
-                # Flush any pending accumulated text before ending
-                pending = segment_store.flush_pending()
-                if pending and pending.strip() and translation_service and target_language and source_language:
-                    effective = target_language
-                    if interpreter_languages:
-                        lang_a, lang_b = interpreter_languages
-                        if source_language == lang_a:
-                            effective = lang_b
-                        elif source_language == lang_b:
-                            effective = lang_a
-                    if effective and source_language != effective:
-                        flush_task = asyncio.create_task(
-                            _translate_and_send(
-                                safe_send,
-                                translation_service,
-                                segment_id=-1,
-                                text=pending.strip(),
-                                source_lang=source_language,
-                                target_lang=effective,
-                                speaker_name=None,
-                                pipeline=pipeline,
-                                is_draft=False,
-                                context_store=context_store,
-                                segment_store=segment_store,
-                                interpreter_mode=interpreter_languages is not None,
-                            )
-                        )
-                        session_tasks.add(flush_task)
-                        flush_task.add_done_callback(session_tasks.discard)
-
                 break
 
     except WebSocketDisconnect:
@@ -718,36 +760,6 @@ async def websocket_audio_stream(websocket: WebSocket):
         logger.exception("ws_audio_error", session_id=session_id, error=str(exc))
 
     finally:
-        # Flush any remaining pending text (covers disconnect without end_session)
-        pending_text = segment_store.flush_pending()
-        if pending_text and pending_text.strip() and translation_service and target_language and source_language:
-            effective = target_language
-            if interpreter_languages:
-                lang_a, lang_b = interpreter_languages
-                if source_language == lang_a:
-                    effective = lang_b
-                elif source_language == lang_b:
-                    effective = lang_a
-            if effective and source_language != effective:
-                flush_task = asyncio.create_task(
-                    _translate_and_send(
-                        safe_send,
-                        translation_service,
-                        segment_id=-1,
-                        text=pending_text.strip(),
-                        source_lang=source_language,
-                        target_lang=effective,
-                        speaker_name=None,
-                        pipeline=pipeline,
-                        is_draft=False,
-                        context_store=context_store,
-                        segment_store=segment_store,
-                        interpreter_mode=interpreter_languages is not None,
-                    )
-                )
-                session_tasks.add(flush_task)
-                flush_task.add_done_callback(session_tasks.discard)
-
         # Wait for in-flight translations to complete (up to 30s) before cleanup.
         # end_session means "flush everything" — don't discard pending translations.
         if session_tasks:
@@ -784,27 +796,24 @@ async def websocket_audio_stream(websocket: WebSocket):
             except Exception:
                 pass
 
+        if fixture_recorder:
+            fixture_recorder.stop()
+
         _active_sessions.pop(session_id, None)
         logger.info("ws_audio_cleaned_up", session_id=session_id)
 
 
-def _try_create_translation_service() -> tuple[TranslationService | None, DirectionalContextStore | None]:
-    """Create a TranslationService + DirectionalContextStore if LLM config is available."""
+def _try_create_translation_service() -> TranslationService | None:
+    """Create a TranslationService if LLM config is available."""
     try:
         from translation.config import TranslationConfig
-        from translation.context_store import DirectionalContextStore
         from translation.service import TranslationService
 
         config = TranslationConfig.from_env()
-        store = DirectionalContextStore(
-            max_entries=config.context_window_size,
-            max_tokens=config.max_context_tokens,
-            cross_direction_max_tokens=config.cross_direction_max_tokens,
-        )
-        return TranslationService(config, context_store=store), store
+        return TranslationService(config)
     except Exception as exc:
         logger.debug("translation_service_unavailable", reason=str(exc))
-        return None, None
+        return None
 
 
 async def _translate_and_send(
@@ -817,9 +826,8 @@ async def _translate_and_send(
     speaker_name: str | None,
     pipeline: MeetingPipeline | None = None,
     is_draft: bool = False,
+    fixture_recorder: FixtureRecorder | None = None,
     context_store: DirectionalContextStore | None = None,
-    segment_store: SegmentStore | None = None,
-    interpreter_mode: bool = False,
 ) -> None:
     """Translate a segment and forward to the frontend.
 
@@ -833,23 +841,23 @@ async def _translate_and_send(
       - Writes to context window, persists to DB in meeting mode
       - Sends translation_chunk messages + TranslationMessage(is_draft=False)
     """
+    import time as _time
+
     try:
-        start = time.monotonic()
+        start = _time.monotonic()
 
         if is_draft:
             # --- Draft: non-streaming, fail-fast, provisional context ---
-            # Read finals from context for better quality, but never write back.
-            draft_context = None
-            if context_store:
-                full_ctx = context_store.get(source_lang, target_lang)
-                draft_context = full_ctx[-3:] if full_ctx else None
+            # Read last 3 context entries for quality without polluting the window
+            _store = context_store or translation_service.context_store
+            draft_context = _store.get(source_lang, target_lang)[-3:] if _store else None
             translation = await translation_service.translate_draft(
                 text=text,
                 source_lang=source_lang,
                 target_lang=target_lang,
                 context=draft_context,
             )
-            latency_ms = (time.monotonic() - start) * 1000
+            latency_ms = (_time.monotonic() - start) * 1000
 
             logger.info(
                 "translation_complete",
@@ -860,9 +868,15 @@ async def _translate_and_send(
                 output_len=len(translation),
             )
 
-            # Track draft translation in segment store (no context pollution)
-            if segment_store:
-                segment_store.on_draft_translated(segment_id, translation)
+            if fixture_recorder:
+                fixture_recorder.log_event("translation", {
+                    "transcript_id": segment_id,
+                    "text": translation,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                    "is_draft": True,
+                    "latency_ms": round(latency_ms, 1),
+                })
 
             await safe_send(
                 TranslationMessage(
@@ -877,13 +891,7 @@ async def _translate_and_send(
             return
 
         # --- Final: streaming with context ---
-        context = (
-            context_store.get(source_lang, target_lang) if context_store
-            else translation_service.get_context(source_lang, target_lang)
-        )
-        cross_context = None
-        if interpreter_mode and context_store:
-            cross_context = context_store.get_cross_direction(source_lang, target_lang)
+        context = translation_service.get_context(source_lang, target_lang)
         full_text = ""
         translation = ""
         try:
@@ -891,7 +899,6 @@ async def _translate_and_send(
                 translation_service._client.translate_stream(
                     text, source_lang, target_lang, context,
                     max_tokens=translation_service.config.max_tokens,
-                    cross_context=cross_context,
                 )
             ):
                 full_text += delta
@@ -922,6 +929,8 @@ async def _translate_and_send(
                 is_draft=False,
                 error=str(stream_exc),
             )
+            from livetranslate_common.models import TranslationRequest
+
             request = TranslationRequest(
                 text=text,
                 source_language=source_lang,
@@ -931,17 +940,10 @@ async def _translate_and_send(
             response = await translation_service.translate(request)
             translation = response.translated_text
 
-        latency_ms = (time.monotonic() - start) * 1000
+        latency_ms = (_time.monotonic() - start) * 1000
 
         # Add to context window (finals only — never drafts)
-        if context_store:
-            context_store.add(source_lang, target_lang, text, translation)
-        else:
-            translation_service.context_store.add(source_lang, target_lang, text, translation)
-
-        # Mark segment as final-translated in the segment store
-        if segment_store:
-            segment_store.on_final_translated(segment_id, translation)
+        translation_service.context_store.add(source_lang, target_lang, text, translation)
 
         logger.info(
             "translation_complete",
@@ -951,6 +953,16 @@ async def _translate_and_send(
             input_len=len(text),
             output_len=len(translation),
         )
+
+        if fixture_recorder:
+            fixture_recorder.log_event("translation", {
+                "transcript_id": segment_id,
+                "text": translation,
+                "source_lang": source_lang,
+                "target_lang": target_lang,
+                "is_draft": False,
+                "latency_ms": round(latency_ms, 1),
+            })
 
         await safe_send(
             TranslationMessage(
@@ -992,21 +1004,24 @@ async def _translate_and_send(
 
 
 async def _warm_up_llm(translation_service: TranslationService) -> None:
-    """Fire-and-forget LLM warm-up — loads the model into Ollama's memory.
+    """Fire-and-forget LLM warm-up — loads the model into memory.
 
-    Ollama cold-starts can take 10-15s for the first inference. By sending a
-    trivial translation at session start, the model is loaded before the first
-    real final segment arrives.
+    vLLM-MLX and Ollama cold-starts can take 10-15s for the first inference.
+    By sending a trivial translation at session start, the model is loaded
+    before the first real final segment arrives.
+
+    skip_context=True ensures the warm-up entry is never written to the context
+    window, so concurrent sessions accumulating real context are not affected.
     """
     try:
+        from livetranslate_common.models import TranslationRequest
+
         request = TranslationRequest(
             text="hello",
             source_language="en",
             target_language="es",
         )
-        await translation_service.translate(request)
-        # Clear the warm-up entry from the context window
-        translation_service.clear_context()
+        await translation_service.translate(request, skip_context=True)
         logger.info("llm_warm_up_complete")
     except Exception as exc:
         logger.debug("llm_warm_up_failed", error=str(exc))

@@ -37,24 +37,26 @@
   }
 </script>
 
-<div class="subtitle-view">
+<div class="subtitle-view" data-testid="subtitle-view">
   <!-- 2c: aria-label for screen readers -->
   <button
     class="popout-btn"
+    data-testid="popout-button"
     onclick={popOut}
     aria-label="Pop out subtitles into a separate window for screen-sharing"
   >
     Pop Out
   </button>
   <!-- 2a: ARIA live region for real-time subtitles -->
-  <div class="subtitle-area" role="status" aria-live="assertive" aria-label="Subtitles">
+  <div class="subtitle-area" data-testid="subtitle-area" role="status" aria-live="assertive" aria-label="Subtitles">
     {#each recentCaptions as caption (caption.id)}
-      <div class="subtitle-line" style="background: rgba(0, 0, 0, {clampedOpacity})">
-        <div class="original" style="font-size: {fontSize}px"><span class="caption-text" class:is-draft={caption.isDraft}>{caption.stableText}{#if caption.unstableText}<span class="unstable"> {caption.unstableText}</span>{/if}</span></div>
-        <div class="translation" style="font-size: {fontSize + 2}px">
+      {@const captionPhase = caption.translationState}
+      <div class="subtitle-line" data-testid="subtitle-line" data-caption-id={caption.id} data-translation-state={captionPhase} style="background: rgba(0, 0, 0, {clampedOpacity})">
+        <div class="original" data-testid="subtitle-original" style="font-size: {fontSize}px"><span class="caption-text" class:is-draft={caption.isDraft}>{caption.stableText}{#if caption.unstableText}<span class="unstable"> {caption.unstableText}</span>{/if}</span></div>
+        <div class="translation" data-testid="subtitle-translation" style="font-size: {fontSize + 2}px">
           <TranslationText
             text={caption.translation ?? ''}
-            phase={caption.translationState}
+            phase={captionPhase}
           />
         </div>
       </div>

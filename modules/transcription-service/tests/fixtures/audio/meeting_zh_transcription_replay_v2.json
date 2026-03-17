@@ -1,0 +1,148 @@
+{
+  "source_audio": "meeting_zh.wav",
+  "language": "zh",
+  "model": "large-v3-turbo",
+  "vac_config": {
+    "prebuffer_s": 0.5,
+    "stride_s": 6.0,
+    "overlap_s": 1.5
+  },
+  "segments": [
+    {
+      "index": 0,
+      "segment_id": 1,
+      "text": "大家好",
+      "stable_text": "大家好",
+      "unstable_text": "",
+      "is_draft": true,
+      "is_final": false,
+      "wall_time_s": 1.447,
+      "inference_latency_s": 1.447
+    },
+    {
+      "index": 1,
+      "segment_id": 1,
+      "text": "大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告",
+      "stable_text": "大家好,欢迎参加今天的会议",
+      "unstable_text": "今天我们要讨论第三季度的销售报告",
+      "is_draft": false,
+      "is_final": true,
+      "wall_time_s": 3.437,
+      "inference_latency_s": 1.989
+    },
+    {
+      "index": 2,
+      "segment_id": 2,
+      "text": "好的,谢谢根据数据显示,我们第三季度的总收入达到了2500",
+      "stable_text": "好的,谢谢根据数据显示",
+      "unstable_text": "我们第三季度的总收入达到了2500",
+      "is_draft": true,
+      "is_final": false,
+      "wall_time_s": 5.406,
+      "inference_latency_s": 1.969
+    },
+    {
+      "index": 3,
+      "segment_id": 2,
+      "text": "收入达到了2500万美元,比去年同期增长了15%。",
+      "stable_text": "好的,谢谢根据数据显示,我们第三季度的总收入达到了2500万美元,比去年同期增长了15%。",
+      "unstable_text": "",
+      "is_draft": false,
+      "is_final": true,
+      "wall_time_s": 7.261,
+      "inference_latency_s": 1.855
+    },
+    {
+      "index": 4,
+      "segment_id": 3,
+      "text": "这个增长率非常不错能详细说一下各个地区的表现吗当然可以",
+      "stable_text": "这个增长率非常不错",
+      "unstable_text": "能详细说一下各个地区的表现吗当然可以",
+      "is_draft": true,
+      "is_final": false,
+      "wall_time_s": 9.241,
+      "inference_latency_s": 1.980
+    },
+    {
+      "index": 5,
+      "segment_id": 3,
+      "text": "这个增长率非常不错能详细说一下各个地区的表现吗当然可以亚太地区表现最好增长了22%北美地区增长了",
+      "stable_text": "这个增长率非常不错能详细说一下各个地区的表现吗当然可以亚太地区表现最好增长了22%",
+      "unstable_text": "北美地区增长了",
+      "is_draft": false,
+      "is_final": true,
+      "wall_time_s": 11.258,
+      "inference_latency_s": 2.017
+    },
+    {
+      "index": 6,
+      "segment_id": 4,
+      "text": "北美地区增长了10%欧洲地区基本持平",
+      "stable_text": "北美地区增长了10%欧洲地区基本持平",
+      "unstable_text": "",
+      "is_draft": true,
+      "is_final": false,
+      "wall_time_s": 13.076,
+      "inference_latency_s": 1.818
+    },
+    {
+      "index": 7,
+      "segment_id": 4,
+      "text": "北美地区增长了10%欧洲地区基本持平",
+      "stable_text": "北美地区增长了10%欧洲地区基本持平",
+      "unstable_text": "",
+      "is_draft": false,
+      "is_final": true,
+      "wall_time_s": 13.576,
+      "inference_latency_s": 0.500
+    },
+    {
+      "index": 8,
+      "segment_id": 5,
+      "text": "我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?",
+      "stable_text": "我注意到人工智能产品的销售额增长特别快",
+      "unstable_text": "这个趋势能持续吗?",
+      "is_draft": true,
+      "is_final": false,
+      "wall_time_s": 15.158,
+      "inference_latency_s": 2.082
+    },
+    {
+      "index": 9,
+      "segment_id": 5,
+      "text": "我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?",
+      "stable_text": "我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?",
+      "unstable_text": "",
+      "is_draft": false,
+      "is_final": true,
+      "wall_time_s": 15.658,
+      "inference_latency_s": 0.500
+    },
+    {
+      "index": 10,
+      "segment_id": 6,
+      "text": "我们预计下个季度人工智能相关产品将继续保持强劲增长客户",
+      "stable_text": "我们预计下个季度人工智能相关产品将继续保持强劲增长",
+      "unstable_text": "客户",
+      "is_draft": true,
+      "is_final": false,
+      "wall_time_s": 17.286,
+      "inference_latency_s": 2.127
+    },
+    {
+      "index": 11,
+      "segment_id": 6,
+      "text": "客户对实时翻译和语音识别的需求越来越大。",
+      "stable_text": "我们预计下个季度人工智能相关产品将继续保持强劲增长客户对实时翻译和语音识别的需求越来越大。",
+      "unstable_text": "",
+      "is_draft": false,
+      "is_final": true,
+      "wall_time_s": 19.119,
+      "inference_latency_s": 1.833
+    }
+  ],
+  "hypothesis": "大家好,欢迎参加今天的会议今天我们要讨论第三季度的销售报告好的,谢谢根据数据显示,我们第三季度的总收入达到了2500万美元,比去年同期增长了15%。这个增长率非常不错能详细说一下各个地区的表现吗当然可以亚太地区表现最好增长了22%北美地区增长了10%欧洲地区基本持平我注意到人工智能产品的销售额增长特别快这个趋势能持续吗?我们预计下个季度人工智能相关产品将继续保持强劲增长客户对实时翻译和语音识别的需求越来越大。",
+  "reference": "大家好，欢迎参加今天的会议。今天我们要讨论第三季度的销售报告。 好的，谢谢。根据数据显示，我们第三季度的总收入达到了两千五百万美元，比去年同期增长了百分之十五。 这个增长率非常不错。能详细说一下各个地区的表现吗？ 当然可以。亚太地区表现最好，增长了百分之二十二。北美地区增长了百分之十。欧洲地区基本持平。 我注意到人工智能产品的销售额增长特别快。这个趋势能持续吗？ 我们预计下个季度人工智能相关产品将继续保持强劲增长。客户对实时翻译和语音识别的需求越来越大。",
+  "error_rate": 0.0947867298578199,
+  "error_metric": "cer"
+}

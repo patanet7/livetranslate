@@ -13,8 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class TranslationConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LLM_")
 
-    base_url: str = "http://localhost:11434/v1"
-    model: str = "qwen3.5:7b"
+    base_url: str = "http://localhost:8006/v1"
+    model: str = "mlx-community/Qwen3-4B-4bit"
     temperature: float = 0.7
     timeout_s: int = 30
     context_window_size: int = 5

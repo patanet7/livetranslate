@@ -54,6 +54,8 @@ log_level := env("LOG_LEVEL", "INFO")
 
 # Log directory for dev services
 log_dir := "/tmp/livetranslate/logs"
+# Timestamp for log file names (preserves logs across restarts)
+log_ts := `date +%Y%m%d_%H%M%S`
 
 # Start all services locally (two vllm-mlx: Whisper on :8005, LLM on :8006)
 dev:
@@ -65,7 +67,7 @@ dev:
     @echo "  Orchestration:   http://localhost:3000 (LLM → :{{llm_port}})"
     @echo "  Dashboard:       http://localhost:5173"
     @echo ""
-    @echo "Logs: {{log_dir}}/"
+    @echo "Logs: {{log_dir}}/ (session: {{log_ts}})"
     @echo "  tail -f {{log_dir}}/vllm-mlx-stt.log"
     @echo "  tail -f {{log_dir}}/vllm-mlx-llm.log"
     @echo "  tail -f {{log_dir}}/transcription.log"
@@ -74,17 +76,22 @@ dev:
     @echo ""
     @echo "Use Ctrl+C to stop all."
     @trap 'kill 0' EXIT; \
-        PYTHONUNBUFFERED=1 uv run vllm-mlx serve {{llm_model}} --port {{whisper_port}} 2>&1 | tee {{log_dir}}/vllm-mlx-stt.log | awk '{print "[vllm-stt] " $0; fflush()}' & \
-        PYTHONUNBUFFERED=1 uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | tee {{log_dir}}/vllm-mlx-llm.log | awk '{print "[vllm-llm] " $0; fflush()}' & \
+        ln -sf vllm-mlx-stt_{{log_ts}}.log {{log_dir}}/vllm-mlx-stt.log && \
+        ln -sf vllm-mlx-llm_{{log_ts}}.log {{log_dir}}/vllm-mlx-llm.log && \
+        ln -sf transcription_{{log_ts}}.log {{log_dir}}/transcription.log && \
+        ln -sf orchestration_{{log_ts}}.log {{log_dir}}/orchestration.log && \
+        ln -sf dashboard_{{log_ts}}.log {{log_dir}}/dashboard.log && \
+        PYTHONUNBUFFERED=1 uv run vllm-mlx serve {{llm_model}} --port {{whisper_port}} 2>&1 | tee {{log_dir}}/vllm-mlx-stt_{{log_ts}}.log | awk '{print "[vllm-stt] " $0; fflush()}' & \
+        PYTHONUNBUFFERED=1 uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | tee {{log_dir}}/vllm-mlx-llm_{{log_ts}}.log | awk '{print "[vllm-llm] " $0; fflush()}' & \
         sleep 5 && \
         VLLM_MLX_URL=http://localhost:{{whisper_port}} LOG_LEVEL={{log_level}} PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
-        uv run python -u {{transcription_dir}}/src/main_local.py --model large-v3-turbo --backend vllm 2>&1 | tee {{log_dir}}/transcription.log | awk '{print "[transcription] " $0; fflush()}' & \
+        uv run python -u {{transcription_dir}}/src/main_local.py --model large-v3-turbo --backend vllm 2>&1 | tee {{log_dir}}/transcription_{{log_ts}}.log | awk '{print "[transcription] " $0; fflush()}' & \
         sleep 3 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
         LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
         LLM_TIMEOUT_S=30 DEFAULT_TARGET_LANGUAGE=zh LOG_LEVEL={{log_level}} PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
-        uv run python -u {{orchestration_dir}}/src/main_fastapi.py 2>&1 | tee {{log_dir}}/orchestration.log | awk '{print "[orchestration] " $0; fflush()}' & \
-        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | tee {{log_dir}}/dashboard.log | awk '{print "[dashboard] " $0; fflush()}' & \
+        uv run python -u {{orchestration_dir}}/src/main_fastapi.py 2>&1 | tee {{log_dir}}/orchestration_{{log_ts}}.log | awk '{print "[orchestration] " $0; fflush()}' & \
+        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | tee {{log_dir}}/dashboard_{{log_ts}}.log | awk '{print "[dashboard] " $0; fflush()}' & \
         wait
 
 # Start all services with DEBUG logging (shows segment lifecycle, dedup, draft→final)
@@ -95,15 +102,18 @@ dev-debug:
 dev-ollama:
     @mkdir -p {{log_dir}}
     @echo "Starting services (Ollama for LLM, no vllm-mlx LLM)..."
-    @echo "Logs: {{log_dir}}/"
+    @echo "Logs: {{log_dir}}/ (session: {{log_ts}})"
     @trap 'kill 0' EXIT; \
-        PYTHONUNBUFFERED=1 FORCE_COLOR=1 uv run python -u {{transcription_dir}}/src/main_local.py --model large-v3-turbo 2>&1 | tee {{log_dir}}/transcription.log | awk '{print "[transcription] " $0; fflush()}' & \
+        ln -sf transcription_{{log_ts}}.log {{log_dir}}/transcription.log && \
+        ln -sf orchestration_{{log_ts}}.log {{log_dir}}/orchestration.log && \
+        ln -sf dashboard_{{log_ts}}.log {{log_dir}}/dashboard.log && \
+        PYTHONUNBUFFERED=1 FORCE_COLOR=1 uv run python -u {{transcription_dir}}/src/main_local.py --model large-v3-turbo 2>&1 | tee {{log_dir}}/transcription_{{log_ts}}.log | awk '{print "[transcription] " $0; fflush()}' & \
         sleep 5 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
         LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen3.5:4b \
         LLM_TIMEOUT_S=30 DEFAULT_TARGET_LANGUAGE=zh PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
-        uv run python -u {{orchestration_dir}}/src/main_fastapi.py 2>&1 | tee {{log_dir}}/orchestration.log | awk '{print "[orchestration] " $0; fflush()}' & \
-        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | tee {{log_dir}}/dashboard.log | awk '{print "[dashboard] " $0; fflush()}' & \
+        uv run python -u {{orchestration_dir}}/src/main_fastapi.py 2>&1 | tee {{log_dir}}/orchestration_{{log_ts}}.log | awk '{print "[orchestration] " $0; fflush()}' & \
+        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | tee {{log_dir}}/dashboard_{{log_ts}}.log | awk '{print "[dashboard] " $0; fflush()}' & \
         wait
 
 # Start vllm-mlx LLM server standalone (Apple Silicon)
@@ -362,6 +372,20 @@ benchmark-tests:
     uv run pytest {{transcription_dir}}/tests/benchmarks/test_vac_sweep.py \
                   {{transcription_dir}}/tests/benchmarks/test_pipeline_benchmark.py \
                   -v -s --timeout=120 -m benchmark
+
+# ==============================================================================
+# E2E Testing — Fixtures & Playback
+# ==============================================================================
+
+# Generate 48kHz audio fixtures for Playwright (one-time, from 16kHz sources)
+create-e2e-fixtures:
+    uv run python tools/create_e2e_fixtures.py
+
+# Run backend translation-only playback tests (needs vLLM-MLX LLM on :8006)
+test-e2e-playback:
+    cd {{orchestration_dir}} && \
+    LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
+    uv run pytest tests/e2e/test_translation_playback.py -v -m e2e --timeout=120
 
 # Full benchmark: VAC sweep + pipeline benchmark across all meeting languages (stub)
 # Use this for CI dry-run validation. Set stub=false to use real backend.

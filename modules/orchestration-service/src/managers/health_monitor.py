@@ -66,20 +66,17 @@ class HealthMonitor:
         # Get service URLs from configuration if available, otherwise use defaults
         if settings:
             audio_service_url = settings.services.whisper_service_url
-            translation_service_url = settings.services.translation_service_url
             orchestration_url = f"http://{settings.host}:{settings.port}"
         else:
             # Fallback defaults
             audio_service_url = "http://localhost:5001"
-            translation_service_url = "http://localhost:5003"
             orchestration_url = "http://localhost:3000"
 
         self.service_configs = {
             "whisper": {"url": audio_service_url, "health_endpoint": "/health"},
-            "translation": {
-                "url": translation_service_url,
-                "health_endpoint": "/api/health",
-            },
+            # Translation is now handled by TranslationService via LLM API
+            # (vLLM-MLX on :8006 or Ollama on :11434), not a separate
+            # microservice on port 5003. No health endpoint to check.
             "orchestration": {
                 "url": orchestration_url,
                 "health_endpoint": "/api/system/health",

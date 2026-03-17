@@ -1,0 +1,4 @@
+# Generated 48kHz audio fixtures for Playwright E2E tests.
+# These are created by `just create-e2e-fixtures` (upsamples 16kHz sources).
+# Do NOT commit — they are large and reproducible.
+*_48k.wav

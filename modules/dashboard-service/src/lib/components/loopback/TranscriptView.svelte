@@ -58,30 +58,33 @@
   }
 </script>
 
-<div class="transcript-view" role="log" aria-live="polite" aria-label="Transcript">
+<div class="transcript-view" data-testid="transcript-view" role="log" aria-live="polite" aria-label="Transcript">
   {#each paragraphs as para (para.id)}
     {@const trans = paragraphTranslation(para.captions)}
     {@const phase = translationPhase(para.captions)}
     <div
       class="transcript-entry"
+      data-testid="transcript-entry"
+      data-entry-id={para.id}
+      data-translation-state={phase}
       style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
     >
       <div class="entry-header">
         {#if para.speakerId}
-          <span class="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
+          <span class="speaker" data-testid="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
             {para.speakerId}
           </span>
         {/if}
-        <span class="timestamp">{formatTime(para.timestamp)}</span>
+        <span class="timestamp" data-testid="entry-timestamp">{formatTime(para.timestamp)}</span>
       </div>
-      <div class="original">
+      <div class="original" data-testid="original-text">
         {#each para.captions as cap, i}
           {#if i > 0 && cap.stableText && !isCjk(cap.language)}{' '}{/if}
-          <span class:is-draft={cap.isDraft}>{cap.stableText}</span>
+          <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.segmentId}>{cap.stableText}</span>
           {#if cap.unstableText}<span class="unstable">{#if !isCjk(cap.language)}{' '}{/if}{cap.unstableText}</span>{/if}
         {/each}
       </div>
-      <div class="translation">
+      <div class="translation" data-testid="translation-text">
         <TranslationText text={trans} {phase} />
       </div>
     </div>

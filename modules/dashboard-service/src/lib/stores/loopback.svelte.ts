@@ -53,7 +53,7 @@ function createLoopbackStore() {
   let recordingChunks = $state(0);
   let sourceLanguage = $state<string | null>(null);
   let detectedLanguage = $state<string | null>(null);
-  let targetLanguage = $state('en');
+  let targetLanguage = $state('zh');
   let interpreterLangA = $state('zh');
   let interpreterLangB = $state('en');
   let chunksSent = $state(0);

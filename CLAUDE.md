@@ -17,10 +17,10 @@ See `ARCHITECTURE.md` for full system topology.
 
 ### 3 Core Services + External LLM
 
-1. **Transcription Service** (`modules/transcription-service/`) — GPU, faster-whisper, Silero VAD, pluggable backends, VRAM budgeting
-2. **Orchestration Service** (`modules/orchestration-service/`) — CPU, WebSocket hub, FLAC recording, Ollama translation, Google Meet bot
+1. **Transcription Service** (`modules/transcription-service/`) — Pluggable backends (vLLM-MLX on Apple Silicon, faster-whisper on GPU), Silero VAD, VRAM budgeting
+2. **Orchestration Service** (`modules/orchestration-service/`) — CPU, WebSocket hub, FLAC recording, LLM translation, Google Meet bot
 3. **Dashboard Service** (`modules/dashboard-service/`) — SvelteKit + Svelte 5 runes, real-time WebSocket streaming
-4. **External: Ollama** (`:11434`) — Translation inference via OpenAI-compatible API (qwen3.5:7b)
+4. **External LLM** — Translation inference via OpenAI-compatible API. Local: vLLM-MLX (`:8006`, `mlx-community/Qwen3-4B-4bit`). Remote: Ollama (`:11434`, `qwen3.5:7b`)
 
 **Legacy (not active):** `modules/frontend-service/` (React), `modules/translation-service/`, `modules/whisper-service/` — being replaced by services above.
 
@@ -76,7 +76,9 @@ Real-time audio capture → transcription → translation page in the SvelteKit 
 - **Dashboard**: 5173 (development), 3000 (production)
 - **Orchestration**: 3000
 - **Transcription**: 5001
-- **Ollama**: 11434
+- **vLLM-MLX STT**: 8005 (Whisper transcription inference, Apple Silicon)
+- **vLLM-MLX LLM**: 8006 (Qwen3-4B-4bit translation inference, Apple Silicon)
+- **Ollama**: 11434 (alternative LLM backend, remote GPU)
 - **Monitoring**: 3001
 - **Prometheus**: 9090
 
@@ -121,6 +123,18 @@ just coverage-backend
 - `@pytest.mark.e2e` — End-to-end
 - `@pytest.mark.slow` — Skip with `-m "not slow"`
 - `@pytest.mark.gpu` — Requires GPU
+
+### E2E / Playwright Testing
+
+All E2E tests assume `just dev` is already running (split vLLM-MLX inference).
+
+```bash
+just create-e2e-fixtures   # One-time: upsample 16kHz → 48kHz WAVs
+just test-playwright        # Playwright: browser → orchestration → vLLM-MLX → DOM
+just test-e2e-playback      # Backend: translation-only replay via vLLM-MLX LLM on :8006
+```
+
+**Fixture recording**: Set `LIVETRANSLATE_RECORD_FIXTURES=1` when running `just dev` to capture live sessions as WAV + JSON sidecar pairs in `/tmp/livetranslate/fixture-recordings/`.
 
 ## Shared Library (`livetranslate-common`)
 
@@ -186,8 +200,8 @@ just benchmark-all-stub
 ### Translation Config
 
 `TranslationConfig` (pydantic-settings, env_prefix=`LLM_`):
-- `LLM_BASE_URL` — LLM API endpoint (default: `http://localhost:11434/v1`)
-- `LLM_MODEL` — model name (default: `qwen3.5:7b`)
+- `LLM_BASE_URL` — LLM API endpoint (default: `http://localhost:8006/v1` for vLLM-MLX)
+- `LLM_MODEL` — model name (default: `mlx-community/Qwen3-4B-4bit`)
 - `LLM_TEMPERATURE` — generation temperature (default: `0.7`)
 - `LLM_CONTEXT_WINDOW_SIZE` — rolling context entries per direction (default: `5`)
 - `LLM_MAX_CONTEXT_TOKENS` — token budget for same-direction context (default: `800`)
