@@ -14,6 +14,7 @@ This is how SimulStreaming achieves computational efficiency!
 NO MOCKS - Only real Silero VAD + Whisper large-v3 models!
 """
 
+import gc
 import sys
 from pathlib import Path
 
@@ -24,6 +25,19 @@ import torch
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_after_test():
+    """Force garbage collection after every test to free model memory.
+
+    Without this, inline model loads (torch.hub.load, ModelManager.load_model)
+    accumulate in memory until the process OOMs on Apple Silicon (unified memory).
+    """
+    yield
+    gc.collect()
+    if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+        torch.mps.empty_cache()
 
 
 class TestAdaptiveChunkingIntegration:

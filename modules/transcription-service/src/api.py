@@ -86,7 +86,7 @@ class SimpleStabilityTracker:
 @dataclass
 class SessionState:
     session_id: str
-    language: str | None = None
+    source_language: str | None = None
     lock_language: bool = False  # True = force language, no auto-switching
     initial_prompt: str | None = None
     glossary_terms: list[str] | None = None
@@ -309,7 +309,7 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                             # Only update fields that are present in the message.
                             # Missing keys mean "don't change"; null means "clear/reset".
                             if "language" in msg:
-                                state.language = msg.get("language")
+                                state.source_language = msg.get("language")
                             if "lock_language" in msg:
                                 state.lock_language = msg.get("lock_language", False)
                             if "initial_prompt" in msg:
@@ -344,7 +344,7 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
             nonlocal _prev_segment_text, _session_samples_consumed
 
             try:
-                lang = state.language or state.lang_detector.current_language or "en"
+                lang = state.source_language or state.lang_detector.current_language or "en"
                 config = registry.get_config(lang)
                 transcription_backend = await manager.get_backend(config)
 
@@ -372,10 +372,10 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 # - If user set a language AND lock_language=True → force it (no switching)
                 # - If user set a language (no lock) → use detected, fall back to hint
                 # - If no language set (auto-detect) → None lets Whisper detect per-chunk
-                if state.language and getattr(state, "lock_language", False):
-                    whisper_lang = state.language
-                elif state.language:
-                    whisper_lang = state.lang_detector.current_language or state.language
+                if state.source_language and state.lock_language:
+                    whisper_lang = state.source_language
+                elif state.source_language:
+                    whisper_lang = state.lang_detector.current_language or state.source_language
                 else:
                     whisper_lang = None  # true auto-detect: no hint to Whisper
                 try:
@@ -408,27 +408,46 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         "confidence": result.confidence,
                     }))
                 else:
-                    chunk_duration_s = len(inference_audio) / 16000.0
-                    switched = state.lang_detector.update(result.language, chunk_duration_s, result.confidence)
-                    if switched:
-                        await ws.send_text(json.dumps({
-                            "type": "language_detected",
-                            "language": switched,
-                            "confidence": result.confidence,
-                        }))
+                    # Only run language detection when language is NOT locked.
+                    # In split mode (lock_language=True), Whisper is forced to
+                    # the configured language and detection would just pollute
+                    # the detector state with hallucinated switches.
+                    if not state.lock_language:
+                        chunk_duration_s = len(inference_audio) / 16000.0
+                        switched = state.lang_detector.update(result.language, chunk_duration_s, result.confidence)
+                        if switched:
+                            await ws.send_text(json.dumps({
+                                "type": "language_detected",
+                                "language": switched,
+                                "confidence": result.confidence,
+                            }))
+
+                            # Session restart: clean state for new language.
+                            # Flush dedup context so old-language text doesn't
+                            # poison overlap matching in the new language.
+                            _prev_segment_text = ""
+                            _hallucination_filter.reset()
+                            if state.vac_processor is not None:
+                                state.vac_processor.reset()
+                            logger.info(
+                                "session_restarted",
+                                session_id=session_id,
+                                new_language=switched,
+                                segment_counter=_segment_counter,
+                            )
 
                 # Language consistency filter: discard wrong-script hallucinations.
                 # Only active when lock_language=True (single-language mode).
                 # In auto-detect or hint mode, language switches are expected.
                 if (
-                    getattr(state, "lock_language", False)
-                    and state.language
-                    and result.language != state.language
+                    state.lock_language
+                    and state.source_language
+                    and result.language != state.source_language
                     and result.confidence < 0.7
                 ):
                     logger.debug(
                         "language_mismatch_filtered",
-                        expected=state.language,
+                        expected=state.source_language,
                         detected=result.language,
                         confidence=result.confidence,
                     )
@@ -568,7 +587,7 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     continue
 
                 try:
-                    lang = state.language or state.lang_detector.current_language or "en"
+                    lang = state.source_language or state.lang_detector.current_language or "en"
                     config = registry.get_config(lang)
                     transcription_backend = await manager.get_backend(config)
 

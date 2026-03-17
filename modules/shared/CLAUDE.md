@@ -11,7 +11,7 @@ modules/shared/src/livetranslate_common/
 │   ├── transcription.py # Segment, TranscriptionResult, ModelInfo
 │   ├── translation.py   # TranslationContext, TranslationRequest/Response
 │   ├── registry.py      # BackendConfig (VRAM budget, VAD, chunking)
-│   └── ws_messages.py   # 15 WebSocket message types, PROTOCOL_VERSION=1
+│   └── ws_messages.py   # 17 WebSocket message types, PROTOCOL_VERSION=1
 ├── logging/         # structlog setup, performance logging
 ├── errors/          # Exception hierarchy, error handlers
 ├── middleware/      # Request ID injection, logging middleware

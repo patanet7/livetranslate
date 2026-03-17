@@ -12,6 +12,7 @@ See `ARCHITECTURE.md` for full system topology.
 - **ALWAYS USE UV** for dependency management — not pip, PDM, or Poetry
 - **Pydantic v2 BaseModel** for all shared contracts — use `model_dump()`, not `asdict()`
 - **structlog only** — never `import logging` / `logging.getLogger()` (exception: silencing third-party loggers)
+- **Test fixtures loading ML models MUST use `yield` + teardown** with `gc.collect()` — never bare `return`. Apple Silicon unified memory means leaked models OOM the entire system
 
 ## Service Architecture
 
@@ -47,14 +48,13 @@ Real-time audio capture → transcription → translation page in the SvelteKit 
 ### Key Technical Components
 
 #### Google Meet Bot Management System ✅
-- **Location**: `modules/orchestration-service/src/bot/`
-- **GoogleMeetBotManager**: Central bot lifecycle management (`src/bot/bot_manager.py`)
-- **Google Meet Browser Automation**: Headless Chrome integration (`src/bot/google_meet_automation.py`)
-- **Browser Audio Capture**: Specialized Google Meet audio extraction (`src/bot/browser_audio_capture.py`)
-- **Virtual Webcam System**: Real-time translation overlay generation (`src/bot/virtual_webcam.py`)
-- **Time Correlation Engine**: Advanced timeline matching (`src/bot/time_correlation.py`)
-- **Bot Integration Pipeline**: Complete orchestration flow (`src/bot/bot_integration.py`)
-- **Database Integration**: PostgreSQL persistence (`src/database/bot_session_manager.py`)
+- **Canonical bot runtime**: `modules/meeting-bot-service/`
+- **Canonical orchestration control path**: `modules/orchestration-service/src/bot/docker_bot_manager.py`
+- **Canonical orchestration routes**: `modules/orchestration-service/src/routers/bot/bot_docker_management.py`
+- **Legacy bot manager**: `modules/orchestration-service/src/bot/bot_manager.py` is not the default place for new work
+- **Virtual Webcam System**: `modules/orchestration-service/src/bot/virtual_webcam.py`
+- **Time Correlation Engine**: `modules/orchestration-service/src/bot/time_correlation.py`
+- **Database Integration**: `modules/orchestration-service/src/database/bot_session_manager.py`
 - **Schema**: `scripts/bot-sessions-schema.sql` - Comprehensive PostgreSQL schema
 
 #### Translation Pipeline ✅
@@ -65,11 +65,17 @@ Real-time audio capture → transcription → translation page in the SvelteKit 
 - **TranslationConfig**: pydantic-settings with `LLM_` prefix, draft/final token budgets (`src/translation/config.py`)
 - **Eviction**: `SegmentStore.evict_old(keep_last=50)` called after every draft/final received in `websocket_audio.py`
 
+#### Language Detection & Session Restart ✅
+- **WhisperLanguageDetector**: `modules/transcription-service/src/language_detection.py` — wraps `SustainedLanguageDetector` with hysteresis (margin=0.2, dwell=4 frames/10s)
+- **Session Restart**: On sustained switch, flushes VAC buffer, resets hallucination filter and dedup context (`api.py` `if switched:` block)
+- **Mode Guard**: Detection + restart only fires when `lock_language=False` (interpreter mode). Split mode forces whisper hint, skips detection entirely
+- **SessionConfig**: `modules/orchestration-service/src/routers/audio/websocket_audio.py` — manages interpreter↔split mode transitions, language save/restore
+
 #### Configuration Synchronization System ✅
 - **ConfigurationSyncManager**: `modules/orchestration-service/src/audio/config_sync.py`
 - **Dashboard Settings**: `modules/dashboard-service/src/pages/Settings/`
 - **API Endpoints**: `modules/orchestration-service/src/routers/settings.py`
-- **Transcription Integration**: `modules/transcription-service/src/api_server.py` (orchestration mode)
+- **Transcription Integration**: `modules/transcription-service/src/api.py` (orchestration mode)
 
 ## Service Ports
 
@@ -120,9 +126,13 @@ just coverage-backend
 
 - `@pytest.mark.behavioral` — No mocks
 - `@pytest.mark.integration` — Integration tests
-- `@pytest.mark.e2e` — End-to-end
+- `@pytest.mark.e2e` — End-to-end (require running services)
 - `@pytest.mark.slow` — Skip with `-m "not slow"`
+- `@pytest.mark.stress` — 60+ minute stress tests
+- `@pytest.mark.accuracy` — Accuracy regression baselines (loads large models)
+- `@pytest.mark.benchmark` — Performance benchmarks
 - `@pytest.mark.gpu` — Requires GPU
+- `@pytest.mark.npu` — Requires Intel NPU
 
 ### E2E / Playwright Testing
 
@@ -135,6 +145,13 @@ just test-e2e-playback      # Backend: translation-only replay via vLLM-MLX LLM 
 ```
 
 **Fixture recording**: Set `LIVETRANSLATE_RECORD_FIXTURES=1` when running `just dev` to capture live sessions as WAV + JSON sidecar pairs in `/tmp/livetranslate/fixture-recordings/`.
+
+#### Language Detection Replay Tests
+
+```bash
+just create-lang-detect-fixtures  # Convert FLAC recordings → 48kHz WAV fixtures
+just test-lang-detect             # Playwright: replay real meeting audio, verify stable detection
+```
 
 ## Shared Library (`livetranslate-common`)
 

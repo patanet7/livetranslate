@@ -14,6 +14,7 @@ Critical functionality:
 Reference: FEEDBACK.md lines 171-184, test_real_code_switching.py
 """
 
+import gc
 import json
 import logging
 import sys
@@ -178,7 +179,7 @@ class TestEnglishAccuracy:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en"],
@@ -186,6 +187,9 @@ class TestEnglishAccuracy:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        del t
+        gc.collect()
 
     def test_jfk_english_accuracy_baseline(self, transcriber):
         """
@@ -277,7 +281,7 @@ class TestChineseAccuracy:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["zh"],
@@ -285,6 +289,9 @@ class TestChineseAccuracy:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        del t
+        gc.collect()
 
     def test_chinese_accuracy_baseline(self, transcriber):
         """
@@ -370,7 +377,7 @@ class TestCodeSwitchingAccuracy:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en", "zh"],
@@ -382,6 +389,9 @@ class TestCodeSwitchingAccuracy:
             min_dwell_frames=6,
             min_dwell_ms=250.0,
         )
+        yield t
+        del t
+        gc.collect()
 
     def test_mixed_en_zh_accuracy_baseline(self, transcriber):
         """
@@ -545,6 +555,11 @@ class TestAccuracyRegressionDetection:
     def test_baseline_history_tracking(self):
         """Test baseline tracks history correctly"""
         test_name = "test_history_tracking"
+
+        # Clear any prior state so test is idempotent across runs
+        baseline = AccuracyBaseline.load_baseline()
+        baseline.pop(test_name, None)
+        AccuracyBaseline.save_baseline(baseline)
 
         # Add multiple entries
         for i in range(5):
