@@ -23,7 +23,7 @@ import aiohttp
 import socketio
 
 # ── Config ───────────────────────────────────────────────────────────
-API_KEY = os.getenv("FIREFLIES_API_KEY", "***REDACTED***")
+API_KEY = os.environ["FIREFLIES_API_KEY"]  # Required — never hardcode API keys
 GRAPHQL_ENDPOINT = "https://api.fireflies.ai/graphql"
 SOCKETIO_ENDPOINT = "wss://api.fireflies.ai"
 SOCKETIO_PATH = "/ws/realtime"
