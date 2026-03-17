@@ -120,6 +120,8 @@ class SegmentStore:
     def evict_old(self, keep_last: int = 50) -> None:
         if len(self._records) <= keep_last:
             return
+        protected = set(self._pending_segment_ids)
         sorted_ids = sorted(self._records)
         for sid in sorted_ids[:-keep_last]:
-            del self._records[sid]
+            if sid not in protected:
+                del self._records[sid]

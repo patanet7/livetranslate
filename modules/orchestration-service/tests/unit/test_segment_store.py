@@ -213,6 +213,56 @@ class TestSegmentStoreEviction:
         store.evict_old(keep_last=5)
         assert len(store._records) == 5
 
+    def test_evict_old_protects_pending_segment_ids(self):
+        """Eviction must not remove records referenced by _pending_segment_ids."""
+        store = SegmentStore()
+        # Create 10 segments, accumulate segments 0-2 as non-final (pending)
+        for i in range(10):
+            store.on_draft_received(i, f"text {i}", "en", "zh")
+        # Simulate non-final finals that accumulate into pending
+        store.on_final_received(0, "word one", is_final=False, source_lang="en", target_lang="zh")
+        store.on_final_received(1, "word two", is_final=False, source_lang="en", target_lang="zh")
+        store.on_final_received(2, "word three", is_final=False, source_lang="en", target_lang="zh")
+        # Now evict with keep_last=3 — would normally evict 0-6, but 0,1,2 are pending
+        store.evict_old(keep_last=3)
+        # Pending records must survive eviction
+        assert store.get(0) is not None, "pending segment 0 was evicted"
+        assert store.get(1) is not None, "pending segment 1 was evicted"
+        assert store.get(2) is not None, "pending segment 2 was evicted"
+        # Recent records also survive
+        assert store.get(7) is not None
+        assert store.get(8) is not None
+        assert store.get(9) is not None
+        # Non-pending old records should be evicted
+        assert store.get(3) is None
+        assert store.get(4) is None
+
+
+class TestSegmentStoreDraftTranslated:
+    """Verify on_draft_translated updates phase and stores translation."""
+
+    def test_draft_translated_updates_record(self):
+        store = SegmentStore()
+        store.on_draft_received(1, "hello world", "en", "zh")
+        rec = store.on_draft_translated(1, "你好世界")
+        assert rec is not None
+        assert rec.phase == SegmentPhase.DRAFT_TRANSLATED
+        assert rec.draft_translation == "你好世界"
+
+    def test_draft_translated_unknown_id_returns_none(self):
+        store = SegmentStore()
+        assert store.on_draft_translated(999, "translation") is None
+
+    def test_draft_then_final_preserves_draft_translation(self):
+        """Draft translation is preserved when final arrives for same segment_id."""
+        store = SegmentStore()
+        store.on_draft_received(1, "hello", "en", "zh")
+        store.on_draft_translated(1, "draft: 你好")
+        rec, text = store.on_final_received(1, "hello world.", is_final=True, source_lang="en", target_lang="zh")
+        assert rec.draft_translation == "draft: 你好"
+        assert rec.phase == SegmentPhase.FINAL_RECEIVED
+        assert text == "hello world."
+
 
 class TestSegmentStoreGet:
     def test_get_existing(self):

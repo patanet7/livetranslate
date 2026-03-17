@@ -2,8 +2,8 @@
 
 Verifies:
 - Bilingual context pairs format ([lang] source + [lang] translation)
-- Draft/final system prompt variants
-- User message format differs for draft vs final
+- Context-present/absent system prompt variants
+- User message format differs based on context presence
 """
 
 import pytest
@@ -82,7 +82,7 @@ class TestBilingualContext:
 
 
 class TestDraftFinalSystemPrompt:
-    """Task 0.5: System prompt has draft/final variants."""
+    """Task 0.5: System prompt variant selected by context presence."""
 
     def test_final_with_context_has_never_repeat(self, client):
         """With context present, system prompt includes 'Never repeat context' guard."""
@@ -137,7 +137,7 @@ class TestDraftFinalSystemPrompt:
 
 
 class TestDraftFinalUserMessage:
-    """Task 0.6: User message format differs for draft vs final."""
+    """Task 0.6: User message format differs based on context presence."""
 
     def test_final_with_context_uses_new_label(self, client):
         """With context, user message uses [New:] label before the text."""

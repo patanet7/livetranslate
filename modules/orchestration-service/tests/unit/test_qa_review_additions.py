@@ -61,29 +61,32 @@ class TestSegmentStoreEmptyAndWhitespace:
         assert rec.phase == SegmentPhase.FINAL_RECEIVED
 
     def test_evict_old_does_not_remove_pending_segment_ids_records(self):
-        """evict_old should NOT remove records that are in _pending_segment_ids.
+        """evict_old protects records referenced by _pending_segment_ids.
 
-        This is a data integrity concern: evicting a pending record while the
-        sentence accumulation still references it would leave orphaned pending IDs.
-        The eviction is by segment_id sort order — low IDs are oldest.
+        Pending records are mid-accumulation — evicting them would orphan
+        the sentence buffer. evict_old skips any record whose segment_id
+        appears in _pending_segment_ids.
         """
         store = SegmentStore()
         # Add 8 drafts with low IDs
         for i in range(8):
             store.on_draft_received(i, f"text {i}", "en", "zh")
-        # Add 2 pending finals with low IDs that would be evicted by keep_last=3
+        # Add 2 pending finals with low IDs that would normally be evicted
         store.on_final_received(1, "pending one", False, "en", "zh")
         store.on_final_received(2, "pending two", False, "en", "zh")
         assert store._pending_segment_ids == [1, 2]
 
-        # evict_old(keep_last=3) removes IDs 0-6, keeping 7,8,9... but 1 and 2
-        # are in _pending_segment_ids — after eviction, they'll be gone from _records
         store.evict_old(keep_last=3)
-        # The _pending_segment_ids list still holds 1, 2 but records may be gone
-        # This documents the behavior so it doesn't silently change
-        remaining_ids = set(store._records.keys())
-        # Verify eviction happened
-        assert len(remaining_ids) <= 3
+        # Pending records 1 and 2 must survive eviction
+        assert store.get(1) is not None, "pending segment 1 was evicted"
+        assert store.get(2) is not None, "pending segment 2 was evicted"
+        # Recent records also survive
+        assert store.get(5) is not None
+        assert store.get(6) is not None
+        assert store.get(7) is not None
+        # Old non-pending records evicted
+        assert store.get(0) is None
+        assert store.get(3) is None
 
     def test_draft_then_two_finals_correct_accumulation(self):
         """Draft for seg 1 is registered; finals for 2 and 3 accumulate normally."""
