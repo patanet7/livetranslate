@@ -16,6 +16,7 @@ project_root := justfile_directory()
 orchestration_dir := project_root / "modules/orchestration-service"
 transcription_dir := project_root / "modules/transcription-service"
 dashboard_dir := project_root / "modules/dashboard-service"
+meeting_bot_dir := project_root / "modules/meeting-bot-service"
 
 default: help
 
@@ -37,6 +38,7 @@ help:
 install:
     uv sync --all-packages --group dev
     cd {{dashboard_dir}} && npm install
+    cd {{meeting_bot_dir}} && npm install
 
 # ==============================================================================
 # Development — Start Services
@@ -142,6 +144,14 @@ dev-orchestration:
 # Start dashboard (SvelteKit dev server)
 dev-dashboard:
     cd {{dashboard_dir}} && npm run dev
+
+# Start the canonical meeting bot runtime locally
+dev-meeting-bot:
+    cd {{meeting_bot_dir}} && npm run api
+
+# Start the canonical meeting bot runtime with Docker
+dev-meeting-bot-docker:
+    cd {{meeting_bot_dir}} && docker compose up --build
 
 # ==============================================================================
 # Testing — Unit + Integration (no GPU needed)
@@ -260,17 +270,17 @@ ci: lint typecheck test
 # Docker
 # ==============================================================================
 
-# Build all Docker images
+# Build the optional compatibility compose stack
 docker-build:
-    docker compose -f compose.local.yml build
+    docker compose -f docker/optional/compose.local.yml build
 
-# Start compose (core + inference)
-compose-up:
-    COMPOSE_PROFILES=core,inference docker compose -f compose.local.yml up --build
+# Start the optional compatibility compose stack (not the default local-dev path)
+compose-up profiles="core,inference":
+    COMPOSE_PROFILES={{profiles}} docker compose -f docker/optional/compose.local.yml up --build
 
-# Stop compose
+# Stop the optional compatibility compose stack
 compose-down:
-    docker compose -f compose.local.yml down
+    docker compose -f docker/optional/compose.local.yml down
 
 # ==============================================================================
 # Cleanup
@@ -387,6 +397,14 @@ test-e2e-playback:
     cd {{orchestration_dir}} && \
     LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
     uv run pytest tests/e2e/test_translation_playback.py tests/e2e/test_mixed_language_playback.py -v -m e2e --timeout=120
+
+# Create fixtures for language detection replay tests (from FLAC recordings)
+create-lang-detect-fixtures:
+    uv run python tools/create_flac_replay_fixtures.py
+
+# Run language detection Playwright replay tests (needs `just dev` running)
+test-lang-detect:
+    cd {{dashboard_dir}} && npx playwright test tests/e2e/language-detection-replay.spec.ts --headed
 
 # Full benchmark: VAC sweep + pipeline benchmark across all meeting languages (stub)
 # Use this for CI dry-run validation. Set stub=false to use real backend.

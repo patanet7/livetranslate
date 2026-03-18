@@ -1,11 +1,17 @@
 """
-Pytest configuration and fixtures for whisper-service tests.
+Pytest configuration and fixtures for transcription-service tests.
 
 This module provides:
 - Audio fixture generation (real 16kHz mono float32 audio files)
 - Pytest fixtures for loading audio
 - Pytest markers (openvino, gpu, slow)
+- Test ordering to keep heavy model-loading directories last
 - Graceful handling of missing dependencies
+
+All 630+ tests are collectable. OOM prevention is achieved through:
+1. Session-scoped shared model fixtures (integration/conftest.py)
+2. yield + teardown + gc.collect() on every fixture that loads ML models
+3. Test ordering: lightweight tests first, heavy model tests last
 """
 
 import sys
@@ -45,6 +51,43 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "openvino: requires OpenVINO (skip if not installed)")
     config.addinivalue_line("markers", "gpu: requires GPU (skip if not available)")
     config.addinivalue_line("markers", "slow: slow running tests (skip with -m 'not slow')")
+
+
+# ============================================================================
+# Test Ordering — Prevent OOM on Apple Silicon
+# ============================================================================
+
+# Priority buckets: lower number runs first.
+# Lightweight / pure-Python tests run first. Heavy model-loading directories
+# run last so that when they do load models, all lightweight tests have already
+# finished and their (small) memory is reclaimable.
+_DIR_ORDER = {
+    "unit": 0,
+    "property": 1,
+    "milestone1": 2,
+    # root-level test_*.py files
+    "root": 3,
+    # model-loading directories — run last
+    "smoke": 10,
+    "integration": 11,
+    "accuracy": 12,
+    "benchmarks": 13,
+    "stress": 14,
+}
+
+
+def _test_priority(item):
+    """Return (priority, original_fspath) for test ordering."""
+    fspath = str(item.fspath)
+    tests_dir = str(Path(__file__).parent)
+    rel = fspath[len(tests_dir):].lstrip("/")
+    top_dir = rel.split("/")[0] if "/" in rel else "root"
+    return (_DIR_ORDER.get(top_dir, 5), fspath)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Reorder tests so lightweight directories run before heavy ones."""
+    items.sort(key=_test_priority)
 
 
 # ============================================================================

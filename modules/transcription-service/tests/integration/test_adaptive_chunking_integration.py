@@ -12,6 +12,8 @@ Following SimulStreaming specification:
 This is how SimulStreaming achieves computational efficiency!
 
 NO MOCKS - Only real Silero VAD + Whisper large-v3 models!
+
+Models are loaded ONCE per session via shared fixtures in conftest.py.
 """
 
 import sys
@@ -19,7 +21,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import torch
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
@@ -38,7 +39,7 @@ class TestAdaptiveChunkingIntegration:
     """
 
     @pytest.mark.integration
-    def test_vad_chunk_size_vs_whisper_chunk_size(self):
+    def test_vad_chunk_size_vs_whisper_chunk_size(self, shared_vad_model):
         """
         Test VAD uses small chunks (0.04s) vs Whisper large chunks (1.2s)
 
@@ -48,12 +49,7 @@ class TestAdaptiveChunkingIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        # Load Silero VAD
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        FixedVADIterator(vad_model, threshold=0.5, sampling_rate=16000)
+        FixedVADIterator(shared_vad_model, threshold=0.5, sampling_rate=16000)
 
         # SimulStreaming chunk sizes
         vad_chunk_size = 0.04  # 40ms - fast detection
@@ -72,10 +68,10 @@ class TestAdaptiveChunkingIntegration:
         print(f"   VAD chunk: {vad_chunk_size}s ({vad_samples} samples)")
         print(f"   Whisper chunk: {whisper_chunk_size}s ({whisper_samples} samples)")
         print(f"   Ratio: {ratio}x")
-        print("✅ Chunk size differential verified")
+        print("Chunk size differential verified")
 
     @pytest.mark.integration
-    def test_buffering_during_silence(self):
+    def test_buffering_during_silence(self, shared_vad_model):
         """
         Test that silence is buffered WITHOUT processing
 
@@ -85,11 +81,7 @@ class TestAdaptiveChunkingIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        vad = FixedVADIterator(vad_model, threshold=0.5)
+        vad = FixedVADIterator(shared_vad_model, threshold=0.5)
 
         # Simulate streaming silent audio in small chunks
         vad_chunk_size = 640  # 0.04s at 16kHz
@@ -113,10 +105,10 @@ class TestAdaptiveChunkingIntegration:
 
         # During silence: no speech start/end events (or very few)
         # Audio is buffered, NOT processed by Whisper
-        print("✅ Silence buffered without processing")
+        print("Silence buffered without processing")
 
     @pytest.mark.integration
-    def test_processing_when_buffer_full(self):
+    def test_processing_when_buffer_full(self, shared_whisper_model):
         """
         Test that Whisper processes when buffer reaches chunk size (1.2s)
 
@@ -124,12 +116,7 @@ class TestAdaptiveChunkingIntegration:
         """
         print("\n[ADAPTIVE CHUNKING] Testing buffer threshold processing...")
 
-        from whisper_service import ModelManager
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
 
         # Simulate buffer accumulation
         vad_chunk_size = 640  # 0.04s
@@ -160,10 +147,10 @@ class TestAdaptiveChunkingIntegration:
         print(f"   Whisper processing events: {len(processing_events)}")
         assert len(processing_events) == 1, "Should process once when buffer full"
 
-        print("✅ Whisper processes at buffer threshold")
+        print("Whisper processes at buffer threshold")
 
     @pytest.mark.integration
-    def test_immediate_processing_on_speech_end(self):
+    def test_immediate_processing_on_speech_end(self, shared_vad_model, shared_whisper_model):
         """
         Test that speech end triggers immediate processing
 
@@ -172,18 +159,9 @@ class TestAdaptiveChunkingIntegration:
         print("\n[ADAPTIVE CHUNKING] Testing speech end processing...")
 
         from silero_vad_iterator import FixedVADIterator
-        from whisper_service import ModelManager
 
-        # Load VAD
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-        FixedVADIterator(vad_model, threshold=0.5)
-
-        # Load Whisper
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        model = manager.load_model("large-v3")
+        FixedVADIterator(shared_vad_model, threshold=0.5)
+        model = shared_whisper_model
 
         # Simulate: speech detected, then VAD detects end
         # Buffer has 0.5s (not full 1.2s), but should process immediately
@@ -197,30 +175,22 @@ class TestAdaptiveChunkingIntegration:
         assert result is not None
         print(f"   Buffer size: {len(partial_buffer)} samples (0.5s)")
         print(f"   Processed on speech end: '{result['text']}'")
-        print("✅ Speech end triggers immediate processing")
+        print("Speech end triggers immediate processing")
 
     @pytest.mark.integration
-    def test_adaptive_behavior_speech_vs_silence(self):
+    def test_adaptive_behavior_speech_vs_silence(self, shared_vad_model, shared_model_manager):
         """
         Test complete adaptive workflow: speech density affects processing
 
-        Dense speech → more processing
-        Sparse speech with silence → less processing (compute savings!)
+        Dense speech -> more processing
+        Sparse speech with silence -> less processing (compute savings!)
         """
         print("\n[ADAPTIVE CHUNKING] Testing adaptive behavior...")
 
         from silero_vad_iterator import FixedVADIterator
-        from whisper_service import ModelManager
 
-        # Load models
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-        FixedVADIterator(vad_model, threshold=0.5)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        manager.load_model("large-v3")
+        FixedVADIterator(shared_vad_model, threshold=0.5)
+        shared_model_manager.load_model("large-v3")
 
         # Scenario 1: Dense speech (continuous)
         dense_audio = np.zeros(16000 * 5, dtype=np.float32)  # 5s continuous
@@ -242,10 +212,10 @@ class TestAdaptiveChunkingIntegration:
         savings = (dense_processing_count - sparse_processing_count) / dense_processing_count * 100
 
         print(f"\n   Compute savings: {savings:.1f}%")
-        print("✅ Adaptive chunking saves compute during silence")
+        print("Adaptive chunking saves compute during silence")
 
     @pytest.mark.integration
-    def test_vac_online_processor_pattern(self):
+    def test_vac_online_processor_pattern(self, shared_vad_model, shared_whisper_model):
         """
         Test VACOnlineASRProcessor pattern from SimulStreaming
 
@@ -258,17 +228,9 @@ class TestAdaptiveChunkingIntegration:
         print("\n[ADAPTIVE CHUNKING] Testing VACOnlineASRProcessor pattern...")
 
         from silero_vad_iterator import FixedVADIterator
-        from whisper_service import ModelManager
 
-        # Load models
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-        vad = FixedVADIterator(vad_model, threshold=0.5)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        model = manager.load_model("large-v3")
+        vad = FixedVADIterator(shared_vad_model, threshold=0.5)
+        model = shared_whisper_model
 
         # Simulate VAC workflow
         vad_chunk_size = 640  # 0.04s
@@ -300,7 +262,7 @@ class TestAdaptiveChunkingIntegration:
                     # Process immediately on speech end
                     if len(audio_buffer) > 0:
                         model.transcribe(audio=audio_buffer, beam_size=1, temperature=0.0)
-                        processing_log.append(f"  → Processed {len(audio_buffer)} samples")
+                        processing_log.append(f"  -> Processed {len(audio_buffer)} samples")
                         audio_buffer = np.zeros(0, dtype=np.float32)
 
             # Buffer threshold check
@@ -319,7 +281,7 @@ class TestAdaptiveChunkingIntegration:
         for log in processing_log[:10]:  # Show first 10
             print(f"     {log}")
 
-        print("✅ VACOnlineASRProcessor pattern verified")
+        print("VACOnlineASRProcessor pattern verified")
 
 
 class TestAdaptiveChunkingSavings:
@@ -363,15 +325,15 @@ class TestAdaptiveChunkingSavings:
 
         assert savings_percent > 90, "Should save >90% compute with 40% speech density"
 
-        print(f"✅ Adaptive chunking saves {savings_percent:.1f}% compute")
+        print(f"Adaptive chunking saves {savings_percent:.1f}% compute")
 
     @pytest.mark.integration
     def test_varying_speech_density(self):
         """
         Test adaptive chunking with varying speech densities
 
-        More silence → more savings
-        More speech → less savings (but still efficient)
+        More silence -> more savings
+        More speech -> less savings (but still efficient)
         """
         print("\n[CHUNKING SAVINGS] Testing varying speech densities...")
 
@@ -391,10 +353,10 @@ class TestAdaptiveChunkingSavings:
                 f"   {int(density*100)}% speech density: {processing_count} calls ({savings:.1f}% savings)"
             )
 
-        print("✅ Adaptive chunking scales with speech density")
+        print("Adaptive chunking scales with speech density")
 
     @pytest.mark.integration
-    def test_real_streaming_scenario(self):
+    def test_real_streaming_scenario(self, shared_vad_model, shared_model_manager):
         """
         Test real streaming scenario: variable speech with pauses
 
@@ -403,17 +365,9 @@ class TestAdaptiveChunkingSavings:
         print("\n[CHUNKING SAVINGS] Testing real streaming scenario...")
 
         from silero_vad_iterator import FixedVADIterator
-        from whisper_service import ModelManager
 
-        # Load models
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-        FixedVADIterator(vad_model, threshold=0.5)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        manager.load_model("large-v3")
+        FixedVADIterator(shared_vad_model, threshold=0.5)
+        shared_model_manager.load_model("large-v3")
 
         # Simulate: 1s speech, 0.5s pause, 1s speech, 1s pause, 1s speech
         # Total: 10 seconds (4.5s speech, 5.5s silence)
@@ -472,7 +426,7 @@ class TestAdaptiveChunkingSavings:
         savings = (baseline_calls - whisper_calls) / baseline_calls * 100
 
         print(f"   Compute savings: {savings:.1f}%")
-        print("✅ Real streaming scenario: adaptive chunking efficient")
+        print("Real streaming scenario: adaptive chunking efficient")
 
 
 class TestChunkingQuality:
@@ -483,7 +437,7 @@ class TestChunkingQuality:
     """
 
     @pytest.mark.integration
-    def test_chunking_maintains_transcription_quality(self):
+    def test_chunking_maintains_transcription_quality(self, shared_whisper_model):
         """
         Test that adaptive chunking maintains transcription quality
 
@@ -491,11 +445,7 @@ class TestChunkingQuality:
         """
         print("\n[CHUNKING QUALITY] Testing transcription quality...")
 
-        from whisper_service import ModelManager
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        model = manager.load_model("large-v3")
+        model = shared_whisper_model
 
         # Test different chunk sizes
         chunk_sizes = [0.5, 1.0, 1.2, 2.0]  # seconds
@@ -514,10 +464,10 @@ class TestChunkingQuality:
         # 1.2s chunk (SimulStreaming default) should work well
         assert results[1.2] is not None
 
-        print("✅ 1.2s chunks maintain quality")
+        print("1.2s chunks maintain quality")
 
     @pytest.mark.integration
-    def test_chunking_with_rolling_context(self):
+    def test_chunking_with_rolling_context(self, shared_model_manager):
         """
         Test adaptive chunking with rolling context
 
@@ -525,40 +475,42 @@ class TestChunkingQuality:
         """
         print("\n[CHUNKING QUALITY] Testing chunking with rolling context...")
 
-        from whisper_service import ModelManager
+        # Use the shared manager but configure it for this test
+        manager = shared_model_manager
+        model = manager.models["large-v3"]
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(
-            models_dir=str(models_dir), static_prompt="Medical terminology:", max_context_tokens=223
-        )
-
-        model = manager.load_model("large-v3")
-
-        # Initialize rolling context
+        # Save and restore context state around this test
+        old_prompt = getattr(manager, "static_prompt", "")
+        manager.static_prompt = "Medical terminology:"
         manager.init_context()
 
-        # Process 3 chunks with context carryover
-        chunk_size = 19200  # 1.2s
+        try:
+            # Process 3 chunks with context carryover
+            chunk_size = 19200  # 1.2s
 
-        for i in range(3):
-            chunk = np.zeros(chunk_size, dtype=np.float32)
+            for i in range(3):
+                chunk = np.zeros(chunk_size, dtype=np.float32)
 
-            # Get current context
-            context = manager.get_inference_context()
+                # Get current context
+                context = manager.get_inference_context()
 
-            result = model.transcribe(
-                audio=chunk,
-                beam_size=5,
-                temperature=0.0,
-                initial_prompt=context,  # Use rolling context
-            )
+                result = model.transcribe(
+                    audio=chunk,
+                    beam_size=5,
+                    temperature=0.0,
+                    initial_prompt=context,  # Use rolling context
+                )
 
-            # Append to context
-            manager.append_to_context(result["text"])
+                # Append to context
+                manager.append_to_context(result["text"])
 
-            print(f"   Chunk {i+1}: context length = {len(context)} chars")
+                print(f"   Chunk {i+1}: context length = {len(context)} chars")
+        finally:
+            # Restore original state
+            manager.static_prompt = old_prompt
+            manager.init_context()
 
-        print("✅ Adaptive chunking works with rolling context")
+        print("Adaptive chunking works with rolling context")
 
 
 class TestVACOnlineASRProcessor:
@@ -569,49 +521,41 @@ class TestVACOnlineASRProcessor:
     """
 
     @pytest.mark.integration
-    def test_vac_processor_initialization(self):
+    def test_vac_processor_initialization(self, shared_model_manager):
         """
         Test VACOnlineASRProcessor initialization with real models
         """
         print("\n[VAC PROCESSOR] Testing initialization...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(
             online_chunk_size=1.2, vad_threshold=0.5, min_buffered_length=1.0
         )
 
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        # Initialize with real models
-        vac.init(manager, model_name="large-v3")
+        # Initialize with the shared manager (model already loaded)
+        vac.init(shared_model_manager, model_name="large-v3")
 
         assert vac.vad is not None, "VAD should be initialized"
         assert vac.model is not None, "Whisper model should be initialized"
         assert vac.status == "nonvoice", "Should start in nonvoice state"
 
-        print("✅ VACOnlineASRProcessor initialized")
+        print("VACOnlineASRProcessor initialized")
 
     @pytest.mark.integration
-    def test_vac_streaming_workflow(self):
+    def test_vac_streaming_workflow(self, shared_model_manager):
         """
         Test complete VAC streaming workflow with silence
 
-        Simulates real streaming: insert chunks → process iterations
+        Simulates real streaming: insert chunks -> process iterations
         During silence: VAD checks should happen, Whisper should NOT be called
         """
         print("\n[VAC PROCESSOR] Testing streaming workflow (silence)...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(online_chunk_size=1.2)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        vac.init(manager, model_name="large-v3")
+        vac.init(shared_model_manager, model_name="large-v3")
 
         # Simulate streaming: 5 seconds of SILENCE in 0.04s chunks
         vad_chunk_size = 640  # 0.04s at 16kHz
@@ -643,10 +587,10 @@ class TestVACOnlineASRProcessor:
             stats["whisper_calls"] == 0
         ), "Should NOT call Whisper during silence (saves compute!)"
 
-        print("✅ Streaming workflow: silence detected, compute saved")
+        print("Streaming workflow: silence detected, compute saved")
 
     @pytest.mark.integration
-    def test_vac_compute_savings_verification(self):
+    def test_vac_compute_savings_verification(self, shared_model_manager):
         """
         Verify real compute savings from adaptive chunking
 
@@ -655,13 +599,9 @@ class TestVACOnlineASRProcessor:
         print("\n[VAC PROCESSOR] Verifying compute savings...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(online_chunk_size=1.2)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        vac.init(manager, model_name="large-v3")
+        vac.init(shared_model_manager, model_name="large-v3")
 
         # Process 10 seconds of silent audio
         vad_chunk_size = 640
@@ -682,23 +622,19 @@ class TestVACOnlineASRProcessor:
         assert stats["vad_checks"] == num_chunks, "Should check VAD for every chunk"
         assert stats["whisper_calls"] == 0, "Should NOT call Whisper during silence"
 
-        print("✅ Compute savings verified: Whisper NOT called during silence")
+        print("Compute savings verified: Whisper NOT called during silence")
 
     @pytest.mark.integration
-    def test_vac_buffer_threshold_processing(self):
+    def test_vac_buffer_threshold_processing(self, shared_model_manager):
         """
         Test that VAC processes when buffer reaches threshold
         """
         print("\n[VAC PROCESSOR] Testing buffer threshold...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(online_chunk_size=1.2)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        vac.init(manager, model_name="large-v3")
+        vac.init(shared_model_manager, model_name="large-v3")
 
         # Manually set status to 'voice' (speech detected)
         vac.status = "voice"
@@ -719,10 +655,10 @@ class TestVACOnlineASRProcessor:
         result = vac.process_iter()
         assert result is not None, "Should process when buffer full"
 
-        print("✅ Buffer threshold processing verified")
+        print("Buffer threshold processing verified")
 
     @pytest.mark.integration
-    def test_vac_speech_end_immediate_processing(self):
+    def test_vac_speech_end_immediate_processing(self, shared_model_manager):
         """
         Test immediate processing when speech ends
 
@@ -731,13 +667,9 @@ class TestVACOnlineASRProcessor:
         print("\n[VAC PROCESSOR] Testing speech end processing...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(online_chunk_size=1.2)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        vac.init(manager, model_name="large-v3")
+        vac.init(shared_model_manager, model_name="large-v3")
 
         # Add partial buffer (0.5s, less than 1.2s threshold)
         vac.status = "voice"
@@ -753,23 +685,19 @@ class TestVACOnlineASRProcessor:
         assert result is not None, "Should process on speech end"
         assert result.get("is_final", False), "Should be marked as final"
 
-        print("✅ Speech end triggers immediate processing")
+        print("Speech end triggers immediate processing")
 
     @pytest.mark.integration
-    def test_vac_state_reset(self):
+    def test_vac_state_reset(self, shared_model_manager):
         """
         Test VAC state reset between sessions
         """
         print("\n[VAC PROCESSOR] Testing state reset...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(online_chunk_size=1.2)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        vac.init(manager, model_name="large-v3")
+        vac.init(shared_model_manager, model_name="large-v3")
 
         # Process some audio
         for _i in range(10):
@@ -785,23 +713,19 @@ class TestVACOnlineASRProcessor:
         assert vac.status == "nonvoice", "Should be in nonvoice state"
         assert not vac.is_currently_final, "Should not be final"
 
-        print("✅ State reset successful")
+        print("State reset successful")
 
     @pytest.mark.integration
-    def test_vac_statistics_tracking(self):
+    def test_vac_statistics_tracking(self, shared_model_manager):
         """
         Test statistics tracking during processing
         """
         print("\n[VAC PROCESSOR] Testing statistics...")
 
         from vac_online_processor import VACOnlineASRProcessor
-        from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(online_chunk_size=1.2)
-
-        models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-        vac.init(manager, model_name="large-v3")
+        vac.init(shared_model_manager, model_name="large-v3")
 
         # Process 5 seconds of silence
         vad_chunk_size = 640
@@ -830,7 +754,7 @@ class TestVACOnlineASRProcessor:
         print(f"   Whisper calls: {stats['whisper_calls']}")
         print(f"   Audio duration: {stats['total_audio_duration']:.2f}s")
 
-        print("✅ Statistics tracking operational")
+        print("Statistics tracking operational")
 
 
 # Run tests

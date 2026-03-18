@@ -79,7 +79,7 @@ Transcription Output (WebSocket stream)
 ### 1.3 Deployment Configuration
 
 #### Docker Deployment
-**File:** `docker-compose.comprehensive.yml` (lines 43-70)
+**File:** `archive/runtime-surfaces/docker-compose.comprehensive.yml` (lines 43-70, historical reference)
 
 ```yaml
 whisper:
@@ -208,7 +208,7 @@ Translation Storage (context history)
 ### 2.3 Triton Inference Server Deployment
 
 #### Docker Configuration
-**File:** `docker-compose.comprehensive.yml` (lines 104-169)
+**File:** `archive/runtime-surfaces/docker-compose.comprehensive.yml` (lines 104-169, historical reference)
 
 ```yaml
 translation:
@@ -1033,7 +1033,7 @@ LiveTranslate has a **solid foundation** for production ML deployment with:
 - Config Sync: `modules/orchestration-service/src/audio/config_sync.py`
 
 **Deployment:**
-- Comprehensive Docker: `docker-compose.comprehensive.yml`
+- Comprehensive Docker (archived): `archive/runtime-surfaces/docker-compose.comprehensive.yml`
 - Triton Dockerfile: `modules/translation-service/Dockerfile.triton-simple`
 
 ### Appendix B: Dependencies

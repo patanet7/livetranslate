@@ -76,70 +76,70 @@
   "test_regression_detection": {
     "history": [
       {
-        "timestamp": "2026-03-14T15:20:18.835531",
+        "timestamp": "2026-03-17T14:35:44.638735",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T15:30:27.251608",
+        "timestamp": "2026-03-17T14:42:12.188908",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T15:39:50.496700",
+        "timestamp": "2026-03-17T14:42:20.914189",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T15:45:58.884909",
+        "timestamp": "2026-03-17T15:01:45.825184",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T15:56:40.513882",
+        "timestamp": "2026-03-17T15:07:23.029691",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T16:19:34.180436",
+        "timestamp": "2026-03-17T15:19:25.634663",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T16:24:41.073453",
+        "timestamp": "2026-03-17T15:29:46.304491",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T16:51:39.573631",
+        "timestamp": "2026-03-17T15:45:12.356617",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T16:54:27.466325",
+        "timestamp": "2026-03-17T15:45:23.118825",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
         }
       },
       {
-        "timestamp": "2026-03-14T16:57:02.638872",
+        "timestamp": "2026-03-17T16:39:48.976115",
         "metrics": {
           "overall_accuracy": 80.0,
           "wer": 20.0
@@ -157,70 +157,35 @@
   "test_history_tracking": {
     "history": [
       {
-        "timestamp": "2026-03-14T16:54:27.467293",
+        "timestamp": "2026-03-17T16:39:49.049432",
         "metrics": {
           "overall_accuracy": 70.0,
           "iteration": 0
         }
       },
       {
-        "timestamp": "2026-03-14T16:54:27.467608",
+        "timestamp": "2026-03-17T16:39:49.049655",
         "metrics": {
           "overall_accuracy": 71.0,
           "iteration": 1
         }
       },
       {
-        "timestamp": "2026-03-14T16:54:27.467893",
+        "timestamp": "2026-03-17T16:39:49.049846",
         "metrics": {
           "overall_accuracy": 72.0,
           "iteration": 2
         }
       },
       {
-        "timestamp": "2026-03-14T16:54:27.468165",
+        "timestamp": "2026-03-17T16:39:49.050058",
         "metrics": {
           "overall_accuracy": 73.0,
           "iteration": 3
         }
       },
       {
-        "timestamp": "2026-03-14T16:54:27.468431",
-        "metrics": {
-          "overall_accuracy": 74.0,
-          "iteration": 4
-        }
-      },
-      {
-        "timestamp": "2026-03-14T16:57:02.639758",
-        "metrics": {
-          "overall_accuracy": 70.0,
-          "iteration": 0
-        }
-      },
-      {
-        "timestamp": "2026-03-14T16:57:02.640039",
-        "metrics": {
-          "overall_accuracy": 71.0,
-          "iteration": 1
-        }
-      },
-      {
-        "timestamp": "2026-03-14T16:57:02.640284",
-        "metrics": {
-          "overall_accuracy": 72.0,
-          "iteration": 2
-        }
-      },
-      {
-        "timestamp": "2026-03-14T16:57:02.640518",
-        "metrics": {
-          "overall_accuracy": 73.0,
-          "iteration": 3
-        }
-      },
-      {
-        "timestamp": "2026-03-14T16:57:02.640760",
+        "timestamp": "2026-03-17T16:39:49.050263",
         "metrics": {
           "overall_accuracy": 74.0,
           "iteration": 4
@@ -228,7 +193,7 @@
       }
     ],
     "best": {
-      "timestamp": "2026-01-18T22:27:39.902365",
+      "timestamp": "2026-03-17T16:39:49.050263",
       "metrics": {
         "overall_accuracy": 74.0,
         "iteration": 4

@@ -2,6 +2,11 @@
 
 This guide explains how to test the Google Meet bot system to ensure it can successfully join meetings and log in.
 
+Canonical runtime paths for current testing:
+
+- bot runtime: `modules/meeting-bot-service`
+- orchestration control plane: `modules/orchestration-service/src/bot/docker_bot_manager.py`
+
 ## 📋 Prerequisites
 
 Before testing the bot, ensure you have:
@@ -9,17 +14,26 @@ Before testing the bot, ensure you have:
 1. **Orchestration Service Running**
    ```bash
    cd modules/orchestration-service
-   python src/main.py
+   uv sync --all-packages --group dev
+   uv run python src/main_fastapi.py
    ```
    Service should be available at: http://localhost:3000
 
-2. **Docker Running** (required for bot containers)
+2. **Meeting Bot Service Running**
+   ```bash
+   cd modules/meeting-bot-service
+   npm install
+   npm run api
+   ```
+   Service should be available at: http://localhost:5005
+
+3. **Docker Running** (required for bot containers)
    ```bash
    docker --version  # Verify Docker is installed
    docker ps         # Verify Docker daemon is running
    ```
 
-3. **Redis Running** (for bot command communication)
+4. **Redis Running** (for bot command communication)
    ```bash
    # Option 1: Docker
    docker run -d -p 6379:6379 redis:alpine
@@ -28,11 +42,10 @@ Before testing the bot, ensure you have:
    redis-server
    ```
 
-4. **Python Dependencies**
+5. **Python Dependencies**
    ```bash
    cd modules/orchestration-service
-   pip install -r requirements.txt
-   pip install httpx  # For test scripts
+   uv sync --all-packages --group dev
    ```
 
 ## 🚀 Quick Test (Recommended)
@@ -41,7 +54,7 @@ The fastest way to test if a bot can log into Google Meet:
 
 ```bash
 cd modules/orchestration-service
-python quick_bot_test.py
+uv run python docs/scripts/quick_bot_test.py
 ```
 
 This will:
@@ -53,13 +66,13 @@ This will:
 ### With Custom Meeting URL
 
 ```bash
-python quick_bot_test.py --url https://meet.google.com/your-meeting-code
+uv run python docs/scripts/quick_bot_test.py --url https://meet.google.com/your-meeting-code
 ```
 
 ### Options
 
 ```bash
-python quick_bot_test.py --help
+uv run python docs/scripts/quick_bot_test.py --help
 
 Options:
   --url URL          Google Meet URL (default: test URL)
@@ -72,13 +85,13 @@ Options:
 For more detailed testing with full monitoring:
 
 ```bash
-python test_bot_summon.py --meeting-url https://meet.google.com/abc-defg-hij
+uv run python docs/scripts/test_bot_summon.py --meeting-url https://meet.google.com/abc-defg-hij
 ```
 
 ### Options
 
 ```bash
-python test_bot_summon.py --help
+uv run python docs/scripts/test_bot_summon.py --help
 
 Options:
   --meeting-url URL          Google Meet URL to join (required)
@@ -92,7 +105,7 @@ Options:
 ### Example: Full Test with Webcam
 
 ```bash
-python test_bot_summon.py \
+uv run python docs/scripts/test_bot_summon.py \
   --meeting-url https://meet.google.com/abc-defg-hij \
   --monitor-time 120 \
   --enable-webcam \
@@ -159,7 +172,7 @@ The bot goes through these states:
 **Solution:**
 ```bash
 cd modules/orchestration-service
-python src/main.py
+uv run python src/main_fastapi.py
 ```
 
 ### Bot Stays in "spawning" State
@@ -175,8 +188,8 @@ python src/main.py
 docker ps
 
 # Build bot image
-cd modules/bot-container
-docker build -t livetranslate-bot .
+cd modules/meeting-bot-service
+docker compose build
 ```
 
 ### Bot Fails to Join Meeting
@@ -214,7 +227,7 @@ You can also test the bot system directly using the API:
 ### 1. Start a Bot
 
 ```bash
-curl -X POST http://localhost:3000/api/bots/start \
+curl -X POST http://localhost:3000/api/start \
   -H "Content-Type: application/json" \
   -d '{
     "meeting_url": "https://meet.google.com/test",
@@ -237,7 +250,7 @@ Response:
 ### 2. Check Bot Status
 
 ```bash
-curl http://localhost:3000/api/bots/status/bot_abc12345
+curl http://localhost:3000/api/status/bot_abc12345
 ```
 
 Response:
@@ -256,13 +269,13 @@ Response:
 ### 3. List All Bots
 
 ```bash
-curl http://localhost:3000/api/bots/list
+curl http://localhost:3000/api/list
 ```
 
 ### 4. Stop a Bot
 
 ```bash
-curl -X POST http://localhost:3000/api/bots/stop/bot_abc12345 \
+curl -X POST http://localhost:3000/api/stop/bot_abc12345 \
   -H "Content-Type: application/json" \
   -d '{"timeout": 30}'
 ```
@@ -270,7 +283,7 @@ curl -X POST http://localhost:3000/api/bots/stop/bot_abc12345 \
 ### 5. Get Bot Manager Stats
 
 ```bash
-curl http://localhost:3000/api/bots/stats
+curl http://localhost:3000/api/stats
 ```
 
 Response:
@@ -308,7 +321,7 @@ To test the bot system, you can create a Google Meet:
 To test the virtual webcam feature:
 
 ```bash
-python test_bot_summon.py \
+uv run python docs/scripts/test_bot_summon.py \
   --meeting-url https://meet.google.com/your-meeting \
   --enable-webcam
 ```
@@ -322,7 +335,7 @@ The bot will:
 ## 📚 Additional Resources
 
 - **Bot Manager Code:** `src/bot/docker_bot_manager.py`
-- **Bot Router API:** `src/routers/bot_management.py`
+- **Bot Router API:** `src/routers/bot/bot_docker_management.py`
 - **Bot Container:** `modules/bot-container/`
 - **Google Meet Automation:** `src/bot/google_meet_automation.py`
 
@@ -354,10 +367,10 @@ A successful bot test should show:
 4. **Cleanup:** Stop test bots when done:
    ```bash
    # List all bots
-   curl http://localhost:3000/api/bots/list
+   curl http://localhost:3000/api/list
 
    # Stop specific bot
-   curl -X POST http://localhost:3000/api/bots/stop/{connection_id}
+   curl -X POST http://localhost:3000/api/stop/{connection_id}
    ```
 
 ## 📞 Support

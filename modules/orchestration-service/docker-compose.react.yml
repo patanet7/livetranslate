@@ -242,9 +242,9 @@ volumes:
     driver: local
 
 # Development compose override
-# Usage: docker-compose -f docker-compose.react.yml -f docker-compose.dev.yml up
+# Historical usage: docker-compose -f docker-compose.react.yml -f ../../archive/runtime-surfaces/docker-compose.dev.yml up
 ---
-# docker-compose.dev.yml
+# Historical docker-compose.dev.yml snapshot
 version: '3.8'
 
 services:

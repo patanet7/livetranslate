@@ -25,12 +25,20 @@ LiveTranslate runs as a multi-service system with clear runtime responsibilities
 
 ## Local Runtime Profiles
 
-- `compose.local.yml` is the active compose file for local development profiles.
-- Default helper command:
+- Canonical local development uses `just dev` or the service-by-service commands in the quick start guide.
+- Default Docker usage is supporting infrastructure only:
 
 ```bash
-just compose-up profiles="core,inference,ui,infra"
+just db-up
 ```
+
+- The old multi-service Docker stack is preserved only as an optional compatibility workflow:
+
+```bash
+just compose-up
+```
+
+- That optional stack now lives at `docker/optional/compose.local.yml` and is not the recommended path for day-to-day development.
 
 ## Related Container Docs
 

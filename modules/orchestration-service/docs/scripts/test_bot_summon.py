@@ -10,8 +10,8 @@ This script tests the complete Google Meet bot system by:
 5. Optionally stopping the bot
 
 Usage:
-    python test_bot_summon.py --meeting-url <GOOGLE_MEET_URL>
-    python test_bot_summon.py --meeting-url https://meet.google.com/abc-defg-hij --monitor-time 60
+    uv run python docs/scripts/test_bot_summon.py --meeting-url <GOOGLE_MEET_URL>
+    uv run python docs/scripts/test_bot_summon.py --meeting-url https://meet.google.com/abc-defg-hij --monitor-time 60
 """
 
 import argparse
@@ -65,7 +65,7 @@ class BotSummonTest:
         """Get bot manager statistics"""
         try:
             logger.info("🔍 Checking bot manager status...")
-            response = await self.client.get(f"{self.orchestration_url}/api/bots/stats")
+            response = await self.client.get(f"{self.orchestration_url}/api/stats")
 
             if response.status_code == 200:
                 stats = response.json()
@@ -85,7 +85,7 @@ class BotSummonTest:
     async def list_existing_bots(self) -> list:
         """List all existing bots"""
         try:
-            response = await self.client.get(f"{self.orchestration_url}/api/bots/list")
+            response = await self.client.get(f"{self.orchestration_url}/api/list")
 
             if response.status_code == 200:
                 data = response.json()
@@ -140,7 +140,7 @@ class BotSummonTest:
             }
 
             response = await self.client.post(
-                f"{self.orchestration_url}/api/bots/start", json=request_data
+                f"{self.orchestration_url}/api/start", json=request_data
             )
 
             if response.status_code == 200:
@@ -168,7 +168,7 @@ class BotSummonTest:
         """Get bot status"""
         try:
             response = await self.client.get(
-                f"{self.orchestration_url}/api/bots/status/{connection_id}"
+                f"{self.orchestration_url}/api/status/{connection_id}"
             )
 
             if response.status_code == 200:
@@ -255,7 +255,7 @@ class BotSummonTest:
             logger.info(f"🛑 Stopping bot {connection_id}...")
 
             response = await self.client.post(
-                f"{self.orchestration_url}/api/bots/stop/{connection_id}",
+                f"{self.orchestration_url}/api/stop/{connection_id}",
                 json={"timeout": timeout},
             )
 

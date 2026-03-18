@@ -28,7 +28,7 @@ The system is organized into **3 core services + external LLM** optimized for sp
    - Enterprise WebSocket connection management (10,000+ concurrent)
    - Service health monitoring and auto-recovery
    - LLM-based translation via external service (vLLM-MLX or Ollama)
-   - **Google Meet Bot Management**: Complete bot lifecycle, official API integration, PostgreSQL persistence
+   - **Google Meet Bot Management**: Docker-oriented orchestration plus the `modules/meeting-bot-service` runtime
    - **Virtual Webcam System**: Professional translation overlays with speaker attribution
    - **Browser Audio Capture**: Specialized Google Meet audio extraction with multiple fallback methods
    - **Time Correlation Engine**: Advanced timeline matching between Google Meet captions and internal transcriptions
@@ -48,7 +48,7 @@ The system is organized into **3 core services + external LLM** optimized for sp
    - Remote: Ollama (`:11434`, `qwen3.5:7b`)
 
 ### Supporting Infrastructure
-- **Google Meet Bot System**: Complete bot integration with official Google Meet API, virtual webcam generation
+- **Google Meet Bot System**: `modules/meeting-bot-service` runtime plus orchestration-managed lifecycle and callbacks
 - **Virtual Webcam System**: Professional translation overlays with speaker attribution and real-time display
 - **Browser Audio Capture**: Specialized audio extraction from Google Meet sessions with multiple fallback methods
 - **Time Correlation Engine**: Advanced timeline matching between external captions and internal transcriptions
@@ -285,14 +285,27 @@ Body: {
 # Setup database schema (PostgreSQL required)
 psql -U postgres -d livetranslate -f scripts/bot-sessions-schema.sql
 
-# Configure Google Meet API (optional - create credentials.json from Google Cloud Console)
-export GOOGLE_MEET_CREDENTIALS_PATH="/path/to/credentials.json"
+# Start the meeting bot runtime
+cd modules/meeting-bot-service
+npm install
+npm run api
 
-# Start orchestration service with bot management
-cd modules/orchestration-service && ./start-backend.ps1
+# Start orchestration service
+cd modules/orchestration-service
+uv sync --all-packages --group dev
+uv run python src/main_fastapi.py
 
-# Access bot management dashboard at http://localhost:3000
+# Bot runtime health
+curl http://localhost:5005/api/health
+
+# Access the dashboard bot UI at http://localhost:5173
 ```
+
+Canonical bot architecture:
+
+- bot runtime: `modules/meeting-bot-service`
+- orchestration control plane: `modules/orchestration-service/src/bot/docker_bot_manager.py`
+- component map and feature matrix: `docs/03-components/bot-system.md`
 
 ## ⚙️ Configuration Synchronization System
 
@@ -356,7 +369,7 @@ cd modules/orchestration-service && ./start-backend.ps1
 - **🆕 Time Correlation**: Advanced timeline matching between Google Meet captions and internal transcriptions
 
 ### 🎥 Google Meet Bot Integration
-- **Complete Bot Lifecycle**: Spawn, monitor, and terminate Google Meet bots
+- **Complete Bot Lifecycle**: Spawn, monitor, and terminate Google Meet bots via orchestration
 - **Browser Audio Capture**: Specialized audio extraction from Google Meet sessions
 - **Virtual Webcam System**: Professional translation overlays with speaker attribution
   - **Dual Content Display**: Original transcriptions (🎤) with actual Whisper confidence and translations (🌐) with real confidence scores

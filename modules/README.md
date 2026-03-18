@@ -7,26 +7,25 @@ This directory contains all service modules and shared packages.
 | Module | Path | Default Port | Responsibility |
 |---|---|---:|---|
 | Orchestration | `modules/orchestration-service` | 3000 | API gateway, coordination, persistence |
-| Whisper | `modules/whisper-service` | 5001 | Transcription and speech processing |
-| Translation | `modules/translation-service` | 5003 | Translation backend and model routing |
-| Frontend | `modules/frontend-service` | 5173 | Web UI and operator workflows |
+| Transcription | `modules/transcription-service` | 5001 | Speech processing and streaming transcription |
+| Dashboard | `modules/dashboard-service` | 5173 | SvelteKit UI and operator workflows |
 | Shared | `modules/shared` | n/a | Cross-service shared code |
 
 ## Supporting/Adjacent Modules
 
 | Module | Path | Purpose |
 |---|---|---|
-| Bot Container | `modules/bot-container` | Bot runtime assets and integration docs |
-| Meeting Bot Service | `modules/meeting-bot-service` | Meeting bot service variant and deployment docs |
+| Meeting Bot Service | `modules/meeting-bot-service` | Canonical meeting bot runtime service |
+| Bot Container | `modules/bot-container` | Supporting bot runtime assets and integration docs |
 | Seamless | `modules/seamless` | Seamless model experimentation/docs |
 | FunASR | `modules/funasr` | FunASR experimentation/docs |
 
 ## Module Documentation
 
 - `modules/orchestration-service/README.md`
-- `modules/whisper-service/README.md`
-- `modules/translation-service/README.md`
-- `modules/frontend-service/README.md`
+- `modules/transcription-service/README.md`
+- `modules/dashboard-service/README.md`
+- `modules/meeting-bot-service/README.md`
 - `modules/shared/README.md`
 
 ## Development Entry Points

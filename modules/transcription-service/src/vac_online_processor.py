@@ -923,6 +923,24 @@ class VACOnlineProcessor:
         # New-audio counter since last inference (resets after each inference)
         self._new_samples_since_inference: int = 0
 
+    def reset(self) -> None:
+        """Reset processor state for a new language session.
+
+        Clears audio buffer, sample counters, and first-inference flag so the
+        shorter prebuffer threshold is used for the first inference in the new
+        language. Preserves configuration (stride, overlap, prebuffer, rms).
+        """
+        self._buffer.clear()
+        self._buffer_samples = 0
+        self._new_samples_since_inference = 0
+        self._first_inference_done = False
+        # Drain any queued audio that hasn't been processed yet
+        while not self._audio_queue.empty():
+            try:
+                self._audio_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------

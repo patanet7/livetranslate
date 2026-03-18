@@ -216,7 +216,9 @@ def check_services():
     if len(available_services) < len(services):
         print("\n⚠️  Some services are not available. Tests may fail.")
         print("Make sure the WebSocket server is running with:")
-        print("docker-compose -f docker-compose.dev.yml up -d")
+        print("  just dev-transcription")
+        print("or:")
+        print("  cd modules/transcription-service && uv run python src/main.py")
         return False
 
     print("✅ All services available")

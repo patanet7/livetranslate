@@ -1,6 +1,22 @@
-# Orchestration Service - Backend API & Service Coordination
+# Orchestration Service
 
-Work from plan.md in modules. Keep it up to date as you continue to work, update before and after each task. There should be enough context that at any point any engineer should be able to resume what you were doing.
+WebSocket hub, audio pipeline coordination, LLM translation, and Google Meet bot management.
+
+## Commands
+
+```bash
+uv run pytest modules/orchestration-service/tests/ -v             # All tests
+uv run pytest modules/orchestration-service/tests/ -v -m "not e2e"  # Skip E2E (no services needed)
+uv run python modules/orchestration-service/src/main_fastapi.py   # Run service
+```
+
+## Key Components
+
+### `SessionConfig` (src/routers/audio/websocket_audio.py)
+Manages interpreter↔split mode transitions, language save/restore, `lock_language` propagation to transcription service. Methods: `enter_interpreter()`, `leave_interpreter()`, `set_source_language()`, `get_effective_target()`.
+
+### Audio Pipeline (src/routers/audio/websocket_audio.py)
+Main WebSocket handler: frontend connects → `start_session` → audio downsample → forward to transcription → segments → translation → frontend.
 
 ## Alembic Migrations
 

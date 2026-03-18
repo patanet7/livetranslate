@@ -32,8 +32,7 @@ REQUIRED_IMAGES=(
 # Compose files to validate
 COMPOSE_FILES=(
     "docker-compose.database.yml"
-    "docker-compose.dev.yml"
-    "docker-compose.minimal.yml"
+    "docker/optional/compose.local.yml"
 )
 
 # Minimum resource requirements
@@ -345,7 +344,7 @@ check_network_conflicts() {
     fi
 
     # Check for port conflicts
-    local ports_to_check=("5432" "6379" "8080" "3000" "5173" "5001" "5003")
+    local ports_to_check=("5432" "6379" "8080" "3000" "5173" "5001" "5005" "8005" "8006" "11434")
 
     echo ""
     print_info "Checking common ports..."
@@ -434,8 +433,13 @@ if [[ $TOTAL_ISSUES -eq 0 ]]; then
     echo "To start database services:"
     echo "    docker compose -f docker-compose.database.yml up -d"
     echo ""
-    echo "To start development environment:"
-    echo "    ./start-development.sh"
+    echo "Canonical local development:"
+    echo "    just install"
+    echo "    just db-up"
+    echo "    just dev"
+    echo ""
+    echo "Optional compatibility compose stack:"
+    echo "    just compose-up"
     exit 0
 else
     print_warning "${TOTAL_ISSUES} issue(s) found"

@@ -78,13 +78,14 @@ class TestVACProcessorQueue:
         assert proc.ready_for_inference() is False
 
     @pytest.mark.asyncio
-    async def test_silence_suppressed_by_rms_gate(self):
-        """Pure silence should not trigger inference even with enough samples."""
+    async def test_silence_still_triggers_inference(self):
+        """Pure silence triggers inference — Whisper's no_speech_prob handles suppression post-inference."""
         proc = VACOnlineProcessor(prebuffer_s=0.3, overlap_s=0.5, stride_s=4.5)
         # Feed silent audio exceeding prebuffer threshold
         audio = np.zeros(4800, dtype=np.float32)  # 0.3s of silence
         await proc.feed_audio(audio)
-        assert proc.ready_for_inference() is False  # silence gated
+        # RMS gating was removed in favor of Whisper's no_speech_prob filter
+        assert proc.ready_for_inference() is True
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ This level maps each service to its main implementation areas and service-specif
 ## Orchestration Components
 
 - [Orchestration Component Map](./orchestration/README.md)
+- [Bot System](./bot-system.md)
 
 ## Whisper Components
 

@@ -132,7 +132,7 @@ _active_sessions: dict[str, dict] = {}
 # Configurable via environment
 TRANSCRIPTION_HOST = os.getenv("TRANSCRIPTION_HOST", "localhost")
 TRANSCRIPTION_PORT = int(os.getenv("TRANSCRIPTION_PORT", "5001"))
-RECORDING_BASE_PATH = Path(os.getenv("RECORDING_BASE_PATH", "/tmp/livetranslate/recordings"))
+RECORDING_BASE_PATH = Path(os.getenv("RECORDING_BASE_PATH", str(Path.home() / ".livetranslate" / "recordings")))
 TARGET_LANGUAGE = os.getenv("DEFAULT_TARGET_LANGUAGE", "en")
 DEFAULT_SAMPLE_RATE = int(os.getenv("DEFAULT_SAMPLE_RATE", "48000"))
 DEFAULT_CHANNELS = int(os.getenv("DEFAULT_CHANNELS", "1"))
