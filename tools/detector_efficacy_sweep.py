@@ -115,6 +115,83 @@ def load_recording_events(session_prefix: str, chunk_duration_s: float = 3.0) ->
     return events
 
 
+def _synthetic_genuine_switch(chunk_s: float = 3.0) -> list[dict]:
+    """30s English → genuine 20s Chinese transition → 30s Chinese.
+
+    Tests that the NEW detector CAN switch on a real sustained change.
+    A detector that blocks ALL switches is too conservative.
+    """
+    events = []
+    t = 0.0
+    # 10 chunks of stable English
+    for _ in range(10):
+        events.append({"language": "en", "confidence": 0.85, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    # 7 chunks of sustained Chinese at high confidence (genuine switch)
+    for _ in range(7):
+        events.append({"language": "zh", "confidence": 0.80, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    # 10 more chunks of Chinese
+    for _ in range(10):
+        events.append({"language": "zh", "confidence": 0.85, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    return events
+
+
+def _synthetic_consecutive_hallucination(burst_len: int = 5, chunk_s: float = 3.0) -> list[dict]:
+    """Adversarial: 5 consecutive hallucinations of the same wrong language.
+
+    Tests detector resilience when Whisper hallucinates the same wrong
+    language multiple times in a row (worse than production but possible).
+    """
+    events = []
+    t = 0.0
+    # 10 chunks stable English
+    for _ in range(10):
+        events.append({"language": "en", "confidence": 0.8, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    # burst_len consecutive Korean hallucinations at moderate confidence
+    for _ in range(burst_len):
+        events.append({"language": "ko", "confidence": 0.55, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    # Back to English
+    for _ in range(10):
+        events.append({"language": "en", "confidence": 0.8, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    return events
+
+
+def _synthetic_noisy_switch(chunk_s: float = 3.0) -> list[dict]:
+    """Genuine en→zh switch buried in noise.
+
+    Tests sensitivity: Chinese appears at ~70% rate over 30s with
+    interspersed English/hallucinations. Should still detect the switch.
+    """
+    rng = np.random.default_rng(99)
+    events = []
+    t = 0.0
+    # 10 chunks stable English
+    for _ in range(10):
+        events.append({"language": "en", "confidence": 0.85, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    # 15 chunks: 70% zh, 20% en, 10% hallucination (noisy transition)
+    for _ in range(15):
+        r = rng.random()
+        if r < 0.70:
+            lang, conf = "zh", float(rng.uniform(0.6, 0.85))
+        elif r < 0.90:
+            lang, conf = "en", float(rng.uniform(0.4, 0.6))
+        else:
+            lang, conf = "ko", float(rng.uniform(0.3, 0.5))
+        events.append({"language": lang, "confidence": conf, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    # 10 chunks stable Chinese
+    for _ in range(10):
+        events.append({"language": "zh", "confidence": 0.85, "chunk_duration_s": chunk_s, "timestamp_s": t})
+        t += chunk_s
+    return events
+
+
 def build_scenarios() -> dict[str, list[dict]]:
     """Build all test scenarios from available data."""
     scenarios = {}
@@ -133,6 +210,12 @@ def build_scenarios() -> dict[str, list[dict]]:
         events = load_recording_events(prefix)
         if events:
             scenarios[name] = events
+
+    # 3. Synthetic adversarial scenarios
+    scenarios["genuine_en_zh_switch"] = _synthetic_genuine_switch()
+    scenarios["consecutive_hallucination_5x"] = _synthetic_consecutive_hallucination(burst_len=5)
+    scenarios["consecutive_hallucination_8x"] = _synthetic_consecutive_hallucination(burst_len=8)
+    scenarios["noisy_transition"] = _synthetic_noisy_switch()
 
     return scenarios
 

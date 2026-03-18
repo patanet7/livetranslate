@@ -288,6 +288,232 @@
     ]
   },
   {
+    "detector": "OLD",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "threshold_s": 1.0
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "threshold_s": 2.0
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "threshold_s": 3.0
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "threshold_s": 5.0
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "threshold_s": 1.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "threshold_s": 2.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "threshold_s": 3.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "threshold_s": 5.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "threshold_s": 1.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "threshold_s": 2.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "threshold_s": 3.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "threshold_s": 5.0
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "noisy_transition",
+    "params": {
+      "threshold_s": 1.0
+    },
+    "switches": 6,
+    "hallucinated": 2,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "ko",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "noisy_transition",
+    "params": {
+      "threshold_s": 2.0
+    },
+    "switches": 6,
+    "hallucinated": 2,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "ko",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "noisy_transition",
+    "params": {
+      "threshold_s": 3.0
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "OLD",
+    "scenario": "noisy_transition",
+    "params": {
+      "threshold_s": 5.0
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
     "detector": "NEW",
     "scenario": "prod_flapping_log",
     "params": {
@@ -7783,7 +8009,7798 @@
     "switches": 0,
     "hallucinated": 0,
     "total_events": 21,
+    "languages": [
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "genuine_en_zh_switch",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 27,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 25,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_5x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 25,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 2,
+    "hallucinated": 1,
+    "total_events": 28,
+    "languages": [
+      "en",
+      "ko"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "consecutive_hallucination_8x",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 0,
+    "hallucinated": 0,
+    "total_events": 28,
+    "languages": [
+      "en"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.1,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.15,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.2,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.25,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 2,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 3,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 4,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 5,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 5000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 8000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 10000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 12000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
+    "languages": [
+      "en",
+      "zh"
+    ]
+  },
+  {
+    "detector": "NEW",
+    "scenario": "noisy_transition",
+    "params": {
+      "margin": 0.3,
+      "frames": 6,
+      "dwell_ms": 15000
+    },
+    "switches": 1,
+    "hallucinated": 0,
+    "total_events": 35,
     "languages": [
+      "en",
       "zh"
     ]
   }
