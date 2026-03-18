@@ -270,17 +270,17 @@ ci: lint typecheck test
 # Docker
 # ==============================================================================
 
-# Build all Docker images
+# Build the optional compatibility compose stack
 docker-build:
-    docker compose -f compose.local.yml build
+    docker compose -f docker/optional/compose.local.yml build
 
-# Start compose (core + inference)
-compose-up:
-    COMPOSE_PROFILES=core,inference docker compose -f compose.local.yml up --build
+# Start the optional compatibility compose stack (not the default local-dev path)
+compose-up profiles="core,inference":
+    COMPOSE_PROFILES={{profiles}} docker compose -f docker/optional/compose.local.yml up --build
 
-# Stop compose
+# Stop the optional compatibility compose stack
 compose-down:
-    docker compose -f compose.local.yml down
+    docker compose -f docker/optional/compose.local.yml down
 
 # ==============================================================================
 # Cleanup

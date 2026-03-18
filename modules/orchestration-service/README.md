@@ -1,5 +1,7 @@
 # Orchestration Service - Backend API & Service Coordination
 
+This README is service-specific reference material. The canonical repository startup flow lives in [docs/guides/quick-start.md](../../docs/guides/quick-start.md) and the root [justfile](../../justfile). Root-level frontend scripts and full-stack Docker commands mentioned in older sections of this file should be treated as historical unless they explicitly reference current paths.
+
 **Hardware Target**: CPU (optimized for high I/O and concurrent connections)
 
 ## 🚀 Latest Enhancements - Professional Modular Audio Processing System ✅
@@ -59,29 +61,32 @@ The Orchestration Service is a CPU-optimized backend microservice that provides:
 
 ## 🚀 Quick Start
 
-### Method 1: Complete Development Environment (Recommended)
+### Canonical Local Development
 
 ```bash
-# Start backend service
-cd modules/orchestration-service
-./start-backend.ps1  # FastAPI backend (port 3000)
-
-# Start frontend service (separate module)
-cd modules/frontend-service
-./start-frontend.ps1  # React frontend (port 5173)
-
-# Or use Docker
-docker-compose up -d
-
-# Check services
-curl http://localhost:3000/api/health     # Orchestration backend
-curl http://localhost:3000/docs           # API documentation
-curl http://localhost:3000/api/audio/models  # Dynamic models API (NEW)
-curl http://localhost:3000/api/audio/presets/list  # Professional presets (NEW)
-open http://localhost:5173                # Frontend service
+just install
+just db-up
+just dev-orchestration
 ```
 
-### Method 2: Production Deployment (use Method 1 instead)
+Or run the service directly:
+
+```bash
+cd modules/orchestration-service
+uv sync --all-packages --group dev
+uv run uvicorn src.main_fastapi:app --host 0.0.0.0 --port 3000 --reload
+```
+
+Useful checks:
+
+```bash
+curl http://localhost:3000/api/health
+curl http://localhost:3000/docs
+curl http://localhost:3000/api/audio/models
+curl http://localhost:3000/api/audio/presets/list
+```
+
+### Production Deployment (service-specific reference)
 
 
 ```bash

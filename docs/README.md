@@ -16,7 +16,6 @@ This is the canonical index for active project documentation.
 - [Level 2 - Containers](./02-containers/README.md)
 - [Level 3 - Components](./03-components/README.md)
 - [Bot System](./03-components/bot-system.md)
-- [Cross-Service Contracts](./CROSS_SERVICE_CONTRACTS.md)
 
 ## Service Documentation
 
@@ -50,3 +49,5 @@ This is the canonical index for active project documentation.
 
 - [Archive Index](./archive/README.md)
 - [Root-Level Report Index](./archive/root-level-reports.md)
+- [Cross-Service Contract Audit](./archive/root-reports/analysis-audit/CROSS_SERVICE_CONTRACT_AUDIT.md)
+- [Runtime Surface Archive](../archive/runtime-surfaces/README.md)

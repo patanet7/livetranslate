@@ -1,4 +1,6 @@
-# Whisper Service - NPU Optimized Audio Processing
+# Transcription Service - NPU/GPU/CPU Audio Processing
+
+This module is the active replacement for the old `whisper-service`. The canonical repository startup flow lives in [docs/guides/quick-start.md](../../docs/guides/quick-start.md) and the root [justfile](../../justfile). Older references in this file to `whisper-service`, legacy compose files, or translation-era full-stack Docker workflows should be treated as historical unless they explicitly reference current paths.
 
 **Hardware Target**: NPU (Intel NPU), GPU, CPU fallback - **NPU OPTIMIZED**
 
@@ -34,25 +36,25 @@ The Whisper Service is an NPU-optimized microservice that provides:
 
 ## 🚀 Quick Start (Standalone)
 
-Get the Whisper service running independently in under 5 minutes:
+Get the transcription service running independently in under 5 minutes:
 
 ```bash
-# Clone and navigate to whisper service
-cd modules/whisper-service
-
-# Option 1: Docker (Recommended)
-docker-compose up --build -d
-
-# Option 2: Local development
-pip install -r requirements.txt
-python src/main.py
-
-# Option 3: NPU acceleration (Intel systems)
-docker-compose -f docker-compose.npu.yml up --build -d
+# From the repository root
+just install
+just db-up
+just dev-transcription
 
 # Test the service
 curl http://localhost:5001/health
 curl -X POST -F "audio=@test_audio.wav" http://localhost:5001/transcribe/whisper-base
+```
+
+Or run the service directly:
+
+```bash
+cd modules/transcription-service
+uv sync --all-packages --group dev
+uv run python src/main.py
 ```
 
 **Service will be available at:**
@@ -576,14 +578,9 @@ python tests/load/load_test.py --concurrent=10 --duration=60
 
 ### Development with Hot Reload
 ```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Start with hot reload
-python src/main.py --reload --debug
-
-# Or with Docker development setup
-docker-compose -f docker-compose.dev.yml up --build
+cd modules/transcription-service
+uv sync --all-packages --group dev
+uv run python src/main.py --reload --debug
 ```
 
 ### Code Quality
@@ -647,9 +644,14 @@ docker run -d \
 
 ### Integration with LiveTranslate
 ```bash
-# As part of full system
-cd ../../  # Back to project root
-docker-compose -f docker-compose.comprehensive.yml up whisper-service
+# As part of the canonical local-dev flow
+cd ../../
+just dev
+```
+
+```bash
+# Optional compatibility compose stack
+docker compose -f docker/optional/compose.local.yml up whisper
 ```
 
 ### Kubernetes Deployment
