@@ -24,7 +24,7 @@ from livetranslate_common.logging import get_logger
 logger = get_logger()
 
 RECORD_FIXTURES = os.getenv("LIVETRANSLATE_RECORD_FIXTURES", "").strip() in ("1", "true", "yes")
-RECORDING_PATH = Path(os.getenv("FIXTURE_RECORDING_PATH", "/tmp/livetranslate/fixture-recordings"))
+RECORDING_PATH = Path(os.getenv("FIXTURE_RECORDING_PATH", str(Path.home() / ".livetranslate" / "fixture-recordings")))
 
 
 class FixtureRecorder:

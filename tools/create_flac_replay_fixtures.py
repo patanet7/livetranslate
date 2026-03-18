@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 import numpy as np
 
-RECORDINGS_DIR = Path("/tmp/livetranslate/recordings")
+RECORDINGS_DIR = Path(os.getenv("RECORDING_BASE_PATH", str(Path.home() / ".livetranslate" / "recordings")))
 DEFAULT_OUTPUT = Path("modules/dashboard-service/tests/fixtures")
 
 # Fixture definitions: (name, session_prefix, start_s, duration_s)
