@@ -25,7 +25,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const FIXTURE_DIR = path.resolve(__dirname, '../fixtures');
-const LOOPBACK_URL = 'http://localhost:5173/loopback';
+// Uses baseURL from playwright.config.ts (default: http://localhost:5173)
+const LOOPBACK_PATH = '/loopback';
 
 // Hallucinated languages that Whisper falsely detects (from production log)
 const HALLUCINATED_LANGS = new Set(['nn', 'cy', 'ko', 'fr', 'es', 'it', 'pt', 'nl', 'ru', 'pl']);
@@ -171,7 +172,7 @@ test.describe('Language Detection Replay E2E', () => {
 		test.setTimeout(TEST_TIMEOUT_MS);
 		if (!hasFixture('lang_detect_zh_short_48k.wav')) test.skip();
 
-		await page.goto(LOOPBACK_URL);
+		await page.goto(LOOPBACK_PATH);
 		await injectAudioFixture(page, 'lang_detect_zh_short_48k.wav');
 		await page.locator('[data-testid="start-capture"], button:has-text("Start")').first().click();
 
@@ -201,7 +202,7 @@ test.describe('Language Detection Replay E2E', () => {
 		test.setTimeout(TEST_TIMEOUT_MS);
 		if (!hasFixture('lang_detect_zh_section_48k.wav')) test.skip();
 
-		await page.goto(LOOPBACK_URL);
+		await page.goto(LOOPBACK_PATH);
 		await injectAudioFixture(page, 'lang_detect_zh_section_48k.wav');
 		await page.locator('[data-testid="start-capture"], button:has-text("Start")').first().click();
 
@@ -231,7 +232,7 @@ test.describe('Language Detection Replay E2E', () => {
 		test.setTimeout(TEST_TIMEOUT_MS * 2);
 		if (!hasFixture('lang_detect_zh_full_48k.wav')) test.skip();
 
-		await page.goto(LOOPBACK_URL);
+		await page.goto(LOOPBACK_PATH);
 		await injectAudioFixture(page, 'lang_detect_zh_full_48k.wav');
 		await page.locator('[data-testid="start-capture"], button:has-text("Start")').first().click();
 
