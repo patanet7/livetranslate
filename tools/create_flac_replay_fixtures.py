@@ -31,12 +31,17 @@ RECORDINGS_DIR = Path(os.getenv("RECORDING_BASE_PATH", str(Path.home() / ".livet
 DEFAULT_OUTPUT = Path("modules/dashboard-service/tests/fixtures")
 
 # Fixture definitions: (name, session_prefix, start_s, duration_s)
+# Available sessions (all zh, recorded 2026-03-17):
+#   d4abc22a — ~4.4min Chinese
+#   e76e7657 — ~4.9min Chinese
+#   3e653c07 — ~1min Chinese
 FIXTURES = [
-    ("lang_detect_en_full", "48697a4a", 0, 120),
-    ("lang_detect_mixed_start", "af5b37c9", 0, 180),
-    ("lang_detect_zh_section", "af5b37c9", 1020, 180),   # ~17:00
-    ("lang_detect_transition", "af5b37c9", 960, 300),     # ~16:00, 5 min
-    ("lang_detect_full_meeting", "af5b37c9", 0, 600),     # first 10 min
+    ("lang_detect_zh_short", "3e653c07", 0, 60),           # Short zh, full session
+    ("lang_detect_zh_section", "d4abc22a", 0, 180),        # 3min zh from first session
+    ("lang_detect_zh_full", "e76e7657", 0, 290),           # ~5min zh, longest session
+    # TODO: record English and mixed en↔zh sessions, then add:
+    # ("lang_detect_en_full", "<en_session>", 0, 120),
+    # ("lang_detect_transition", "<mixed_session>", <offset>, 300),
 ]
 
 
