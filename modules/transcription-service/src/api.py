@@ -537,6 +537,17 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                     }))
                 except Exception:
                     pass
+            except RuntimeError as exc:
+                if "close message" in str(exc):
+                    logger.debug("ws_closed_during_inference", session_id=session_id)
+                else:
+                    logger.exception("transcribe_error", session_id=session_id, error=str(exc))
+                    try:
+                        await ws.send_text(json.dumps({
+                            "type": "error", "message": str(exc), "recoverable": True,
+                        }))
+                    except Exception:
+                        pass
             except Exception as exc:
                 logger.exception("transcribe_error", session_id=session_id, error=str(exc))
                 try:

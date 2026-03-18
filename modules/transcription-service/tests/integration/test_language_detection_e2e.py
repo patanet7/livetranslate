@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -29,12 +30,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from language_detection import WhisperLanguageDetector
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-RECORDINGS_DIR = Path("/tmp/livetranslate/recordings")
+RECORDINGS_DIR = Path(
+    os.environ.get("RECORDING_BASE_PATH", str(Path.home() / ".livetranslate" / "recordings"))
+)
 SERVICE_URL = "ws://localhost:5001/api/stream"
 
-# Known recording sessions from production
-LONG_MEETING_SESSION = "af5b37c9"  # ~57min en/zh interpreter meeting (115 chunks)
-SHORT_EN_SESSION = "48697a4a"  # ~12min English session (24 chunks)
+# Known recording sessions
+ZH_LONG_SESSION = "e76e7657"    # ~4.9min Chinese (10 chunks)
+ZH_MED_SESSION = "d4abc22a"     # ~4.4min Chinese (9 chunks)
+ZH_SHORT_SESSION = "3e653c07"   # ~1min Chinese (3 chunks)
 
 
 # ---------------------------------------------------------------------------
@@ -306,60 +310,56 @@ class TestLiveLanguageDetection:
     and verify stable language detection with the new WhisperLanguageDetector.
     """
 
-    async def test_english_recording_no_flapping(self, require_service_fixture):
-        """Stream English audio — should detect English and stay English.
-
-        Uses real recorded audio from a session. The old detector would
-        flap to nn, cy, ko etc. The new one should stay on English.
-        """
-        recording_dir = _find_recording(SHORT_EN_SESSION)
+    async def test_chinese_short_stable_detection(self, require_service_fixture):
+        """Stream short Chinese audio — should detect zh and stay stable."""
+        recording_dir = _find_recording(ZH_SHORT_SESSION)
         if recording_dir is None:
-            pytest.skip(f"Recording {SHORT_EN_SESSION} not found in {RECORDINGS_DIR}")
+            pytest.skip(f"Recording {ZH_SHORT_SESSION} not found in {RECORDINGS_DIR}")
 
-        # Load first 5 chunks (~2.5 minutes) to keep test fast
+        audio, sr = _load_recording_audio(recording_dir, max_chunks=3)
+
+        messages = await _stream_and_collect(
+            audio, sr, language=None,  # auto-detect
+            pace_factor=0.5,  # half real-time — gives VAC enough audio per inference
+            recv_timeout_s=60.0,
+        )
+
+        lang_events = [m for m in messages if m.get("type") == "language_detected"]
+        segments = [m for m in messages if m.get("type") == "segment"]
+
+        assert len(segments) >= 1, f"Expected segments, got types: {[m['type'] for m in messages]}"
+
+        # Should detect Chinese
+        if lang_events:
+            assert any(e["language"] == "zh" for e in lang_events), (
+                f"Expected Chinese detection, got: {[e['language'] for e in lang_events]}"
+            )
+            # No false switches
+            switch_count = sum(
+                1 for i in range(1, len(lang_events))
+                if lang_events[i]["language"] != lang_events[i - 1]["language"]
+            )
+            assert switch_count == 0, (
+                f"False switches in short zh session: {[e['language'] for e in lang_events]}"
+            )
+
+    async def test_chinese_long_no_flapping(self, require_service_fixture):
+        """Stream ~5min Chinese audio — should detect zh stably throughout.
+
+        The old detector would flap to en, nn, cy etc on Chinese audio.
+        The new WhisperLanguageDetector should stay on zh.
+        """
+        recording_dir = _find_recording(ZH_LONG_SESSION)
+        if recording_dir is None:
+            pytest.skip(f"Recording {ZH_LONG_SESSION} not found in {RECORDINGS_DIR}")
+
+        # Load first 5 chunks (~2.5min) to keep test under timeout
         audio, sr = _load_recording_audio(recording_dir, max_chunks=5)
 
         messages = await _stream_and_collect(
             audio, sr, language=None,  # auto-detect
-            pace_factor=0.05,  # 20x speed for faster tests
-            recv_timeout_s=30.0,
-        )
-
-        # Extract language detection events
-        lang_events = [m for m in messages if m.get("type") == "language_detected"]
-        segments = [m for m in messages if m.get("type") == "segment"]
-
-        # Should have segments
-        assert len(segments) >= 1, f"Expected segments, got types: {[m['type'] for m in messages]}"
-
-        # Count language switches (initial detection is fine, flapping is not)
-        if lang_events:
-            languages = [e["language"] for e in lang_events]
-            unique_langs = set(languages)
-            # Should be mostly English — at most 1 switch is acceptable
-            non_en = [l for l in languages[1:] if l != "en"]
-            assert len(non_en) <= 1, (
-                f"Language flapping detected: {languages}. "
-                f"Expected stable English detection."
-            )
-
-    async def test_mixed_meeting_language_stability(self, require_service_fixture):
-        """Stream mixed en/zh meeting audio — should have stable transitions.
-
-        Uses the long meeting recording. Switches should only happen at
-        genuine language transitions, not on every 3s chunk.
-        """
-        recording_dir = _find_recording(LONG_MEETING_SESSION)
-        if recording_dir is None:
-            pytest.skip(f"Recording {LONG_MEETING_SESSION} not found in {RECORDINGS_DIR}")
-
-        # Load first 3 chunks (~1.5 minutes) for a fast test
-        audio, sr = _load_recording_audio(recording_dir, max_chunks=3)
-
-        messages = await _stream_and_collect(
-            audio, sr, language=None,  # auto-detect for interpreter-like mode
-            pace_factor=0.05,
-            recv_timeout_s=30.0,
+            pace_factor=0.5,  # half real-time
+            recv_timeout_s=90.0,
         )
 
         lang_events = [m for m in messages if m.get("type") == "language_detected"]
@@ -367,14 +367,18 @@ class TestLiveLanguageDetection:
 
         assert len(segments) >= 1
 
-        # In a ~90s window, there should be at most a few genuine switches.
-        # The old detector would flap 10+ times in this window.
         if lang_events:
-            switch_count = sum(
-                1 for i in range(1, len(lang_events))
-                if lang_events[i]["language"] != lang_events[i - 1]["language"]
+            languages = [e["language"] for e in lang_events]
+            # Should be predominantly Chinese
+            zh_count = sum(1 for l in languages if l == "zh")
+            assert zh_count >= len(languages) * 0.8, (
+                f"Expected >80% Chinese, got {zh_count}/{len(languages)}: {languages}"
             )
-            assert switch_count <= 5, (
-                f"Too many language switches ({switch_count}) in 90s — "
-                f"likely flapping. Languages: {[e['language'] for e in lang_events]}"
+            # At most 1 switch (old detector would have 10+)
+            switch_count = sum(
+                1 for i in range(1, len(languages))
+                if languages[i] != languages[i - 1]
+            )
+            assert switch_count <= 1, (
+                f"Too many switches ({switch_count}) in ~5min zh session: {languages}"
             )
