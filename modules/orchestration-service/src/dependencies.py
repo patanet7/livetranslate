@@ -7,6 +7,7 @@ Manages lifecycle of managers, clients, and shared resources across the applicat
 """
 
 import asyncio
+import json
 import os
 from functools import lru_cache
 from typing import Any, Optional
@@ -53,6 +54,8 @@ from datetime import UTC
 
 from fastapi import Depends, HTTPException, Request, status
 from livetranslate_common.logging import get_logger
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
 
@@ -413,6 +416,81 @@ def get_translation_service_client() -> TranslationService:
     return _translation_service_client
 
 
+async def _resolve_translation_config() -> TranslationConfig:
+    """Resolve translation model settings from ai_connections, with env fallback."""
+    base_config = TranslationConfig.from_env()
+
+    try:
+        from database.ai_connection import AIConnection
+        from database.models import SystemConfig
+
+        db_manager = get_database_manager()
+        async with db_manager.get_session() as session:
+            result = await session.execute(
+                select(SystemConfig).where(SystemConfig.key == "translation_model_preference")
+            )
+            pref_row = result.scalar_one_or_none()
+            if pref_row is None or not pref_row.value:
+                return base_config
+
+            pref_data = pref_row.value
+            if isinstance(pref_data, str):
+                pref_data = json.loads(pref_data)
+
+            active_model = pref_data.get("active_model", "")
+            if not active_model or "/" not in active_model:
+                return base_config
+
+            prefix, model_name = active_model.split("/", 1)
+            conn_result = await session.execute(
+                select(AIConnection)
+                .where(AIConnection.prefix == prefix, AIConnection.enabled.is_(True))
+                .order_by(AIConnection.priority.asc(), AIConnection.name.asc())
+            )
+            connection = conn_result.scalars().first()
+            if connection is None:
+                logger.warning("translation_connection_not_found", prefix=prefix)
+                return base_config
+
+            base_url = connection.url.rstrip("/")
+            if connection.engine in {"ollama", "openai_compatible", "openai"} and not base_url.endswith(
+                "/v1"
+            ):
+                base_url = f"{base_url}/v1"
+
+            timeout_s = max(1, int(round(connection.timeout_ms / 1000))) if connection.timeout_ms else base_config.timeout_s
+            resolved = base_config.model_copy(
+                update={
+                    "base_url": base_url,
+                    "model": model_name,
+                    "temperature": pref_data.get("temperature", base_config.temperature),
+                    "max_tokens": pref_data.get("max_tokens", base_config.max_tokens),
+                    "timeout_s": timeout_s,
+                }
+            )
+            logger.info(
+                "translation_config_resolved_from_connections",
+                prefix=prefix,
+                model=model_name,
+                base_url=base_url,
+            )
+            return resolved
+    except (SQLAlchemyError, json.JSONDecodeError, ValueError) as exc:
+        logger.warning("translation_config_resolve_failed", error=str(exc))
+
+    return base_config
+
+
+async def initialize_translation_service_client() -> TranslationService:
+    """Initialize the shared translation service using DB-backed preferences when available."""
+    global _translation_service_client
+    if _translation_service_client is None:
+        logger.info("Initializing TranslationService singleton")
+        _translation_service_client = TranslationService(await _resolve_translation_config())
+        logger.info("TranslationService initialized successfully")
+    return _translation_service_client
+
+
 # ============================================================================
 # Manager Components
 # ============================================================================
@@ -698,7 +776,7 @@ async def startup_dependencies():
 
         # Initialize service clients
         _ = get_audio_service_client()
-        _ = get_translation_service_client()
+        await initialize_translation_service_client()
         logger.info(" Service clients initialized")
 
         # Initialize system managers
@@ -756,6 +834,18 @@ async def shutdown_dependencies():
         if _audio_coordinator:
             await _audio_coordinator.shutdown()
             logger.info(" AudioCoordinator shutdown")
+
+        if _translation_service_client and hasattr(_translation_service_client, "close"):
+            await _translation_service_client.close()
+            logger.info(" TranslationService shutdown")
+
+        if _audio_service_client and hasattr(_audio_service_client, "close"):
+            await _audio_service_client.close()
+            logger.info(" AudioServiceClient shutdown")
+
+        if _event_publisher and hasattr(_event_publisher, "close"):
+            await _event_publisher.close()
+            logger.info(" EventPublisher shutdown")
 
         if _database_manager:
             close_fn = getattr(_database_manager, "close", None)

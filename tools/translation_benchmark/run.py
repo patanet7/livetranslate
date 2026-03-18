@@ -237,15 +237,20 @@ async def run_benchmark(
     reference_file = data_dir / f"{lang_pair}.reference"
 
     if not source_file.exists() or not reference_file.exists():
-        logger.warning("no_test_data", data_dir=str(data_dir), lang_pair=lang_pair)
-        return
+        logger.error("no_test_data", data_dir=str(data_dir), lang_pair=lang_pair)
+        raise FileNotFoundError(
+            f"Missing benchmark data for {lang_pair}: "
+            f"{source_file} and/or {reference_file}"
+        )
 
     sources = source_file.read_text().strip().split("\n")
     references = reference_file.read_text().strip().split("\n")
 
     if len(sources) != len(references):
         logger.error("data_mismatch", sources=len(sources), references=len(references))
-        return
+        raise ValueError(
+            f"Benchmark data mismatch for {lang_pair}: {len(sources)} sources vs {len(references)} references"
+        )
 
     results = {
         "lang_pair": lang_pair,

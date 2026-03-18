@@ -98,6 +98,8 @@ def normalize_numbers(text: str) -> str:
     """
     def _replace_zh(m: re.Match) -> str:
         span = m.group(0)
+        if not any(ch in _ZH_DIGIT for ch in span):
+            return span
         # Split off any trailing unit suffix that should remain
         for suffix in ("亿", "億", "万", "萬"):
             if span.endswith(suffix) and len(span) > 1:
@@ -166,7 +168,7 @@ def word_error_rate(reference: str, hypothesis: str) -> float:
     hyp_words = hypothesis.strip().split()
     if not ref_words:
         return 0.0 if not hyp_words else 1.0
-    return _levenshtein(ref_words, hyp_words) / len(ref_words)
+    return min(1.0, _levenshtein(ref_words, hyp_words) / len(ref_words))
 
 
 def character_error_rate(reference: str, hypothesis: str) -> float:
@@ -179,7 +181,7 @@ def character_error_rate(reference: str, hypothesis: str) -> float:
     hyp_chars = list(hypothesis.strip().replace(" ", ""))
     if not ref_chars:
         return 0.0 if not hyp_chars else 1.0
-    return _levenshtein(ref_chars, hyp_chars) / len(ref_chars)
+    return min(1.0, _levenshtein(ref_chars, hyp_chars) / len(ref_chars))
 
 
 def error_rate(reference: str, hypothesis: str, language: str) -> tuple[float, str]:

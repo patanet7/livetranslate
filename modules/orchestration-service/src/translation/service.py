@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models import TranslationContext, TranslationRequest, TranslationResponse
@@ -39,12 +40,59 @@ class TranslationService:
         self._process_task: asyncio.Task | None = None
         self._concurrency = asyncio.Semaphore(min(config.max_queue_depth, 3))
 
+    @staticmethod
+    async def _strip_think_and_stream(raw_stream) -> AsyncIterator[str]:
+        """Filter out <think>...</think> blocks from streaming LLM output."""
+        buffer = ""
+        in_think = False
+        buffer_limit = 30
+
+        async for delta in raw_stream:
+            if in_think:
+                buffer += delta
+                end_idx = buffer.find("</think>")
+                if end_idx != -1:
+                    remainder = buffer[end_idx + 8:]
+                    buffer = ""
+                    in_think = False
+                    if remainder:
+                        yield remainder
+                continue
+
+            if len(buffer) < buffer_limit:
+                buffer += delta
+                if buffer.startswith("<think>"):
+                    in_think = True
+                    end_idx = buffer.find("</think>")
+                    if end_idx != -1:
+                        remainder = buffer[end_idx + 8:]
+                        buffer = ""
+                        in_think = False
+                        if remainder:
+                            yield remainder
+                    continue
+                if len(buffer) >= buffer_limit:
+                    yield buffer
+                    buffer = ""
+            else:
+                yield delta
+
+        if buffer and not in_think:
+            yield buffer
+
+    def _select_store(
+        self,
+        context_store: DirectionalContextStore | None = None,
+    ) -> DirectionalContextStore:
+        return context_store or self.context_store
+
     async def translate_draft(
         self,
         text: str,
         source_lang: str,
         target_lang: str,
         context: list[TranslationContext] | None = None,
+        context_store: DirectionalContextStore | None = None,
     ) -> str:
         """Draft translation: fast, fail-fast, no context write-back.
 
@@ -52,6 +100,8 @@ class TranslationService:
         immediate failure. The caller passes context from context_store.get()
         — this method never reads or writes the internal context store.
         """
+        if context is None:
+            context = self._select_store(context_store).get(source_lang, target_lang)[-3:]
         return await self._client.translate(
             text=text,
             source_language=source_lang,
@@ -65,6 +115,7 @@ class TranslationService:
         self,
         request: TranslationRequest,
         skip_context: bool = False,
+        context_store: DirectionalContextStore | None = None,
     ) -> TranslationResponse:
         """Translate text synchronously (blocking until complete).
 
@@ -80,7 +131,8 @@ class TranslationService:
         backpressure, use enqueue_translation().
         """
         # Merge: use request context if provided, otherwise use directional rolling window
-        context = request.context if request.context else self.context_store.get(
+        store = self._select_store(context_store)
+        context = request.context if request.context else store.get(
             request.source_language, request.target_language,
         )
         start = time.monotonic()
@@ -97,11 +149,87 @@ class TranslationService:
 
         # Only add to context on success, keyed by direction
         if not skip_context:
-            self.context_store.add(
+            store.add(
                 request.source_language, request.target_language,
                 request.text, translated,
             )
 
+        return TranslationResponse(
+            translated_text=translated,
+            source_language=request.source_language,
+            target_language=request.target_language,
+            model_used=self.config.model,
+            latency_ms=round(latency_ms, 1),
+        )
+
+    async def stream_translate(
+        self,
+        request: TranslationRequest,
+        on_delta: Callable[[str], Awaitable[bool | None]],
+        *,
+        context_store: DirectionalContextStore | None = None,
+        skip_context: bool = False,
+        max_tokens: int | None = None,
+        cross_context: list[TranslationContext] | None = None,
+    ) -> TranslationResponse | None:
+        """Stream a translation through a callback with fallback and single context ownership."""
+        store = self._select_store(context_store)
+        context = request.context if request.context else store.get(
+            request.source_language,
+            request.target_language,
+        )
+        start = time.monotonic()
+        full_text = ""
+
+        try:
+            raw_stream = self._client.translate_stream(
+                request.text,
+                request.source_language,
+                request.target_language,
+                context,
+                glossary_terms=request.glossary_terms,
+                max_tokens=max_tokens,
+                cross_context=cross_context,
+            )
+            async for delta in self._strip_think_and_stream(raw_stream):
+                full_text += delta
+                keep_going = await on_delta(delta)
+                if keep_going is False:
+                    logger.info(
+                        "translation_stream_aborted",
+                        source_lang=request.source_language,
+                        target_lang=request.target_language,
+                    )
+                    return None
+            translated = self._client._extract_translation(full_text)
+        except Exception as stream_exc:
+            logger.warning(
+                "translation_stream_fallback",
+                source_lang=request.source_language,
+                target_lang=request.target_language,
+                error=str(stream_exc),
+            )
+            fallback_response = await self.translate(
+                request,
+                skip_context=skip_context,
+                context_store=store,
+            )
+            return TranslationResponse(
+                translated_text=fallback_response.translated_text,
+                source_language=fallback_response.source_language,
+                target_language=fallback_response.target_language,
+                model_used=fallback_response.model_used,
+                latency_ms=round((time.monotonic() - start) * 1000, 1),
+            )
+
+        latency_ms = (time.monotonic() - start) * 1000
+        if not skip_context:
+            store.add(
+                request.source_language,
+                request.target_language,
+                request.text,
+                translated,
+            )
         return TranslationResponse(
             translated_text=translated,
             source_language=request.source_language,

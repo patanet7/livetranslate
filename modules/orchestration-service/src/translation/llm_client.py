@@ -23,6 +23,31 @@ from translation.config import TranslationConfig
 logger = get_logger()
 
 
+def extract_translation_text(response: str) -> str:
+    """Clean up LLM output so callers only keep the translated text."""
+    text = response.strip()
+    # Strip Qwen3 <think>...</think> reasoning blocks
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    # Strip unclosed <think> blocks (max_tokens cutoff)
+    text = re.sub(r'<think>.*$', '', text, flags=re.DOTALL).strip()
+    # Remove common LLM prefix patterns (case-insensitive)
+    text = re.sub(
+        r'^(?:translation|translated text|output|result|the translation is|翻译|译文)\s*[:：]\s*',
+        '',
+        text,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    # Remove surrounding quotes (straight or curly, single or double)
+    if len(text) >= 2:
+        if (text[0] == '"' and text[-1] == '"') or \
+           (text[0] == '\u201c' and text[-1] == '\u201d') or \
+           (text[0] == "'" and text[-1] == "'") or \
+           (text[0] == '\u2018' and text[-1] == '\u2019'):
+            text = text[1:-1]
+    return text.strip()
+
+
 class LLMClient:
     def __init__(self, config: TranslationConfig):
         self.config = config
@@ -253,24 +278,7 @@ class LLMClient:
 
     def _extract_translation(self, response: str) -> str:
         """Clean up LLM response to extract just the translation."""
-        text = response.strip()
-        # Strip Qwen3 <think>...</think> reasoning blocks
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-        # Strip unclosed <think> blocks (max_tokens cutoff)
-        text = re.sub(r'<think>.*$', '', text, flags=re.DOTALL).strip()
-        # Remove common LLM prefix patterns (case-insensitive)
-        text = re.sub(
-            r'^(?:translation|translated text|output|result|the translation is|翻译|译文)\s*[:：]\s*',
-            '', text, count=1, flags=re.IGNORECASE,
-        )
-        # Remove surrounding quotes (straight or curly, single or double)
-        if len(text) >= 2:
-            if (text[0] == '"' and text[-1] == '"') or \
-               (text[0] == '\u201c' and text[-1] == '\u201d') or \
-               (text[0] == "'" and text[-1] == "'") or \
-               (text[0] == '\u2018' and text[-1] == '\u2019'):
-                text = text[1:-1]
-        return text.strip()
+        return extract_translation_text(response)
 
     async def translate_stream(
         self,

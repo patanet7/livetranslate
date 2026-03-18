@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from livetranslate_common.logging import get_logger
 
-from meeting.downsampler import downsample_to_16k
+from meeting.downsampler import downsample_to_16k, normalize_audio_shape
 from meeting.recorder import FlacChunkRecorder
 from meeting.session_manager import MeetingSessionManager
 
@@ -102,13 +102,15 @@ class MeetingPipeline:
         if not self._running:
             return np.array([], dtype=np.float32)
 
+        normalized_audio = normalize_audio_shape(audio, channels=self.channels)
+
         # Fork 1 — Record native quality (meeting mode only)
         if self._is_meeting and self._recorder is not None:
-            self._recorder.write(audio)
+            self._recorder.write(normalized_audio)
 
         # Fork 2 — Downsample for transcription
         downsampled = downsample_to_16k(
-            audio,
+            normalized_audio,
             source_rate=self.sample_rate,
             channels=self.channels,
         )
@@ -128,8 +130,11 @@ class MeetingPipeline:
             self._recorder.stop()
             self._recorder = None
 
-        if self._session_id is not None and self._is_meeting:
-            await self.session_manager.end_meeting(self._session_id)
+        if self._session_id is not None:
+            if self._is_meeting:
+                await self.session_manager.end_meeting(self._session_id)
+            else:
+                await self.session_manager.discard_session(self._session_id)
 
         self._running = False
         self._is_meeting = False

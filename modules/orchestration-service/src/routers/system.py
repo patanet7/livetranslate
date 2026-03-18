@@ -8,6 +8,7 @@ FastAPI router for system-wide management endpoints including:
 - System configuration
 """
 
+import os
 import re
 import time
 from datetime import UTC, datetime
@@ -20,15 +21,29 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from livetranslate_common.logging import get_logger
+from meeting.translation_recovery import get_translation_recovery_metrics
 from models.system import (
     ServiceHealth,
     SystemMetrics,
 )
 from pydantic import BaseModel, Field, field_validator
 from routers.settings._shared import SYSTEM_CONFIG_FILE, load_config, save_config
+from services.meeting_store import MeetingStore
 
 router = APIRouter()
 logger = get_logger()
+_meeting_metrics_store: MeetingStore | None = None
+
+
+async def _get_meeting_metrics_store() -> MeetingStore | None:
+    global _meeting_metrics_store
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        return None
+    if _meeting_metrics_store is None:
+        _meeting_metrics_store = MeetingStore(db_url)
+        await _meeting_metrics_store.initialize()
+    return _meeting_metrics_store
 
 # ============================================================================
 # Request/Response Models
@@ -303,6 +318,13 @@ async def get_system_metrics(
 
         # Get system statistics
         system_stats = await _get_system_stats()
+        meeting_store = await _get_meeting_metrics_store()
+        translation_backlog = (
+            await meeting_store.list_translation_backlog(limit=25, offset=0, only_pending=True)
+            if meeting_store is not None
+            else {"meetings": [], "summary": {"pending_translation_count": 0}, "total": 0}
+        )
+        recovery_counters = await get_translation_recovery_metrics()
 
         metrics_data = {
             "performance": performance,
@@ -315,6 +337,12 @@ async def get_system_metrics(
             },
             "websocket_stats": websocket_stats,
             "system_stats": system_stats,
+            "translation_backlog": {
+                "summary": translation_backlog["summary"],
+                "top_meetings": translation_backlog["meetings"],
+                "total_meetings": translation_backlog["total"],
+                "recovery_counters": recovery_counters,
+            },
         }
 
         # Ensure JSON serializable by converting datetime objects

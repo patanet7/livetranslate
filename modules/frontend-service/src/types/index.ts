@@ -2,7 +2,7 @@
 export interface AudioDevice {
   deviceId: string;
   label: string;
-  kind: "audioinput" | "audiooutput";
+  kind: 'audioinput' | 'audiooutput';
   groupId: string;
 }
 
@@ -23,7 +23,7 @@ export interface AudioConfig {
   noiseSuppression: boolean;
   autoGainControl: boolean;
   rawAudio: boolean;
-  source: "microphone" | "file" | "sample";
+  source: 'microphone' | 'file' | 'sample';
 }
 
 export interface AudioQualityMetrics {
@@ -48,7 +48,7 @@ export interface AudioQualityMetrics {
 
   // Quality Assessment
   qualityScore?: number; // Overall quality score (0-100)
-  qualityAssessment?: "excellent" | "good" | "fair" | "poor";
+  qualityAssessment?: 'excellent' | 'good' | 'fair' | 'poor';
   recommendations?: string[]; // Quality improvement suggestions
   issues?: string[]; // Detected audio issues
 }
@@ -61,7 +61,7 @@ export interface RecordingState {
   format: string;
   sampleRate: number;
   recordedBlobUrl: string | null; // ✅ Store serializable URL string instead of Blob
-  status: "idle" | "recording" | "processing" | "completed" | "error";
+  status: 'idle' | 'recording' | 'processing' | 'completed' | 'error';
   isPlaying: boolean;
   recordingStartTime?: number | null;
   sessionId?: string | null;
@@ -93,14 +93,14 @@ export interface VisualizationState {
 
 // Bot Management Types
 export type BotStatus =
-  | "spawning"
-  | "joining"
-  | "active"
-  | "recording"
-  | "processing"
-  | "error"
-  | "terminating"
-  | "terminated";
+  | 'spawning'
+  | 'joining'
+  | 'active'
+  | 'recording'
+  | 'processing'
+  | 'error'
+  | 'terminating'
+  | 'terminated';
 
 export interface MeetingRequest {
   meetingId: string;
@@ -108,7 +108,7 @@ export interface MeetingRequest {
   organizerEmail?: string;
   targetLanguages: string[];
   autoTranslation: boolean;
-  priority: "low" | "medium" | "high";
+  priority: 'low' | 'medium' | 'high';
 }
 
 export interface MeetingInfo {
@@ -122,14 +122,14 @@ export interface BotInstance {
   id: string;
   botId: string;
   status: BotStatus;
-  config: import("./bot").BotConfiguration;
+  config: import('./bot').BotConfiguration;
 
   // Statistics matching backend structure
-  audioCapture: import("./bot").AudioCaptureStats;
-  captionProcessor: import("./bot").CaptionProcessorStats;
-  virtualWebcam: import("./bot").VirtualWebcamStats;
-  timeCorrelation: import("./bot").TimeCorrelationStats;
-  performance: import("./bot").BotPerformanceStats;
+  audioCapture: import('./bot').AudioCaptureStats;
+  captionProcessor: import('./bot').CaptionProcessorStats;
+  virtualWebcam: import('./bot').VirtualWebcamStats;
+  timeCorrelation: import('./bot').TimeCorrelationStats;
+  performance: import('./bot').BotPerformanceStats;
 
   // Runtime information
   lastActiveAt: string; // ISO string
@@ -142,7 +142,7 @@ export interface BotInstance {
 
 export interface SpeakerTimelineEvent {
   eventId: string;
-  eventType: "speaking_start" | "speaking_end" | "join" | "leave";
+  eventType: 'speaking_start' | 'speaking_end' | 'join' | 'leave';
   speakerId: string;
   speakerName: string;
   timestamp: number;
@@ -160,12 +160,70 @@ export interface Translation {
   timestamp: number;
 }
 
+export interface TranslationRecoveryCounters {
+  runs: number;
+  total_pending_seen: number;
+  total_recovered: number;
+  total_failed: number;
+  last_run_started_at: string | number | null;
+  last_run_completed_at: string | number | null;
+  last_run_scope: string;
+  last_run_pending: number;
+  last_run_recovered: number;
+  last_run_failed: number;
+}
+
+export interface MeetingTranslationBacklogSummary {
+  pending_chunk_translation_count: number;
+  pending_sentence_translation_count: number;
+  translation_count: number;
+  pending_translation_count: number;
+}
+
+export interface MeetingTranslationBacklogItem extends MeetingTranslationBacklogSummary {
+  id: string;
+  title: string | null;
+  source: string;
+  status: string;
+  created_at?: string | null;
+  target_languages?: string[] | null;
+}
+
+export interface MeetingTranslationStatus extends MeetingTranslationBacklogItem {}
+
+export interface MeetingTranslationBacklogResponse {
+  meetings: MeetingTranslationBacklogItem[];
+  summary: MeetingTranslationBacklogSummary;
+  total: number;
+  limit: number;
+  offset: number;
+  recovery_counters: TranslationRecoveryCounters;
+}
+
+export interface MeetingTranslationStatusResponse {
+  meeting_id: string;
+  translation_status: MeetingTranslationStatus;
+}
+
+export interface MeetingTranslationRecoveryResult {
+  scanned: number;
+  recovered: number;
+  failed: number;
+}
+
+export interface MeetingTranslationRecoveryResponse {
+  meeting_id: string;
+  before: MeetingTranslationStatus;
+  recovery: MeetingTranslationRecoveryResult;
+  after: MeetingTranslationStatus;
+}
+
 export interface WebcamConfig {
   width: number;
   height: number;
   fps: number;
-  displayMode: "overlay" | "sidebar" | "fullscreen";
-  theme: "light" | "dark" | "auto";
+  displayMode: 'overlay' | 'sidebar' | 'fullscreen';
+  theme: 'light' | 'dark' | 'auto';
   maxTranslationsDisplayed: number;
   fontSize: number;
   backgroundOpacity: number;
@@ -198,7 +256,7 @@ export interface PaginatedResponse<T> {
 // Service Health Types
 export interface ServiceHealth {
   serviceName: string;
-  status: "healthy" | "degraded" | "unhealthy";
+  status: 'healthy' | 'degraded' | 'unhealthy';
   version: string;
   uptime: number;
   lastCheck: number;
@@ -206,7 +264,7 @@ export interface ServiceHealth {
 }
 
 export interface SystemHealth {
-  overall: "healthy" | "degraded" | "unhealthy";
+  overall: 'healthy' | 'degraded' | 'unhealthy';
   services: ServiceHealth[];
   timestamp: number;
 }
@@ -216,7 +274,7 @@ export interface ProcessingStage {
   id: string;
   name: string;
   description: string;
-  status: "pending" | "processing" | "completed" | "error";
+  status: 'pending' | 'processing' | 'completed' | 'error';
   progress: number;
   startTime?: number;
   endTime?: number;
@@ -235,14 +293,14 @@ export interface ProcessingPreset {
 }
 
 export interface ProcessingLog {
-  level: "INFO" | "SUCCESS" | "WARNING" | "ERROR";
+  level: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
   message: string;
   timestamp: number;
 }
 
 // UI State Types
 export interface UIState {
-  theme: "light" | "dark";
+  theme: 'light' | 'dark';
   sidebarOpen: boolean;
   activeTab: string;
   notifications: Notification[];
@@ -252,7 +310,7 @@ export interface UIState {
 
 export interface Notification {
   id: string;
-  type: "info" | "success" | "warning" | "error";
+  type: 'info' | 'success' | 'warning' | 'error';
   title: string;
   message: string;
   timestamp: number;
@@ -276,16 +334,11 @@ export interface FormFieldProps {
 }
 
 // Export specific types to avoid conflicts
-export * from "./audio";
-export * from "./bot";
+export * from './audio';
+export * from './bot';
 
 // Export additional bot-related types and enums
-export {
-  BotPriority,
-  MeetingPlatform,
-  WebcamDisplayMode,
-  WebcamTheme,
-} from "./bot";
+export { BotPriority, MeetingPlatform, WebcamDisplayMode, WebcamTheme } from './bot';
 
 export type {
   BotConfiguration,
@@ -297,7 +350,7 @@ export type {
   VirtualWebcamStats,
   TimeCorrelationStats,
   BotPerformanceStats,
-} from "./bot";
+} from './bot';
 
 // Export WebSocket types selectively to avoid conflicts
 export type {
@@ -307,4 +360,4 @@ export type {
   WebSocketResponse,
   WebSocketStats,
   WebSocketConfig,
-} from "./websocket";
+} from './websocket';

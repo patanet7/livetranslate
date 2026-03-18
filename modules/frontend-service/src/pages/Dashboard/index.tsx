@@ -1,5 +1,5 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Grid,
   Card,
@@ -14,7 +14,7 @@ import {
   CardActions,
   IconButton,
   Tooltip,
-} from "@mui/material";
+} from '@mui/material';
 import {
   SmartToy,
   AudioFile,
@@ -26,15 +26,16 @@ import {
   Settings,
   ArrowForward,
   Assessment,
-} from "@mui/icons-material";
-import { useAppSelector } from "@/store";
+} from '@mui/icons-material';
+import { useAppSelector } from '@/store';
 import {
   useGetSystemHealthQuery,
   useGetBotsQuery,
   useGetTranslationsQuery,
   useGetStatisticsQuery,
-} from "@/store/slices/apiSlice";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
+} from '@/store/slices/apiSlice';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { TranslationRecoveryPanel } from '@/components/analytics';
 
 // Dashboard widgets
 const SystemHealthWidget: React.FC = () => {
@@ -45,36 +46,28 @@ const SystemHealthWidget: React.FC = () => {
 
   // Use API data directly if available, otherwise fall back to Redux state
   const apiData = healthData?.data || healthData;
-  const overallStatus = (apiData as any)?.status || "unknown";
+  const overallStatus = (apiData as any)?.status || 'unknown';
   const services = (apiData as any)?.services || {};
   const performanceData = (apiData as any)?.performance || performance;
 
   const statusColor =
-    overallStatus === "healthy"
-      ? "success"
-      : overallStatus === "degraded"
-        ? "warning"
-        : "error";
+    overallStatus === 'healthy' ? 'success' : overallStatus === 'degraded' ? 'warning' : 'error';
 
   return (
     <Card>
       <CardContent>
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             mb: 2,
           }}
         >
           <Typography variant="h6" component="h2">
             System Health
           </Typography>
-          <Chip
-            label={overallStatus.toUpperCase()}
-            color={statusColor}
-            size="small"
-          />
+          <Chip label={overallStatus.toUpperCase()} color={statusColor} size="small" />
         </Box>
 
         <Stack spacing={2}>
@@ -84,27 +77,22 @@ const SystemHealthWidget: React.FC = () => {
               Services
             </Typography>
             <Grid container spacing={1}>
-              {Object.entries(services).map(
-                ([service, health]: [string, any]) => (
-                  <Grid item xs={6} key={service}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {health?.status === "healthy" ? (
-                        <CheckCircle color="success" fontSize="small" />
-                      ) : health?.status === "degraded" ? (
-                        <Warning color="warning" fontSize="small" />
-                      ) : (
-                        <Error color="error" fontSize="small" />
-                      )}
-                      <Typography
-                        variant="caption"
-                        sx={{ textTransform: "capitalize" }}
-                      >
-                        {service}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ),
-              )}
+              {Object.entries(services).map(([service, health]: [string, any]) => (
+                <Grid item xs={6} key={service}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {health?.status === 'healthy' ? (
+                      <CheckCircle color="success" fontSize="small" />
+                    ) : health?.status === 'degraded' ? (
+                      <Warning color="warning" fontSize="small" />
+                    ) : (
+                      <Error color="error" fontSize="small" />
+                    )}
+                    <Typography variant="caption" sx={{ textTransform: 'capitalize' }}>
+                      {service}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
             </Grid>
           </Box>
 
@@ -117,33 +105,31 @@ const SystemHealthWidget: React.FC = () => {
               <Box>
                 <Box
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     mb: 0.5,
                   }}
                 >
                   <Typography variant="caption">CPU Usage</Typography>
-                  <Typography variant="caption">
-                    {performanceData.cpu?.usage || 0}%
-                  </Typography>
+                  <Typography variant="caption">{performanceData.cpu?.usage || 0}%</Typography>
                 </Box>
                 <LinearProgress
                   variant="determinate"
                   value={performanceData.cpu?.usage || 0}
                   color={
                     (performanceData.cpu?.usage || 0) > 80
-                      ? "error"
+                      ? 'error'
                       : (performanceData.cpu?.usage || 0) > 60
-                        ? "warning"
-                        : "primary"
+                        ? 'warning'
+                        : 'primary'
                   }
                 />
               </Box>
               <Box>
                 <Box
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     mb: 0.5,
                   }}
                 >
@@ -157,10 +143,10 @@ const SystemHealthWidget: React.FC = () => {
                   value={performanceData.memory?.percentage || 0}
                   color={
                     (performanceData.memory?.percentage || 0) > 80
-                      ? "error"
+                      ? 'error'
                       : (performanceData.memory?.percentage || 0) > 60
-                        ? "warning"
-                        : "primary"
+                        ? 'warning'
+                        : 'primary'
                   }
                 />
               </Box>
@@ -179,20 +165,18 @@ const BotManagementWidget: React.FC = () => {
   if (isLoading) return <LoadingScreen variant="minimal" size="small" />;
 
   const bots = botsData?.data || [];
-  const activeBotsCount = bots.filter((bot) => bot.status === "active").length;
-  const spawningBotsCount = bots.filter(
-    (bot) => bot.status === "spawning",
-  ).length;
-  const errorBotsCount = bots.filter((bot) => bot.status === "error").length;
+  const activeBotsCount = bots.filter((bot) => bot.status === 'active').length;
+  const spawningBotsCount = bots.filter((bot) => bot.status === 'spawning').length;
+  const errorBotsCount = bots.filter((bot) => bot.status === 'error').length;
 
   return (
     <Card>
       <CardContent>
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             mb: 2,
           }}
         >
@@ -204,7 +188,7 @@ const BotManagementWidget: React.FC = () => {
 
         <Grid container spacing={2}>
           <Grid item xs={6}>
-            <Paper variant="outlined" sx={{ p: 2, textAlign: "center" }}>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="h4" color="success.main">
                 {activeBotsCount}
               </Typography>
@@ -214,7 +198,7 @@ const BotManagementWidget: React.FC = () => {
             </Paper>
           </Grid>
           <Grid item xs={6}>
-            <Paper variant="outlined" sx={{ p: 2, textAlign: "center" }}>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="h4" color="primary.main">
                 {systemStats.totalBotsSpawned}
               </Typography>
@@ -224,7 +208,7 @@ const BotManagementWidget: React.FC = () => {
             </Paper>
           </Grid>
           <Grid item xs={6}>
-            <Paper variant="outlined" sx={{ p: 2, textAlign: "center" }}>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="h4" color="warning.main">
                 {spawningBotsCount}
               </Typography>
@@ -234,7 +218,7 @@ const BotManagementWidget: React.FC = () => {
             </Paper>
           </Grid>
           <Grid item xs={6}>
-            <Paper variant="outlined" sx={{ p: 2, textAlign: "center" }}>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="h4" color="error.main">
                 {errorBotsCount}
               </Typography>
@@ -264,18 +248,16 @@ const BotManagementWidget: React.FC = () => {
 };
 
 const AudioSystemWidget: React.FC = () => {
-  const { devices, stats, currentQualityMetrics } = useAppSelector(
-    (state) => state.audio,
-  );
+  const { devices, stats, currentQualityMetrics } = useAppSelector((state) => state.audio);
 
   return (
     <Card>
       <CardContent>
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             mb: 2,
           }}
         >
@@ -288,7 +270,7 @@ const AudioSystemWidget: React.FC = () => {
         <Stack spacing={2}>
           <Grid container spacing={2}>
             <Grid item xs={6}>
-              <Box sx={{ textAlign: "center" }}>
+              <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h5" color="primary.main">
                   {devices.length}
                 </Typography>
@@ -298,7 +280,7 @@ const AudioSystemWidget: React.FC = () => {
               </Box>
             </Grid>
             <Grid item xs={6}>
-              <Box sx={{ textAlign: "center" }}>
+              <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h5" color="success.main">
                   {stats.totalRecordings}
                 </Typography>
@@ -316,15 +298,14 @@ const AudioSystemWidget: React.FC = () => {
               </Typography>
               <Box
                 sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   mb: 0.5,
                 }}
               >
                 <Typography variant="caption">Quality Score</Typography>
                 <Typography variant="caption">
-                  {((currentQualityMetrics.qualityScore || 0) * 100).toFixed(0)}
-                  %
+                  {((currentQualityMetrics.qualityScore || 0) * 100).toFixed(0)}%
                 </Typography>
               </Box>
               <LinearProgress
@@ -332,10 +313,10 @@ const AudioSystemWidget: React.FC = () => {
                 value={(currentQualityMetrics.qualityScore || 0) * 100}
                 color={
                   (currentQualityMetrics.qualityScore || 0) > 0.8
-                    ? "success"
+                    ? 'success'
                     : (currentQualityMetrics.qualityScore || 0) > 0.6
-                      ? "warning"
-                      : "error"
+                      ? 'warning'
+                      : 'error'
                 }
               />
             </Box>
@@ -374,23 +355,23 @@ const ConnectionWidget: React.FC = () => {
       <CardContent>
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             mb: 2,
           }}
         >
           <Typography variant="h6" component="h2">
             WebSocket Connection
           </Typography>
-          <Cable color={connection.isConnected ? "success" : "error"} />
+          <Cable color={connection.isConnected ? 'success' : 'error'} />
         </Box>
 
         <Stack spacing={2}>
           <Box>
             <Chip
-              label={connection.isConnected ? "Connected" : "Disconnected"}
-              color={connection.isConnected ? "success" : "error"}
+              label={connection.isConnected ? 'Connected' : 'Disconnected'}
+              color={connection.isConnected ? 'success' : 'error'}
               size="small"
             />
           </Box>
@@ -399,7 +380,7 @@ const ConnectionWidget: React.FC = () => {
             <>
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Box sx={{ textAlign: "center" }}>
+                  <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h6" color="primary.main">
                       {stats.messagesSent}
                     </Typography>
@@ -409,7 +390,7 @@ const ConnectionWidget: React.FC = () => {
                   </Box>
                 </Grid>
                 <Grid item xs={6}>
-                  <Box sx={{ textAlign: "center" }}>
+                  <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h6" color="success.main">
                       {stats.messagesReceived}
                     </Typography>
@@ -422,10 +403,10 @@ const ConnectionWidget: React.FC = () => {
 
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Uptime:{" "}
+                  Uptime:{' '}
                   {stats.connectionDuration > 0
                     ? formatDuration(Date.now() - stats.connectionDuration)
-                    : "0s"}
+                    : '0s'}
                 </Typography>
               </Box>
 
@@ -449,32 +430,32 @@ const QuickActionsWidget: React.FC = () => {
 
   const quickActions = [
     {
-      title: "Audio Processing Hub",
-      description: "Unified audio processing, transcription, and translation",
+      title: 'Audio Processing Hub',
+      description: 'Unified audio processing, transcription, and translation',
       icon: <AudioFile />,
-      path: "/audio-hub",
-      color: "primary" as const,
+      path: '/audio-hub',
+      color: 'primary' as const,
     },
     {
-      title: "Bot Management",
-      description: "Spawn and manage translation bots",
+      title: 'Bot Management',
+      description: 'Spawn and manage translation bots',
       icon: <SmartToy />,
-      path: "/bot-management",
-      color: "success" as const,
+      path: '/bot-management',
+      color: 'success' as const,
     },
     {
-      title: "Analytics Dashboard",
-      description: "View comprehensive performance metrics",
+      title: 'Analytics Dashboard',
+      description: 'View comprehensive performance metrics',
       icon: <Analytics />,
-      path: "/analytics",
-      color: "secondary" as const,
+      path: '/analytics',
+      color: 'secondary' as const,
     },
     {
-      title: "Settings",
-      description: "Configure system settings and preferences",
+      title: 'Settings',
+      description: 'Configure system settings and preferences',
       icon: <Settings />,
-      path: "/settings",
-      color: "info" as const,
+      path: '/settings',
+      color: 'info' as const,
     },
   ];
 
@@ -491,26 +472,26 @@ const QuickActionsWidget: React.FC = () => {
                 variant="outlined"
                 sx={{
                   p: 2,
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  "&:hover": {
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': {
                     elevation: 2,
-                    transform: "translateY(-2px)",
+                    transform: 'translateY(-2px)',
                     borderColor: `${action.color}.main`,
                   },
                 }}
                 onClick={() => navigate(action.path)}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box
                     sx={{
                       p: 1,
                       borderRadius: 1,
                       backgroundColor: `${action.color}.main`,
-                      color: "white",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
                     {action.icon}
@@ -535,10 +516,11 @@ const QuickActionsWidget: React.FC = () => {
 };
 
 const TranslationStatsWidget: React.FC = () => {
-  const { data: translationsData, isLoading: translationsLoading } =
-    useGetTranslationsQuery({ limit: 1000 });
+  const { data: translationsData, isLoading: translationsLoading } = useGetTranslationsQuery({
+    limit: 1000,
+  });
   const { data: statsData, isLoading: statsLoading } = useGetStatisticsQuery({
-    timeRange: "24h",
+    timeRange: '24h',
   });
 
   const isLoading = translationsLoading || statsLoading;
@@ -560,19 +542,13 @@ const TranslationStatsWidget: React.FC = () => {
 
     // Calculate metrics from real data
     const totalTranslations = translations.length;
-    const successfulTranslations = translations.filter(
-      (t) => t.translationConfidence > 0.5,
-    ).length;
+    const successfulTranslations = translations.filter((t) => t.translationConfidence > 0.5).length;
     const successRate =
-      totalTranslations > 0
-        ? (successfulTranslations / totalTranslations) * 100
-        : 0;
+      totalTranslations > 0 ? (successfulTranslations / totalTranslations) * 100 : 0;
     const avgQualityScore =
       totalTranslations > 0
-        ? translations.reduce(
-            (sum, t) => sum + (t.translationConfidence || 0),
-            0,
-          ) / totalTranslations
+        ? translations.reduce((sum, t) => sum + (t.translationConfidence || 0), 0) /
+          totalTranslations
         : 0;
     const avgLatency = stats.avgLatency || 250; // Fallback to reasonable default
     const dailyGrowth = stats.growthRate || 0; // Fallback to 0
@@ -592,9 +568,9 @@ const TranslationStatsWidget: React.FC = () => {
         <CardContent>
           <Box
             sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               mb: 2,
             }}
           >
@@ -614,9 +590,9 @@ const TranslationStatsWidget: React.FC = () => {
       <CardContent>
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             mb: 2,
           }}
         >
@@ -628,7 +604,7 @@ const TranslationStatsWidget: React.FC = () => {
 
         <Grid container spacing={2}>
           <Grid item xs={6}>
-            <Box sx={{ textAlign: "center" }}>
+            <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="primary.main">
                 {translationStats.totalTranslations.toLocaleString()}
               </Typography>
@@ -637,9 +613,9 @@ const TranslationStatsWidget: React.FC = () => {
               </Typography>
               <Box
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   mt: 0.5,
                 }}
               >
@@ -650,7 +626,7 @@ const TranslationStatsWidget: React.FC = () => {
             </Box>
           </Grid>
           <Grid item xs={6}>
-            <Box sx={{ textAlign: "center" }}>
+            <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="success.main">
                 {translationStats.successRate}%
               </Typography>
@@ -660,7 +636,7 @@ const TranslationStatsWidget: React.FC = () => {
             </Box>
           </Grid>
           <Grid item xs={6}>
-            <Box sx={{ textAlign: "center" }}>
+            <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="secondary.main">
                 {translationStats.avgQualityScore.toFixed(2)}
               </Typography>
@@ -670,7 +646,7 @@ const TranslationStatsWidget: React.FC = () => {
             </Box>
           </Grid>
           <Grid item xs={6}>
-            <Box sx={{ textAlign: "center" }}>
+            <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h4" color="warning.main">
                 {translationStats.avgLatency}ms
               </Typography>
@@ -685,7 +661,7 @@ const TranslationStatsWidget: React.FC = () => {
         <Button
           size="small"
           startIcon={<Analytics />}
-          onClick={() => (window.location.href = "/analytics")}
+          onClick={() => (window.location.href = '/analytics')}
           fullWidth
         >
           View Full Analytics
@@ -693,6 +669,10 @@ const TranslationStatsWidget: React.FC = () => {
       </CardActions>
     </Card>
   );
+};
+
+const TranslationRecoveryWidget: React.FC = () => {
+  return <TranslationRecoveryPanel compact={true} />;
 };
 
 const Dashboard: React.FC = () => {
@@ -703,9 +683,9 @@ const Dashboard: React.FC = () => {
       {/* Page header */}
       <Box
         sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           mb: 3,
         }}
       >
@@ -714,18 +694,17 @@ const Dashboard: React.FC = () => {
             Dashboard
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Real-time monitoring and control for LiveTranslate orchestration
-            services
+            Real-time monitoring and control for LiveTranslate orchestration services
           </Typography>
         </Box>
-        <Box sx={{ display: "flex", gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="View Analytics">
-            <IconButton onClick={() => navigate("/analytics")} color="primary">
+            <IconButton onClick={() => navigate('/analytics')} color="primary">
               <Analytics />
             </IconButton>
           </Tooltip>
           <Tooltip title="System Settings">
-            <IconButton onClick={() => navigate("/settings")} color="inherit">
+            <IconButton onClick={() => navigate('/settings')} color="inherit">
               <Settings />
             </IconButton>
           </Tooltip>
@@ -759,8 +738,13 @@ const Dashboard: React.FC = () => {
           <TranslationStatsWidget />
         </Grid>
 
-        {/* Quick Actions */}
+        {/* Translation Recovery */}
         <Grid item xs={12} md={6}>
+          <TranslationRecoveryWidget />
+        </Grid>
+
+        {/* Quick Actions */}
+        <Grid item xs={12}>
           <QuickActionsWidget />
         </Grid>
       </Grid>

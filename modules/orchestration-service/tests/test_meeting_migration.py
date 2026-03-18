@@ -113,6 +113,7 @@ class TestMeetingMigration:
 
         alembic_ini = Path(__file__).parent.parent / "alembic.ini"
         cfg = Config(str(alembic_ini))
+        cfg.set_main_option("script_location", str(Path(__file__).parent.parent / "alembic"))
 
         async_url = database_url
         if database_url.startswith("postgresql://"):

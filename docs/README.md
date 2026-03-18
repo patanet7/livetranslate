@@ -8,6 +8,7 @@ This is the canonical index for active project documentation.
 - [Quick Start Guide](./guides/quick-start.md)
 - [Database Setup Guide](./guides/database-setup.md)
 - [Translation Testing Guide](./guides/translation-testing.md)
+- [Translation Backlog Operations Runbook](./guides/translation-backlog-operations.md)
 - [Documentation Maintenance](./MAINTENANCE.md)
 
 ## Architecture (C4)

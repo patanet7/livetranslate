@@ -4,8 +4,8 @@
  * Provides real-time audio processing capabilities for the Pipeline Studio
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import { useSnackbar } from "notistack";
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useSnackbar } from 'notistack';
 import {
   useProcessPipelineMutation,
   useProcessSingleStageMutation,
@@ -14,7 +14,7 @@ import {
   useStartRealtimeSessionMutation,
   useGetPresetsQuery,
   useSaveProcessingPresetMutation,
-} from "@/store/slices/apiSlice";
+} from '@/store/slices/apiSlice';
 
 interface ProcessingMetrics {
   totalLatency: number;
@@ -49,7 +49,7 @@ interface AudioAnalysis {
 interface RealTimeProcessingSession {
   sessionId: string;
   pipelineId: string;
-  status: "initializing" | "running" | "paused" | "stopped" | "error";
+  status: 'initializing' | 'running' | 'paused' | 'stopped' | 'error';
   metrics: {
     chunksProcessed: number;
     averageLatency: number;
@@ -65,8 +65,8 @@ interface PipelineProcessingRequest {
     connections: any[];
   };
   audioData?: Blob | string;
-  processingMode: "realtime" | "batch" | "preview";
-  outputFormat?: "wav" | "mp3" | "base64";
+  processingMode: 'realtime' | 'batch' | 'preview';
+  outputFormat?: 'wav' | 'mp3' | 'base64';
   metadata?: any;
 }
 
@@ -92,8 +92,7 @@ export const usePipelineProcessing = () => {
   const [audioAnalysis, setAudioAnalysis] = useState<AudioAnalysis>({});
 
   // Real-time session state
-  const [realtimeSession, setRealtimeSession] =
-    useState<RealTimeProcessingSession | null>(null);
+  const [realtimeSession, setRealtimeSession] = useState<RealTimeProcessingSession | null>(null);
   const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const websocketRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -124,26 +123,21 @@ export const usePipelineProcessing = () => {
             cpuUsage: responseData.metrics?.cpuUsage || 0,
             chunksProcessed: 0,
             averageLatency: responseData.metrics?.totalLatency || 0,
-            qualityScore: calculateQualityScore(
-              responseData.metrics?.qualityMetrics || {},
-            ),
+            qualityScore: calculateQualityScore(responseData.metrics?.qualityMetrics || {}),
           });
 
-          enqueueSnackbar("Pipeline processing completed successfully", {
-            variant: "success",
+          enqueueSnackbar('Pipeline processing completed successfully', {
+            variant: 'success',
           });
           return response;
         } else {
-          throw new Error(
-            response.data?.errors?.join(", ") || "Processing failed",
-          );
+          throw new Error(response.data?.errors?.join(', ') || 'Processing failed');
         }
       } catch (err: any) {
-        const errorMessage =
-          err?.data?.message || err?.message || "Unknown error occurred";
+        const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
         setError(errorMessage);
         enqueueSnackbar(`Processing failed: ${errorMessage}`, {
-          variant: "error",
+          variant: 'error',
         });
         return null;
       } finally {
@@ -151,18 +145,14 @@ export const usePipelineProcessing = () => {
         setProcessingProgress(100);
       }
     },
-    [processPipelineAPI, enqueueSnackbar],
+    [processPipelineAPI, enqueueSnackbar]
   );
 
   /**
    * Process audio through a single stage for testing
    */
   const processSingleStage = useCallback(
-    async (
-      stageType: string,
-      audioData: Blob | string,
-      stageConfig: Record<string, any>,
-    ) => {
+    async (stageType: string, audioData: Blob | string, stageConfig: Record<string, any>) => {
       try {
         setIsProcessing(true);
         setError(null);
@@ -177,22 +167,21 @@ export const usePipelineProcessing = () => {
         setProcessedAudio(responseData.processedAudio);
 
         enqueueSnackbar(`${stageType} processing completed`, {
-          variant: "success",
+          variant: 'success',
         });
         return response;
       } catch (err: any) {
-        const errorMessage =
-          err?.data?.message || err?.message || "Unknown error occurred";
+        const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
         setError(errorMessage);
         enqueueSnackbar(`Stage processing failed: ${errorMessage}`, {
-          variant: "error",
+          variant: 'error',
         });
         return null;
       } finally {
         setIsProcessing(false);
       }
     },
-    [processSingleStageAPI, enqueueSnackbar],
+    [processSingleStageAPI, enqueueSnackbar]
   );
 
   /**
@@ -206,15 +195,14 @@ export const usePipelineProcessing = () => {
         setAudioAnalysis((prev) => ({ ...prev, fft: analysis }));
         return analysis;
       } catch (err: any) {
-        const errorMessage =
-          err?.data?.message || err?.message || "Unknown error occurred";
+        const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
         enqueueSnackbar(`FFT analysis failed: ${errorMessage}`, {
-          variant: "error",
+          variant: 'error',
         });
         return null;
       }
     },
-    [getFFTAnalysisAPI, enqueueSnackbar],
+    [getFFTAnalysisAPI, enqueueSnackbar]
   );
 
   /**
@@ -228,22 +216,21 @@ export const usePipelineProcessing = () => {
         setAudioAnalysis((prev) => ({ ...prev, lufs: analysis }));
         return analysis;
       } catch (err: any) {
-        const errorMessage =
-          err?.data?.message || err?.message || "Unknown error occurred";
+        const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
         enqueueSnackbar(`LUFS analysis failed: ${errorMessage}`, {
-          variant: "error",
+          variant: 'error',
         });
         return null;
       }
     },
-    [getLUFSAnalysisAPI, enqueueSnackbar],
+    [getLUFSAnalysisAPI, enqueueSnackbar]
   );
 
   /**
    * Start real-time processing session
    */
   const startRealtimeProcessing = useCallback(
-    async (pipelineConfig: PipelineProcessingRequest["pipelineConfig"]) => {
+    async (pipelineConfig: PipelineProcessingRequest['pipelineConfig']) => {
       try {
         setError(null);
 
@@ -253,39 +240,36 @@ export const usePipelineProcessing = () => {
         }).unwrap();
         const session = response.data || response;
 
-        console.log("📡 Session response:", session);
+        console.log('📡 Session response:', session);
 
         // Validate session was created successfully
         const sessionId = session.sessionId || session.session_id;
         if (!sessionId) {
-          throw new Error("Failed to create session: no session ID returned");
+          throw new Error('Failed to create session: no session ID returned');
         }
 
         setRealtimeSession(session);
 
         // Connect WebSocket for real-time streaming
-        const wsProtocol =
-          window.location.protocol === "https:" ? "wss:" : "ws:";
         // Connect to orchestration service (port 3000), NOT frontend dev server (port 5173)
-        const wsHost =
-          import.meta.env.VITE_WS_BASE_URL || "ws://localhost:3000";
+        const wsHost = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:3000';
         const wsUrl = `${wsHost}/api/pipeline/realtime/${sessionId}`;
 
-        console.log("🔌 Connecting to Pipeline WebSocket:", wsUrl);
+        console.log('🔌 Connecting to Pipeline WebSocket:', wsUrl);
 
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-          console.log("✅ Pipeline WebSocket connected");
+          console.log('✅ Pipeline WebSocket connected');
           setIsRealtimeActive(true);
-          enqueueSnackbar("Real-time processing active", {
-            variant: "success",
+          enqueueSnackbar('Real-time processing active', {
+            variant: 'success',
           });
 
           // Start heartbeat
           const heartbeatInterval = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: "ping" }));
+              ws.send(JSON.stringify({ type: 'ping' }));
             }
           }, 30000); // 30 seconds
 
@@ -297,57 +281,55 @@ export const usePipelineProcessing = () => {
             const message = JSON.parse(event.data);
 
             switch (message.type) {
-              case "processed_audio":
+              case 'processed_audio':
                 // Received processed audio chunk
                 setProcessedAudio(message.audio);
                 break;
 
-              case "metrics":
+              case 'metrics':
                 // Update real-time metrics
-                setMetrics((prev) => ({
+                setMetrics(() => ({
                   totalLatency: message.metrics.total_latency || 0,
                   stageLatencies: message.metrics.stage_latencies || {},
                   qualityMetrics: message.metrics.quality_metrics || {},
                   cpuUsage: message.metrics.cpu_usage || 0,
                   chunksProcessed: message.metrics.chunks_processed || 0,
                   averageLatency: message.metrics.average_latency || 0,
-                  qualityScore: calculateQualityScore(
-                    message.metrics.quality_metrics || {},
-                  ),
+                  qualityScore: calculateQualityScore(message.metrics.quality_metrics || {}),
                 }));
                 break;
 
-              case "config_updated":
-                console.log("✅ Stage config updated:", message.stage_id);
+              case 'config_updated':
+                console.log('✅ Stage config updated:', message.stage_id);
                 break;
 
-              case "error":
-                console.error("❌ WebSocket error:", message.error);
+              case 'error':
+                console.error('❌ WebSocket error:', message.error);
                 enqueueSnackbar(`Processing error: ${message.error}`, {
-                  variant: "error",
+                  variant: 'error',
                 });
                 break;
 
-              case "pong":
+              case 'pong':
                 // Heartbeat response
                 break;
 
               default:
-                console.log("Unknown message type:", message.type);
+                console.log('Unknown message type:', message.type);
             }
           } catch (err) {
-            console.error("Failed to parse WebSocket message:", err);
+            console.error('Failed to parse WebSocket message:', err);
           }
         };
 
         ws.onerror = (error) => {
-          console.error("❌ WebSocket error:", error);
-          setError("WebSocket connection error");
-          enqueueSnackbar("Real-time connection error", { variant: "error" });
+          console.error('❌ WebSocket error:', error);
+          setError('WebSocket connection error');
+          enqueueSnackbar('Real-time connection error', { variant: 'error' });
         };
 
         ws.onclose = () => {
-          console.log("WebSocket closed");
+          console.log('WebSocket closed');
           setIsRealtimeActive(false);
 
           // Clear heartbeat
@@ -360,17 +342,15 @@ export const usePipelineProcessing = () => {
 
         return session;
       } catch (err: any) {
-        const errorMessage =
-          err?.data?.message || err?.message || "Unknown error occurred";
+        const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
         setError(errorMessage);
-        enqueueSnackbar(
-          `Failed to start real-time processing: ${errorMessage}`,
-          { variant: "error" },
-        );
+        enqueueSnackbar(`Failed to start real-time processing: ${errorMessage}`, {
+          variant: 'error',
+        });
         return null;
       }
     },
-    [startRealtimeSessionAPI, enqueueSnackbar],
+    [startRealtimeSessionAPI, enqueueSnackbar]
   );
 
   /**
@@ -380,22 +360,15 @@ export const usePipelineProcessing = () => {
     async (micSettings?: { sampleRate: number; channels: number }) => {
       try {
         // Check WebSocket connection
-        if (
-          !websocketRef.current ||
-          websocketRef.current.readyState !== WebSocket.OPEN
-        ) {
-          throw new Error(
-            "WebSocket not connected. Start real-time session first.",
-          );
+        if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+          throw new Error('WebSocket not connected. Start real-time session first.');
         }
 
         // Use settings from mic node or defaults
         const sampleRate = micSettings?.sampleRate || 16000;
         const channelCount = micSettings?.channels || 1;
 
-        console.log(
-          `🎤 Starting microphone capture: ${sampleRate}Hz, ${channelCount} channel(s)`,
-        );
+        console.log(`🎤 Starting microphone capture: ${sampleRate}Hz, ${channelCount} channel(s)`);
 
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -409,15 +382,13 @@ export const usePipelineProcessing = () => {
         });
 
         // Initialize Web Audio API with the same sample rate
-        audioContextRef.current = new (
-          window.AudioContext || (window as any).webkitAudioContext
-        )({
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
           sampleRate,
         });
 
         // Create MediaRecorder for chunk-based processing
         mediaRecorderRef.current = new MediaRecorder(stream, {
-          mimeType: "audio/webm;codecs=opus",
+          mimeType: 'audio/webm;codecs=opus',
         });
 
         mediaRecorderRef.current.ondataavailable = async (event) => {
@@ -430,19 +401,16 @@ export const usePipelineProcessing = () => {
               // Convert audio blob to base64
               const reader = new FileReader();
               reader.onloadend = () => {
-                const base64Audio = (reader.result as string).split(",")[1]; // Remove data:audio/webm;base64, prefix
+                const base64Audio = (reader.result as string).split(',')[1]; // Remove data:audio/webm;base64, prefix
 
                 // Send audio chunk via WebSocket
-                if (
-                  websocketRef.current &&
-                  websocketRef.current.readyState === WebSocket.OPEN
-                ) {
+                if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
                   websocketRef.current.send(
                     JSON.stringify({
-                      type: "audio_chunk",
+                      type: 'audio_chunk',
                       data: base64Audio,
                       timestamp: Date.now(),
-                    }),
+                    })
                   );
 
                   // Update progress indicator
@@ -451,7 +419,7 @@ export const usePipelineProcessing = () => {
               };
               reader.readAsDataURL(event.data);
             } catch (err) {
-              console.error("Failed to send audio chunk:", err);
+              console.error('Failed to send audio chunk:', err);
             }
           }
         };
@@ -460,19 +428,18 @@ export const usePipelineProcessing = () => {
         mediaRecorderRef.current.start(100);
 
         enqueueSnackbar(
-          `🎤 Microphone streaming: ${sampleRate / 1000}kHz, ${channelCount === 1 ? "Mono" : "Stereo"}`,
-          { variant: "success" },
+          `🎤 Microphone streaming: ${sampleRate / 1000}kHz, ${channelCount === 1 ? 'Mono' : 'Stereo'}`,
+          { variant: 'success' }
         );
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Unknown error occurred";
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         setError(errorMessage);
         enqueueSnackbar(`Failed to start microphone: ${errorMessage}`, {
-          variant: "error",
+          variant: 'error',
         });
       }
     },
-    [enqueueSnackbar],
+    [enqueueSnackbar]
   );
 
   /**
@@ -480,10 +447,7 @@ export const usePipelineProcessing = () => {
    */
   const stopRealtimeProcessing = useCallback(() => {
     // Stop microphone
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "recording"
-    ) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
 
@@ -502,7 +466,7 @@ export const usePipelineProcessing = () => {
     setIsRealtimeActive(false);
     setRealtimeSession(null);
 
-    enqueueSnackbar("Real-time processing stopped", { variant: "info" });
+    enqueueSnackbar('Real-time processing stopped', { variant: 'info' });
   }, [enqueueSnackbar]);
 
   /**
@@ -518,21 +482,20 @@ export const usePipelineProcessing = () => {
         try {
           websocketRef.current.send(
             JSON.stringify({
-              type: "update_stage",
+              type: 'update_stage',
               stage_id: stageId,
               parameters: parameters,
-            }),
+            })
           );
         } catch (err) {
-          const errorMessage =
-            err instanceof Error ? err.message : "Unknown error occurred";
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
           enqueueSnackbar(`Failed to update configuration: ${errorMessage}`, {
-            variant: "error",
+            variant: 'error',
           });
         }
       }
     },
-    [isRealtimeActive, enqueueSnackbar],
+    [isRealtimeActive, enqueueSnackbar]
   );
 
   /**
@@ -549,9 +512,9 @@ export const usePipelineProcessing = () => {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: "audio/wav" });
+      return new Blob([byteArray], { type: 'audio/wav' });
     } catch (err) {
-      console.error("Failed to convert processed audio:", err);
+      console.error('Failed to convert processed audio:', err);
       return null;
     }
   }, [processedAudio]);
@@ -569,12 +532,12 @@ export const usePipelineProcessing = () => {
   const savePreset = useCallback(
     async (
       name: string,
-      pipelineConfig: PipelineProcessingRequest["pipelineConfig"],
+      pipelineConfig: PipelineProcessingRequest['pipelineConfig'],
       metadata: {
         description: string;
         category: string;
         tags: string[];
-      },
+      }
     ) => {
       try {
         await savePresetAPI({
@@ -584,34 +547,31 @@ export const usePipelineProcessing = () => {
         }).unwrap();
 
         enqueueSnackbar(`Preset '${name}' saved successfully`, {
-          variant: "success",
+          variant: 'success',
         });
       } catch (err: any) {
-        const errorMessage =
-          err?.data?.message || err?.message || "Unknown error occurred";
+        const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
         enqueueSnackbar(`Failed to save preset: ${errorMessage}`, {
-          variant: "error",
+          variant: 'error',
         });
         throw err;
       }
     },
-    [savePresetAPI, enqueueSnackbar],
+    [savePresetAPI, enqueueSnackbar]
   );
 
   /**
    * Calculate overall quality score from metrics
    */
   const calculateQualityScore = (
-    qualityMetrics: Partial<ProcessingMetrics["qualityMetrics"]>,
+    qualityMetrics: Partial<ProcessingMetrics['qualityMetrics']>
   ): number => {
     if (!qualityMetrics.snr || !qualityMetrics.rms) return 0;
 
     // Simple quality scoring based on SNR, RMS level, and distortion
     const snrScore = Math.min(qualityMetrics.snr / 20, 1) * 40; // 0-40 points
     const rmsScore = (1 - Math.abs(qualityMetrics.rms + 20) / 20) * 30; // 0-30 points
-    const thdScore = qualityMetrics.thd
-      ? Math.max(0, (1 - qualityMetrics.thd) * 30)
-      : 30; // 0-30 points
+    const thdScore = qualityMetrics.thd ? Math.max(0, (1 - qualityMetrics.thd) * 30) : 30; // 0-30 points
 
     return Math.round(snrScore + rmsScore + thdScore); // 0-100 scale
   };

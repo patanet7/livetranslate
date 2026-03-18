@@ -44,6 +44,12 @@ from pathlib import Path
 
 import numpy as np
 
+try:
+    from translation.llm_client import extract_translation_text
+except ImportError:  # pragma: no cover - benchmark still runs without orchestration package import
+    def extract_translation_text(response: str) -> str:
+        return response.strip()
+
 _FIXTURES = Path(__file__).parent.parent / "tests" / "fixtures" / "audio"
 _RESULTS = Path(__file__).parent / "results" / "pipeline"
 
@@ -82,6 +88,7 @@ class PipelineResult:
     target_language: str
     context_size: int
     audio_file: str
+    transcription_model: str
     reference_transcription: str
     reference_translation: str
     # Metrics
@@ -135,7 +142,7 @@ async def translate_text(
             json=payload,
         )
         resp.raise_for_status()
-        translated = resp.json().get("translated_text", "")
+        translated = extract_translation_text(resp.json().get("translated_text", ""))
     latency = time.perf_counter() - t0
     return translated, latency
 
@@ -202,7 +209,7 @@ async def translate_via_ollama(
             json=payload,
         )
         resp.raise_for_status()
-        translated = resp.json()["choices"][0]["message"]["content"].strip()
+        translated = extract_translation_text(resp.json()["choices"][0]["message"]["content"])
     latency = time.perf_counter() - t0
     return translated, latency
 
@@ -226,6 +233,7 @@ async def run_pipeline(
     sample_rate: int = 16_000,
     chunk_size: int = 1600,
     audio_file: str = "",
+    transcription_model: str = "",
     llm_temperature: float = 0.3,
     max_context_tokens: int = 500,
 ) -> PipelineResult:
@@ -345,6 +353,7 @@ async def run_pipeline(
         target_language=target_language,
         context_size=context_size,
         audio_file=audio_file,
+        transcription_model=transcription_model,
         reference_transcription=reference_transcription,
         reference_translation=reference_translation,
         transcription_error_rate=er,
@@ -406,6 +415,7 @@ def print_pipeline_report(results: list[PipelineResult]) -> None:
         metric = r.transcription_metric.upper()
         print(f"\n  File: {r.audio_file}  Lang: {r.language}→{r.target_language}"
               f"  Ctx={r.context_size}")
+        print(f"    ASR model:      {r.transcription_model or 'n/a'}")
         print(f"    {metric}:          {r.transcription_error_rate:.3f}"
               f"  ({100*(1-r.transcription_error_rate):.1f}% accuracy)")
         print(f"    BLEU:          {r.translation_bleu:.4f}")
@@ -486,6 +496,12 @@ def main() -> None:
                         help="Ollama URL for direct translation (when --translation-url empty)")
     parser.add_argument("--model", default="qwen3.5:7b",
                         help="Translation LLM model name")
+    parser.add_argument(
+        "--transcription-models",
+        nargs="+",
+        default=["openai/whisper-large-v3-turbo"],
+        help="Transcription model IDs to sweep (default: openai/whisper-large-v3-turbo)",
+    )
     parser.add_argument("--context-sizes", nargs="+", type=int, default=[0, 3, 5],
                         help="Context window sizes to test (default: 0 3 5)")
     parser.add_argument("--temperatures", nargs="+", type=float, default=[0.3],
@@ -557,20 +573,23 @@ def main() -> None:
     else:
         import httpx
 
-        async def _transcribe(audio: np.ndarray, lang: str) -> str:
-            import io
-            import soundfile as _sf
-            buf = io.BytesIO()
-            _sf.write(buf, audio, 16_000, format="WAV", subtype="FLOAT")
-            buf.seek(0)
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    f"{args.vllm_url.rstrip('/v1')}/v1/audio/transcriptions",
-                    files={"file": ("audio.wav", buf, "audio/wav")},
-                    data={"model": "openai/whisper-large-v3-turbo", "language": lang},
-                )
-                resp.raise_for_status()
-                return resp.json().get("text", "")
+        def _make_transcribe_fn(transcription_model: str):
+            async def _transcribe(audio: np.ndarray, lang: str) -> str:
+                import io
+                import soundfile as _sf
+                buf = io.BytesIO()
+                _sf.write(buf, audio, 16_000, format="WAV", subtype="FLOAT")
+                buf.seek(0)
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(
+                        f"{args.vllm_url.rstrip('/v1')}/v1/audio/transcriptions",
+                        files={"file": ("audio.wav", buf, "audio/wav")},
+                        data={"model": transcription_model, "language": lang},
+                    )
+                    resp.raise_for_status()
+                    return resp.json().get("text", "")
+
+            return _transcribe
 
         def _make_translate_fn(temperature: float, max_ctx_tokens: int):
             if args.translation_url:
@@ -584,16 +603,24 @@ def main() -> None:
                     )
             return _translate
 
-    # Cross-product sweep: strides × overlaps × context_sizes × temperatures × max_context_tokens
+    # Cross-product sweep: transcription_model × strides × overlaps × context_sizes × temperatures × max_context_tokens
     import itertools
     # Filter invalid combos: overlap must be < stride
     vac_combos = [(s, o) for s, o in itertools.product(args.strides, args.overlaps) if o < s]
-    trans_combos = list(itertools.product(args.context_sizes, args.temperatures, args.max_context_tokens))
+    trans_combos = list(
+        itertools.product(
+            args.transcription_models,
+            args.context_sizes,
+            args.temperatures,
+            args.max_context_tokens,
+        )
+    )
     total_combos = len(vac_combos) * len(trans_combos)
 
     log.info("sweep_matrix", total_combos=total_combos,
              vac_combos=len(vac_combos),
              trans_combos=len(trans_combos),
+             transcription_models=args.transcription_models,
              strides=args.strides, overlaps=args.overlaps,
              context_sizes=args.context_sizes,
              temperatures=args.temperatures,
@@ -601,12 +628,14 @@ def main() -> None:
 
     all_results = []
     for stride, overlap in vac_combos:
-        for ctx_size, temp, max_ctx_tok in trans_combos:
+        for transcription_model, ctx_size, temp, max_ctx_tok in trans_combos:
             log.info("running_combo",
+                     transcription_model=transcription_model,
                      stride=stride, overlap=overlap,
                      ctx_size=ctx_size, temperature=temp,
                      max_context_tokens=max_ctx_tok)
             translate_fn = _make_translate_fn(temp, max_ctx_tok)
+            transcribe_fn = _transcribe if args.stub else _make_transcribe_fn(transcription_model)
             result = asyncio.run(run_pipeline(
                 audio=audio_data,
                 reference_transcription=reference_transcription,
@@ -614,12 +643,13 @@ def main() -> None:
                 language=args.lang,
                 target_language=args.target_lang,
                 context_size=ctx_size,
-                transcribe_fn=_transcribe,
+                transcribe_fn=transcribe_fn,
                 translate_fn=translate_fn,
                 vac_prebuffer_s=args.prebuffer,
                 vac_stride_s=stride,
                 vac_overlap_s=overlap,
                 audio_file=str(audio_path),
+                transcription_model="" if args.stub else transcription_model,
                 llm_temperature=temp,
                 max_context_tokens=max_ctx_tok,
             ))
@@ -643,10 +673,12 @@ def main() -> None:
         "audio": str(audio_path),
         "timestamp": ts,
         "translation_model": args.model,
+        "transcription_models": args.transcription_models,
         "sweep_config": {
             "prebuffer_s": args.prebuffer,
             "strides": args.strides,
             "overlaps": args.overlaps,
+            "transcription_models": args.transcription_models,
             "context_sizes": args.context_sizes,
             "temperatures": args.temperatures,
             "max_context_tokens": args.max_context_tokens,
@@ -659,14 +691,18 @@ def main() -> None:
     # Save full sweep table as TSV
     table_path = args.output_dir / f"pipeline_{args.lang}_{ts}.tsv"
     metric_name = all_results[0].transcription_metric.upper() if all_results else "CER"
-    header = f"Stride\tOverlap\tCtx\tTemp\tMaxTok\t{metric_name}\tBLEU\tSegs\tTTFT\tTTC\tE2E_p95"
+    header = (
+        f"TranscriptionModel\tStride\tOverlap\tCtx\tTemp\tMaxTok\t"
+        f"{metric_name}\tBLEU\tSegs\tTTFT\tTTC\tE2E_p95"
+    )
     rows = [header]
     for r in sorted(all_results, key=lambda x: -x.translation_bleu):
         ttft = f"{r.ttft_s:.1f}" if r.ttft_s else ""
         ttc = f"{r.ttc_s:.1f}" if r.ttc_s else ""
         e2e_p95 = f"{r.e2e_latency_stats.get('p95', 0):.1f}"
         rows.append(
-            f"{r.vac_stride_s}\t{r.vac_overlap_s}\t{r.context_size}\t{r.llm_temperature}\t{r.max_context_tokens}\t"
+            f"{r.transcription_model}\t{r.vac_stride_s}\t{r.vac_overlap_s}\t"
+            f"{r.context_size}\t{r.llm_temperature}\t{r.max_context_tokens}\t"
             f"{r.transcription_error_rate:.4f}\t{r.translation_bleu:.4f}\t{r.segment_count}\t"
             f"{ttft}\t{ttc}\t{e2e_p95}"
         )
@@ -679,6 +715,7 @@ def main() -> None:
         index_entry = {
             "timestamp": ts,
             "translation_model": args.model,
+            "transcription_model": r.transcription_model,
             "language": r.language,
             "target_language": r.target_language,
             "vac_stride_s": r.vac_stride_s,

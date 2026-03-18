@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import os
+import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, Field
 
 from livetranslate_common.logging import get_logger
+from dependencies import get_database_manager, get_translation_service_client
+from meeting.translation_recovery import (
+    get_translation_recovery_metrics,
+    recover_pending_translations_with_fresh_session,
+)
 from services.meeting_store import MeetingStore
 
 logger = get_logger()
@@ -62,13 +69,13 @@ class InsightGenerateRequest(BaseModel):
 async def list_meetings(
     limit: int = Query(default=50, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
-    min_sentences: int = Query(default=1, ge=0),
+    min_sentences: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
     """List all meetings with pagination.
 
     Args:
-        min_sentences: Minimum sentence count to include (default 1 hides empty meetings).
-            Set to 0 to include all meetings.
+        min_sentences: Minimum transcript unit count to include.
+            Uses the larger of sentence_count and chunk_count.
     """
     store = await _get_store()
     result = await store.list_meetings(limit=limit, offset=offset, min_sentences=min_sentences)
@@ -98,7 +105,75 @@ async def get_meeting(meeting_id: str) -> dict[str, Any]:
     meeting = await store.get_meeting(meeting_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    backlog = await store.get_meeting_translation_backlog(meeting_id)
+    meeting["translation_backlog"] = backlog
     return {"meeting": meeting}
+
+
+@router.get("/backlog")
+async def get_translation_backlog(
+    limit: int = Query(default=50, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
+    only_pending: bool = Query(default=True),
+) -> dict[str, Any]:
+    """List meetings with translation backlog and fleet-level backlog totals."""
+    store = await _get_store()
+    backlog = await store.list_translation_backlog(
+        limit=limit,
+        offset=offset,
+        only_pending=only_pending,
+    )
+    counters = await get_translation_recovery_metrics()
+    return {
+        "meetings": backlog["meetings"],
+        "summary": backlog["summary"],
+        "total": backlog["total"],
+        "limit": limit,
+        "offset": offset,
+        "recovery_counters": counters,
+    }
+
+
+@router.get("/{meeting_id}/translation-status")
+async def get_meeting_translation_status(meeting_id: str) -> dict[str, Any]:
+    """Return per-meeting translation backlog and persisted translation counts."""
+    store = await _get_store()
+    backlog = await store.get_meeting_translation_backlog(meeting_id)
+    if not backlog:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    return {"meeting_id": meeting_id, "translation_status": backlog}
+
+
+@router.post("/{meeting_id}/translations/recover")
+async def recover_meeting_translations(
+    meeting_id: str,
+    limit: int = Query(default=200, ge=1, le=5000),
+) -> dict[str, Any]:
+    """Re-run shared translation recovery for a single meeting."""
+    store = await _get_store()
+    backlog_before = await store.get_meeting_translation_backlog(meeting_id)
+    if not backlog_before:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    db_session = await get_database_manager().get_session_direct()
+    try:
+        stats = await recover_pending_translations_with_fresh_session(
+            db_session,
+            Path(os.getenv("RECORDING_BASE_PATH", str(Path.home() / ".livetranslate" / "recordings"))),
+            get_translation_service_client(),
+            meeting_ids=[uuid.UUID(meeting_id)],
+            limit=limit,
+        )
+    finally:
+        await db_session.close()
+
+    backlog_after = await store.get_meeting_translation_backlog(meeting_id)
+    return {
+        "meeting_id": meeting_id,
+        "before": backlog_before,
+        "recovery": stats,
+        "after": backlog_after,
+    }
 
 
 @router.get("/{meeting_id}/insights")
@@ -195,10 +270,23 @@ async def get_meeting_transcript(meeting_id: str) -> dict[str, Any]:
     if not sentences:
         chunks = await pool.fetch(
             """
-            SELECT id, chunk_id, text, speaker_name, start_time, end_time, created_at
-            FROM meeting_chunks
-            WHERE meeting_id = $1::uuid
-            ORDER BY start_time, created_at
+            SELECT mc.*,
+                   COALESCE(
+                       json_agg(
+                           json_build_object(
+                               'translated_text', mt.translated_text,
+                               'target_language', mt.target_language,
+                               'confidence', mt.confidence,
+                               'model_used', mt.model_used
+                           )
+                       ) FILTER (WHERE mt.id IS NOT NULL),
+                       '[]'::json
+                   ) as translations
+            FROM meeting_chunks mc
+            LEFT JOIN meeting_translations mt ON mt.chunk_id = mc.id
+            WHERE mc.meeting_id = $1::uuid
+            GROUP BY mc.id
+            ORDER BY mc.start_time, mc.created_at
             """,
             meeting_id,
         )

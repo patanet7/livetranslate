@@ -11,6 +11,32 @@ from __future__ import annotations
 import numpy as np
 
 
+def normalize_audio_shape(
+    audio: np.ndarray,
+    channels: int = 1,
+) -> np.ndarray:
+    """Interpret incoming PCM using the negotiated channel count.
+
+    Browser audio arrives as interleaved float32 PCM in a flat buffer.
+    Recorder/downsampler paths expect mono ``(samples,)`` or multichannel
+    ``(frames, channels)`` arrays.
+    """
+    array = np.asarray(audio, dtype=np.float32)
+
+    if channels <= 1:
+        return array.reshape(-1).astype(np.float32, copy=False)
+
+    if array.ndim == 2:
+        return array.astype(np.float32, copy=False)
+
+    frame_count = len(array) // channels
+    if frame_count == 0:
+        return np.empty((0, channels), dtype=np.float32)
+
+    usable = array[: frame_count * channels]
+    return usable.reshape(frame_count, channels).astype(np.float32, copy=False)
+
+
 def downsample_to_16k(
     audio: np.ndarray,
     source_rate: int,
@@ -31,6 +57,8 @@ def downsample_to_16k(
     Returns:
         1-D float32 array at ``target_rate``, mono.
     """
+    audio = normalize_audio_shape(audio, channels=channels)
+
     # Mix stereo / multi-channel down to mono
     if audio.ndim == 2:
         audio = audio.mean(axis=1)

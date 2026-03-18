@@ -149,10 +149,11 @@ class TestFlacChunkRecorder:
 
         recorder.stop()
 
-        # Manifest should reflect 0 samples for the failed chunk
+        # Manifest should record an explicit gap and preserve continuity bookkeeping.
         manifest = json.loads((rec_dir / "manifest.json").read_text())
-        failed_chunks = [c for c in manifest["chunks"] if c["samples"] == 0]
-        assert len(failed_chunks) >= 1
+        assert manifest["degraded"] is True
+        assert len(manifest["chunks"]) == 0
+        assert len(manifest["gaps"]) >= 1
 
     def test_chunk_sequence_numbers_are_monotonic(self, rec_dir):
         """Chunk sequence numbers in the manifest must be strictly increasing."""

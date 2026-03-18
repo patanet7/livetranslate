@@ -173,6 +173,11 @@ class FirefliesSessionManager:
                     meeting_id = await meeting_store.create_meeting(
                         fireflies_transcript_id=config.transcript_id,
                         title=meeting_title,
+                        target_languages=config.target_languages,
+                        meeting_metadata={
+                            "fireflies_transcript_id": config.transcript_id,
+                            "ingest_mode": "realtime",
+                        },
                         source="fireflies",
                     )
                     session.meeting_db_id = meeting_id
@@ -269,7 +274,7 @@ class FirefliesSessionManager:
                 meeting_store = await self._get_meeting_store()
                 if meeting_store:
                     try:
-                        await meeting_store.store_sentence(
+                        sentence_id = await meeting_store.store_sentence(
                             meeting_id=_meeting_db_id,
                             text=unit.text,
                             speaker_name=unit.speaker_name,
@@ -278,6 +283,7 @@ class FirefliesSessionManager:
                             boundary_type=unit.boundary_type,
                             chunk_ids=unit.chunk_ids,
                         )
+                        setattr(unit, "_meeting_sentence_id", sentence_id)
                     except Exception as e:
                         session.persistence_failures += 1
                         session.persistence_healthy = False
@@ -292,6 +298,37 @@ class FirefliesSessionManager:
                         )
 
             coordinator.on_sentence_ready(_persist_sentence)
+
+            async def _persist_translation(unit, result) -> None:
+                """Store pipeline translations in canonical meeting_translations."""
+                meeting_store = await self._get_meeting_store()
+                sentence_id = getattr(unit, "_meeting_sentence_id", None)
+                if meeting_store is None or sentence_id is None:
+                    return
+                try:
+                    await meeting_store.store_translation(
+                        sentence_id=sentence_id,
+                        translated_text=result.translated,
+                        target_language=result.target_language,
+                        source_language=result.source_language,
+                        confidence=result.confidence,
+                        translation_time_ms=result.translation_time_ms,
+                        model_used=getattr(result, "model_used", None),
+                    )
+                except Exception as e:
+                    session.persistence_failures += 1
+                    session.persistence_healthy = False
+                    session.error_count += 1
+                    session.last_error = f"translation_storage_failed: {e}"
+                    logger.error(
+                        "translation_storage_failed",
+                        meeting_id=_meeting_db_id,
+                        session_id=session_id,
+                        persistence_failures=session.persistence_failures,
+                        error=str(e),
+                    )
+
+            coordinator.on_translation_ready(_persist_translation)
 
         # CommandInterceptor: voice command detection (config-driven)
         command_interceptor = CommandInterceptor(
@@ -468,6 +505,7 @@ class FirefliesSessionManager:
         transcript_id: str,
         transcript_title: str,
         target_languages: list[str],
+        meeting_db_id: str | None = None,
         glossary_id: str | None = None,
         domain: str | None = None,
         db_manager=None,
@@ -556,6 +594,41 @@ class FirefliesSessionManager:
                 )
 
         coordinator.on_caption_event(_broadcast_import_caption_to_ws)
+
+        if meeting_db_id:
+
+            async def _persist_sentence(unit) -> None:
+                meeting_store = await self._get_meeting_store()
+                if meeting_store is None:
+                    return
+                sentence_id = await meeting_store.store_sentence(
+                    meeting_id=meeting_db_id,
+                    text=unit.text,
+                    speaker_name=unit.speaker_name,
+                    start_time=unit.start_time,
+                    end_time=unit.end_time,
+                    boundary_type=unit.boundary_type,
+                    chunk_ids=unit.chunk_ids,
+                )
+                setattr(unit, "_meeting_sentence_id", sentence_id)
+
+            async def _persist_translation(unit, result) -> None:
+                meeting_store = await self._get_meeting_store()
+                sentence_id = getattr(unit, "_meeting_sentence_id", None)
+                if meeting_store is None or sentence_id is None:
+                    return
+                await meeting_store.store_translation(
+                    sentence_id=sentence_id,
+                    translated_text=result.translated,
+                    target_language=result.target_language,
+                    source_language=result.source_language,
+                    confidence=result.confidence,
+                    translation_time_ms=result.translation_time_ms,
+                    model_used=getattr(result, "model_used", None),
+                )
+
+            coordinator.on_sentence_ready(_persist_sentence)
+            coordinator.on_translation_ready(_persist_translation)
 
         logger.info("import_session_created", session_id=session_id, transcript_id=transcript_id)
 
@@ -1634,6 +1707,14 @@ async def set_target_languages(
     old_languages = list(coordinator.config.target_languages)
     coordinator.config.target_languages = body.target_languages
 
+    if session.meeting_db_id:
+        meeting_store = await manager._get_meeting_store()
+        if meeting_store is not None:
+            await meeting_store.update_meeting(
+                session.meeting_db_id,
+                target_languages=body.target_languages,
+            )
+
     # Reload glossary if languages changed (different language may need different terms)
     if coordinator.glossary_service and coordinator.config.glossary_id:
         try:
@@ -1882,11 +1963,13 @@ async def _store_transcript_to_db(
 
     sentences = transcript.get("sentences", [])
     summary = transcript.get("summary", {})
+    target_languages = [os.environ.get("DEFAULT_TARGET_LANGUAGE", "zh")]
 
     # --- Find or create meeting record ---
     meeting = await store.get_meeting_by_ff_id(ff_id)
     if meeting:
         meeting_db_id = str(meeting["id"])
+        await store.update_meeting(meeting_db_id, target_languages=target_languages)
         await store.complete_meeting(meeting_db_id)
     else:
         meeting_db_id = await store.create_meeting(
@@ -1895,6 +1978,8 @@ async def _store_transcript_to_db(
             meeting_link=transcript.get("meeting_link"),
             organizer_email=transcript.get("organizer_email"),
             participants=transcript.get("participants"),
+            target_languages=target_languages,
+            meeting_metadata={"ingest_mode": "fireflies_sync"},
             source="fireflies",
             status="completed",
         )
@@ -2872,11 +2957,39 @@ async def import_transcript_to_db(
                 except Exception as e2:
                     logger.warning("import_translation_client_unavailable", error=str(e2))
 
+        meeting_db_id: str | None = None
+        store: MeetingStore | None = None
+
+        if os.environ.get("DATABASE_URL", ""):
+            store = await manager._get_meeting_store()
+        if store:
+            meeting = await store.get_meeting_by_ff_id(transcript_id)
+            if meeting:
+                meeting_db_id = str(meeting["id"])
+                await store.update_meeting(
+                    meeting_db_id,
+                    target_languages=[target_lang],
+                    meeting_metadata={"ingest_mode": "fireflies_import"},
+                )
+            else:
+                meeting_db_id = await store.create_meeting(
+                    fireflies_transcript_id=transcript_id,
+                    title=transcript_title,
+                    meeting_link=transcript_data.get("meeting_link"),
+                    organizer_email=transcript_data.get("organizer_email"),
+                    participants=transcript_data.get("participants"),
+                    target_languages=[target_lang],
+                    meeting_metadata={"ingest_mode": "fireflies_import"},
+                    source="fireflies",
+                    status="completed",
+                )
+
         # Step 3: Create import session (uses same pipeline as live sessions)
         session_id, coordinator = await manager.create_import_session(
             transcript_id=transcript_id,
             transcript_title=transcript_title,
             target_languages=[target_lang],
+            meeting_db_id=meeting_db_id,
             glossary_id=request.glossary_id,
             domain=request.domain,
             db_manager=db_manager,
@@ -2886,27 +2999,8 @@ async def import_transcript_to_db(
 
         # Step 3b: Store Fireflies insights (summary, analytics, attendance, etc.)
         insights_stored = 0
-        if insights and db_manager:
-            db_url = os.environ.get("DATABASE_URL", "")
-            if db_url:
-                store = MeetingStore(db_url)
-                await store.initialize()
-                try:
-                    # Find or create meeting record for this import
-                    meeting = await store.get_meeting_by_ff_id(transcript_id)
-                    if meeting:
-                        meeting_db_id = str(meeting["id"])
-                    else:
-                        meeting_db_id = await store.create_meeting(
-                            fireflies_transcript_id=transcript_id,
-                            title=transcript_title,
-                            meeting_link=transcript_data.get("meeting_link"),
-                            organizer_email=transcript_data.get("organizer_email"),
-                            participants=transcript_data.get("participants"),
-                            source="fireflies",
-                            status="completed",
-                        )
-
+        if insights and db_manager and store and meeting_db_id:
+            try:
                     for insight in insights:
                         await store.store_insight(
                             meeting_id=meeting_db_id,
@@ -2921,12 +3015,12 @@ async def import_transcript_to_db(
                         transcript_id=transcript_id,
                         insights_stored=insights_stored,
                     )
-                except Exception as e:
-                    logger.error(
-                        "import_insights_storage_failed",
-                        transcript_id=transcript_id,
-                        error=str(e),
-                    )
+            except Exception as e:
+                logger.error(
+                    "import_insights_storage_failed",
+                    transcript_id=transcript_id,
+                    error=str(e),
+                )
 
         # Step 4: Process each sentence through the pipeline
         # This is the same flow as live data - DRY!

@@ -3,6 +3,7 @@
 Unit tests use no server. Integration tests hit the local vllm-mlx LLM
 instance (:8006 from `just dev`). Override via LLM_BASE_URL / LLM_MODEL env vars.
 """
+import httpx
 import pytest
 from translation.llm_client import LLMClient
 
@@ -54,10 +55,23 @@ class TestLLMClientUnit:
         assert "这是新的" in user_msg
 
 
+async def _require_llm_server(config) -> None:
+    """Skip integration tests cleanly when no local LLM endpoint is running."""
+    models_url = f"{config.base_url.rstrip('/')}/models"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(models_url)
+        if response.status_code >= 500:
+            pytest.skip(f"LLM endpoint unhealthy at {models_url}")
+    except httpx.HTTPError:
+        pytest.skip(f"LLM endpoint not running at {models_url}")
+
+
 @pytest.mark.integration
 class TestLLMClientIntegration:
     @pytest.mark.asyncio
     async def test_translate_simple(self, config):
+        await _require_llm_server(config)
         client = LLMClient(config)
         result = await client.translate(
             text="你好世界",
@@ -70,6 +84,7 @@ class TestLLMClientIntegration:
 
     @pytest.mark.asyncio
     async def test_translate_with_context(self, config):
+        await _require_llm_server(config)
         from livetranslate_common.models import TranslationContext
 
         client = LLMClient(config)

@@ -220,6 +220,9 @@ class MeetingStore:
         meeting_link: str | None = None,
         organizer_email: str | None = None,
         participants: list[str] | None = None,
+        source_languages: list[str] | None = None,
+        target_languages: list[str] | None = None,
+        meeting_metadata: dict[str, Any] | None = None,
         source: str = "fireflies",
         status: str = "live",
     ) -> str:
@@ -236,13 +239,18 @@ class MeetingStore:
         row = await self._pool.fetchrow(
             """
             INSERT INTO meetings (id, fireflies_transcript_id, title, meeting_link,
-                                  organizer_email, participants, source, status, start_time)
-            VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
+                                  organizer_email, participants, source_languages,
+                                  target_languages, metadata, source, status, start_time)
+            VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb, $7::text[], $8::text[],
+                    $9::jsonb, $10, $11, $12)
             ON CONFLICT (fireflies_transcript_id)
                 WHERE fireflies_transcript_id IS NOT NULL
             DO UPDATE SET title = COALESCE(EXCLUDED.title, meetings.title),
                          meeting_link = COALESCE(EXCLUDED.meeting_link, meetings.meeting_link),
-                         organizer_email = COALESCE(EXCLUDED.organizer_email, meetings.organizer_email)
+                         organizer_email = COALESCE(EXCLUDED.organizer_email, meetings.organizer_email),
+                         source_languages = COALESCE(EXCLUDED.source_languages, meetings.source_languages),
+                         target_languages = COALESCE(EXCLUDED.target_languages, meetings.target_languages),
+                         metadata = COALESCE(EXCLUDED.metadata, meetings.metadata)
             RETURNING id
             """,
             meeting_id,
@@ -251,6 +259,9 @@ class MeetingStore:
             meeting_link,
             organizer_email,
             participants_json,
+            source_languages,
+            target_languages,
+            json.dumps(meeting_metadata) if meeting_metadata is not None else None,
             source,
             status,
             datetime.now(UTC),
@@ -269,6 +280,9 @@ class MeetingStore:
         meeting_link: str | None = None,
         organizer_email: str | None = None,
         participants: list[str] | None = None,
+        source_languages: list[str] | None = None,
+        target_languages: list[str] | None = None,
+        meeting_metadata: dict[str, Any] | None = None,
     ) -> None:
         """Update meeting metadata (title, link, organizer, participants)."""
         await self._ensure_pool()
@@ -292,6 +306,18 @@ class MeetingStore:
             idx += 1
             updates.append(f"participants = ${idx}::jsonb")
             params.append(json.dumps(participants))
+        if source_languages is not None:
+            idx += 1
+            updates.append(f"source_languages = ${idx}::text[]")
+            params.append(source_languages)
+        if target_languages is not None:
+            idx += 1
+            updates.append(f"target_languages = ${idx}::text[]")
+            params.append(target_languages)
+        if meeting_metadata is not None:
+            idx += 1
+            updates.append(f"metadata = ${idx}::jsonb")
+            params.append(json.dumps(meeting_metadata))
 
         if not updates:
             return
@@ -377,8 +403,20 @@ class MeetingStore:
                    (SELECT COUNT(*) FROM meeting_chunks WHERE meeting_id = m.id) as chunk_count,
                    (SELECT COUNT(*) FROM meeting_sentences WHERE meeting_id = m.id) as sentence_count,
                    (SELECT COUNT(*) FROM meeting_translations mt
-                    JOIN meeting_sentences ms ON mt.sentence_id = ms.id
-                    WHERE ms.meeting_id = m.id) as translation_count,
+                    LEFT JOIN meeting_sentences ms ON mt.sentence_id = ms.id
+                    LEFT JOIN meeting_chunks mc ON mt.chunk_id = mc.id
+                    WHERE ms.meeting_id = m.id OR mc.meeting_id = m.id) as translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_chunks mc
+                    LEFT JOIN meeting_translations mt ON mt.chunk_id = mc.id
+                    WHERE mc.meeting_id = m.id
+                      AND mc.is_final = TRUE
+                      AND mt.id IS NULL) as pending_chunk_translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_sentences ms
+                    LEFT JOIN meeting_translations mt ON mt.sentence_id = ms.id
+                    WHERE ms.meeting_id = m.id
+                      AND mt.id IS NULL) as pending_sentence_translation_count,
                    (SELECT COUNT(*) FROM meeting_data_insights WHERE meeting_id = m.id) as insight_count
             FROM meetings m WHERE m.id = $1::uuid
             """,
@@ -404,21 +442,38 @@ class MeetingStore:
         base_query = """
             SELECT m.*,
                    (SELECT COUNT(*) FROM meeting_chunks WHERE meeting_id = m.id) as chunk_count,
-                   (SELECT COUNT(*) FROM meeting_sentences WHERE meeting_id = m.id) as sentence_count
+                   (SELECT COUNT(*) FROM meeting_sentences WHERE meeting_id = m.id) as sentence_count,
+                   (SELECT COUNT(*) FROM meeting_translations mt
+                    LEFT JOIN meeting_sentences ms ON mt.sentence_id = ms.id
+                    LEFT JOIN meeting_chunks mc ON mt.chunk_id = mc.id
+                    WHERE ms.meeting_id = m.id OR mc.meeting_id = m.id) as translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_chunks mc
+                    LEFT JOIN meeting_translations mt ON mt.chunk_id = mc.id
+                    WHERE mc.meeting_id = m.id
+                      AND mc.is_final = TRUE
+                      AND mt.id IS NULL) as pending_chunk_translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_sentences ms
+                    LEFT JOIN meeting_translations mt ON mt.sentence_id = ms.id
+                    WHERE ms.meeting_id = m.id
+                      AND mt.id IS NULL) as pending_sentence_translation_count
             FROM meetings m
         """
 
         if min_sentences > 0:
             # Wrap to filter on computed column
             count_row = await self._pool.fetchrow(
-                f"SELECT COUNT(*) as cnt FROM ({base_query}) sub WHERE sub.sentence_count >= $1",
+                f"""SELECT COUNT(*) as cnt
+                    FROM ({base_query}) sub
+                    WHERE GREATEST(sub.sentence_count, sub.chunk_count) >= $1""",
                 min_sentences,
             )
             total = count_row["cnt"] if count_row else 0
 
             rows = await self._pool.fetch(
                 f"""SELECT * FROM ({base_query}) sub
-                    WHERE sub.sentence_count >= $1
+                    WHERE GREATEST(sub.sentence_count, sub.chunk_count) >= $1
                     ORDER BY sub.created_at DESC
                     LIMIT $2 OFFSET $3""",
                 min_sentences,
@@ -440,6 +495,135 @@ class MeetingStore:
             )
 
         return {"meetings": [dict(r) for r in rows], "total": total}
+
+    async def get_meeting_translation_backlog(self, meeting_id: str) -> dict[str, Any] | None:
+        """Get translation backlog counts and metadata for a single meeting."""
+        await self._ensure_pool()
+        row = await self._pool.fetchrow(
+            """
+            SELECT m.id,
+                   m.title,
+                   m.source,
+                   m.status,
+                   m.target_languages,
+                   (SELECT COUNT(*)
+                    FROM meeting_chunks mc
+                    LEFT JOIN meeting_translations mt ON mt.chunk_id = mc.id
+                    WHERE mc.meeting_id = m.id
+                      AND mc.is_final = TRUE
+                      AND mt.id IS NULL) as pending_chunk_translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_sentences ms
+                    LEFT JOIN meeting_translations mt ON mt.sentence_id = ms.id
+                    WHERE ms.meeting_id = m.id
+                      AND mt.id IS NULL) as pending_sentence_translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_translations mt
+                    LEFT JOIN meeting_sentences ms ON mt.sentence_id = ms.id
+                    LEFT JOIN meeting_chunks mc ON mt.chunk_id = mc.id
+                    WHERE ms.meeting_id = m.id OR mc.meeting_id = m.id) as translation_count
+            FROM meetings m
+            WHERE m.id = $1::uuid
+            """,
+            meeting_id,
+        )
+        if row is None:
+            return None
+
+        data = dict(row)
+        data["pending_translation_count"] = (
+            data["pending_chunk_translation_count"] + data["pending_sentence_translation_count"]
+        )
+        return data
+
+    async def list_translation_backlog(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        only_pending: bool = True,
+    ) -> dict[str, Any]:
+        """List meetings with translation backlog counts plus fleet totals."""
+        await self._ensure_pool()
+
+        base_query = """
+            SELECT m.id,
+                   m.title,
+                   m.source,
+                   m.status,
+                   m.created_at,
+                   m.target_languages,
+                   (SELECT COUNT(*)
+                    FROM meeting_chunks mc
+                    LEFT JOIN meeting_translations mt ON mt.chunk_id = mc.id
+                    WHERE mc.meeting_id = m.id
+                      AND mc.is_final = TRUE
+                      AND mt.id IS NULL) as pending_chunk_translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_sentences ms
+                    LEFT JOIN meeting_translations mt ON mt.sentence_id = ms.id
+                    WHERE ms.meeting_id = m.id
+                      AND mt.id IS NULL) as pending_sentence_translation_count,
+                   (SELECT COUNT(*)
+                    FROM meeting_translations mt
+                    LEFT JOIN meeting_sentences ms ON mt.sentence_id = ms.id
+                    LEFT JOIN meeting_chunks mc ON mt.chunk_id = mc.id
+                    WHERE ms.meeting_id = m.id OR mc.meeting_id = m.id) as translation_count
+            FROM meetings m
+        """
+
+        where_clause = """
+            WHERE (
+                sub.pending_chunk_translation_count + sub.pending_sentence_translation_count
+            ) > 0
+        """ if only_pending else ""
+
+        count_row = await self._pool.fetchrow(
+            f"SELECT COUNT(*) as cnt FROM ({base_query}) sub {where_clause}"
+        )
+        total = count_row["cnt"] if count_row else 0
+
+        rows = await self._pool.fetch(
+            f"""
+            SELECT *,
+                   (
+                       sub.pending_chunk_translation_count
+                       + sub.pending_sentence_translation_count
+                   ) as pending_translation_count
+            FROM ({base_query}) sub
+            {where_clause}
+            ORDER BY pending_translation_count DESC, created_at DESC
+            LIMIT $1 OFFSET $2
+            """,
+            limit,
+            offset,
+        )
+
+        summary_row = await self._pool.fetchrow(
+            f"""
+            SELECT
+                COALESCE(SUM(sub.pending_chunk_translation_count), 0) as pending_chunk_translation_count,
+                COALESCE(SUM(sub.pending_sentence_translation_count), 0) as pending_sentence_translation_count,
+                COALESCE(SUM(sub.translation_count), 0) as translation_count
+            FROM ({base_query}) sub
+            {where_clause}
+            """
+        )
+
+        summary = dict(summary_row) if summary_row else {
+            "pending_chunk_translation_count": 0,
+            "pending_sentence_translation_count": 0,
+            "translation_count": 0,
+        }
+        summary["pending_translation_count"] = (
+            summary["pending_chunk_translation_count"] + summary["pending_sentence_translation_count"]
+        )
+
+        return {
+            "meetings": [dict(r) for r in rows],
+            "total": total,
+            "summary": summary,
+        }
 
     # ------------------------------------------------------------------ #
     # Chunk Storage

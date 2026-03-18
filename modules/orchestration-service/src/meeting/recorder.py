@@ -20,6 +20,8 @@ import numpy as np
 import soundfile as sf
 from livetranslate_common.logging import get_logger
 
+from meeting.downsampler import normalize_audio_shape
+
 logger = get_logger()
 
 
@@ -54,7 +56,9 @@ class FlacChunkRecorder:
             "sample_rate": self.sample_rate,
             "channels": self.channels,
             "chunks": [],
+            "gaps": [],
             "total_samples": 0,
+            "degraded": False,
         }
         self._write_manifest()
         self._running = True
@@ -65,11 +69,13 @@ class FlacChunkRecorder:
         if not self._running:
             return
 
-        self._buffer.append(audio)
-        self._buffer_samples += len(audio)
+        normalized = normalize_audio_shape(audio, channels=self.channels)
+        self._buffer.append(normalized)
+        self._buffer_samples += len(normalized)
 
         while self._buffer_samples >= self.chunk_samples:
-            self._flush_chunk()
+            if not self._flush_chunk():
+                break
 
     def stop(self) -> None:
         """Flush any remaining buffered audio and finalise recording."""
@@ -87,38 +93,51 @@ class FlacChunkRecorder:
             chunks=self._sequence,
         )
 
-    def _flush_chunk(self) -> None:
+    def _flush_chunk(self) -> bool:
         """Combine buffered arrays into one FLAC chunk and update the manifest atomically."""
         if not self._buffer:
-            return
+            return False
 
         combined = np.concatenate(list(self._buffer))
-        self._buffer.clear()
-        self._buffer_samples = 0
+        chunk_audio = combined
 
         # If the combined audio exceeds one chunk, keep the overflow for the next flush.
         if len(combined) > self.chunk_samples:
             overflow = combined[self.chunk_samples:]
-            combined = combined[: self.chunk_samples]
-            self._buffer.append(overflow)
-            self._buffer_samples = len(overflow)
+            chunk_audio = combined[: self.chunk_samples]
+        else:
+            overflow = None
 
         timestamp_ms = int(time.time() * 1000)
         filename = f"chunk_{self._sequence:06d}_{timestamp_ms}.flac"
         filepath = self.session_dir / filename
 
         # soundfile needs (samples, channels) for multi-channel; (samples,) for mono.
-        audio_to_write = combined
-        if self.channels > 1 and combined.ndim == 1:
-            # Re-shape mono buffer into multi-channel by repeating (best-effort)
-            audio_to_write = np.stack([combined] * self.channels, axis=1)
+        audio_to_write = chunk_audio
 
         try:
             sf.write(str(filepath), audio_to_write, self.sample_rate, format="FLAC")
-            written_samples = len(combined)
+            written_samples = len(chunk_audio)
         except OSError as exc:
             logger.error("chunk_write_failed", filename=filename, error=str(exc))
-            written_samples = 0
+            self._manifest["degraded"] = True
+            self._manifest["gaps"].append(
+                {
+                    "sequence": self._sequence,
+                    "filename": filename,
+                    "samples": len(chunk_audio),
+                    "timestamp_ms": timestamp_ms,
+                    "error": str(exc),
+                }
+            )
+            self._write_manifest()
+            return False
+
+        self._buffer.clear()
+        self._buffer_samples = 0
+        if overflow is not None and len(overflow) > 0:
+            self._buffer.append(overflow)
+            self._buffer_samples = len(overflow)
 
         chunk_info = {
             "sequence": self._sequence,
@@ -132,8 +151,8 @@ class FlacChunkRecorder:
         self._write_manifest()
 
         self._sequence += 1
-        if written_samples > 0:
-            logger.debug("chunk_flushed", filename=filename, samples=written_samples)
+        logger.debug("chunk_flushed", filename=filename, samples=written_samples)
+        return True
 
     def _write_manifest(self) -> None:
         """Write manifest.json atomically (write to tmp then rename)."""

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -8,17 +8,12 @@ import {
   TextField,
   Button,
   List,
-  ListItem,
   ListItemText,
   ListItemButton,
   Chip,
   Divider,
   Paper,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Alert,
   CircularProgress,
   InputAdornment,
@@ -30,39 +25,32 @@ import {
   Stack,
   alpha,
   useTheme,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Search as SearchIcon,
   Chat as ChatIcon,
   Delete as DeleteIcon,
   Download as DownloadIcon,
   Refresh as RefreshIcon,
-  FilterList as FilterIcon,
   Person as PersonIcon,
   Assistant as AssistantIcon,
-  Today as TodayIcon,
   InsertChart as StatsIcon,
-  Close as CloseIcon,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 import {
   useListSessionsQuery,
   useGetMessagesQuery,
   useDeleteSessionMutation,
-  useSearchMessagesQuery,
   useGetSessionStatisticsQuery,
-  useExportSessionQuery,
-} from "@/store/slices/apiSlice";
+} from '@/store/slices/apiSlice';
 
 // For demo purposes - in production this would come from auth
-const DEMO_USER_ID = "demo_user_123";
+const DEMO_USER_ID = 'demo_user_123';
 
 const ChatHistory: React.FC = () => {
   const theme = useTheme();
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    null,
-  );
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sessionType, setSessionType] = useState("all");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sessionType, setSessionType] = useState('all');
   const [showStats, setShowStats] = useState(false);
 
   // API hooks
@@ -72,25 +60,23 @@ const ChatHistory: React.FC = () => {
     refetch: refetchSessions,
   } = useListSessionsQuery({
     user_id: DEMO_USER_ID,
-    session_type: sessionType === "all" ? undefined : sessionType,
+    session_type: sessionType === 'all' ? undefined : sessionType,
   });
 
-  const { data: messages = [], isLoading: messagesLoading } =
-    useGetMessagesQuery(
-      { session_id: selectedSessionId! },
-      { skip: !selectedSessionId },
-    );
+  const { data: messages = [], isLoading: messagesLoading } = useGetMessagesQuery(
+    { session_id: selectedSessionId! },
+    { skip: !selectedSessionId }
+  );
 
-  const { data: statistics, isLoading: statsLoading } =
-    useGetSessionStatisticsQuery(selectedSessionId!, {
-      skip: !selectedSessionId || !showStats,
-    });
+  const { data: statistics } = useGetSessionStatisticsQuery(selectedSessionId!, {
+    skip: !selectedSessionId || !showStats,
+  });
 
   const [deleteSession] = useDeleteSessionMutation();
 
   // Handlers
   const handleDeleteSession = async (sessionId: string) => {
-    if (window.confirm("Are you sure you want to delete this conversation?")) {
+    if (window.confirm('Are you sure you want to delete this conversation?')) {
       try {
         await deleteSession(sessionId).unwrap();
         if (selectedSessionId === sessionId) {
@@ -98,15 +84,15 @@ const ChatHistory: React.FC = () => {
         }
         refetchSessions();
       } catch (error) {
-        console.error("Failed to delete session:", error);
+        console.error('Failed to delete session:', error);
       }
     }
   };
 
-  const handleExport = (sessionId: string, format: "json" | "txt") => {
+  const handleExport = (sessionId: string, format: 'json' | 'txt') => {
     // Trigger download
     const url = `/api/chat/export/${sessionId}?format=${format}`;
-    window.open(url, "_blank");
+    window.open(url, '_blank');
   };
 
   const formatDate = (dateString: string) => {
@@ -120,7 +106,7 @@ const ChatHistory: React.FC = () => {
         <Typography
           variant="h4"
           gutterBottom
-          sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
         >
           <ChatIcon sx={{ fontSize: 32 }} />
           Chat History
@@ -167,7 +153,7 @@ const ChatHistory: React.FC = () => {
             variant="outlined"
             startIcon={<RefreshIcon />}
             onClick={() => refetchSessions()}
-            sx={{ height: "56px" }}
+            sx={{ height: '56px' }}
           >
             Refresh
           </Button>
@@ -184,13 +170,13 @@ const ChatHistory: React.FC = () => {
                 Conversations
               </Typography>
               {sessionsLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                   <CircularProgress />
                 </Box>
               ) : sessions.length === 0 ? (
                 <Alert severity="info">No conversations found</Alert>
               ) : (
-                <List sx={{ maxHeight: 600, overflow: "auto" }}>
+                <List sx={{ maxHeight: 600, overflow: 'auto' }}>
                   {sessions.map((session: any, index: number) => (
                     <React.Fragment key={session.session_id}>
                       {index > 0 && <Divider />}
@@ -202,9 +188,9 @@ const ChatHistory: React.FC = () => {
                           primary={
                             <Box
                               sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
                               }}
                             >
                               <Typography variant="subtitle2">
@@ -224,11 +210,7 @@ const ChatHistory: React.FC = () => {
                               <Typography variant="caption" display="block">
                                 {formatDate(session.started_at)}
                               </Typography>
-                              <Chip
-                                label={session.session_type}
-                                size="small"
-                                sx={{ mt: 0.5 }}
-                              />
+                              <Chip label={session.session_type} size="small" sx={{ mt: 0.5 }} />
                             </>
                           }
                         />
@@ -259,10 +241,10 @@ const ChatHistory: React.FC = () => {
           {!selectedSessionId ? (
             <Card
               sx={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 minHeight: 400,
               }}
             >
@@ -277,9 +259,9 @@ const ChatHistory: React.FC = () => {
               <CardContent>
                 <Box
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
                     mb: 2,
                   }}
                 >
@@ -288,22 +270,18 @@ const ChatHistory: React.FC = () => {
                     <Tooltip title="Statistics">
                       <IconButton
                         onClick={() => setShowStats(!showStats)}
-                        color={showStats ? "primary" : "default"}
+                        color={showStats ? 'primary' : 'default'}
                       >
                         <StatsIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Export as JSON">
-                      <IconButton
-                        onClick={() => handleExport(selectedSessionId, "json")}
-                      >
+                      <IconButton onClick={() => handleExport(selectedSessionId, 'json')}>
                         <DownloadIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Export as TXT">
-                      <IconButton
-                        onClick={() => handleExport(selectedSessionId, "txt")}
-                      >
+                      <IconButton onClick={() => handleExport(selectedSessionId, 'txt')}>
                         <DownloadIcon />
                       </IconButton>
                     </Tooltip>
@@ -343,15 +321,13 @@ const ChatHistory: React.FC = () => {
 
                 {/* Messages List */}
                 {messagesLoading ? (
-                  <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                     <CircularProgress />
                   </Box>
                 ) : messages.length === 0 ? (
-                  <Alert severity="info">
-                    No messages in this conversation
-                  </Alert>
+                  <Alert severity="info">No messages in this conversation</Alert>
                 ) : (
-                  <Box sx={{ maxHeight: 500, overflow: "auto" }}>
+                  <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
                     {messages.map((message: any) => (
                       <Paper
                         key={message.message_id}
@@ -360,30 +336,26 @@ const ChatHistory: React.FC = () => {
                           p: 2,
                           mb: 2,
                           backgroundColor:
-                            message.role === "user"
+                            message.role === 'user'
                               ? alpha(theme.palette.primary.main, 0.05)
                               : alpha(theme.palette.secondary.main, 0.05),
                         }}
                       >
                         <Box
                           sx={{
-                            display: "flex",
-                            alignItems: "flex-start",
+                            display: 'flex',
+                            alignItems: 'flex-start',
                             gap: 1,
                           }}
                         >
-                          {message.role === "user" ? (
+                          {message.role === 'user' ? (
                             <PersonIcon color="primary" />
                           ) : (
                             <AssistantIcon color="secondary" />
                           )}
                           <Box sx={{ flex: 1 }}>
-                            <Typography
-                              variant="subtitle2"
-                              color="text.secondary"
-                            >
-                              {message.role.toUpperCase()} #
-                              {message.sequence_number}
+                            <Typography variant="subtitle2" color="text.secondary">
+                              {message.role.toUpperCase()} #{message.sequence_number}
                             </Typography>
                             <Typography variant="body1" sx={{ mt: 1 }}>
                               {message.content}
@@ -393,33 +365,26 @@ const ChatHistory: React.FC = () => {
                                 sx={{
                                   mt: 1,
                                   p: 1,
-                                  bgcolor: "background.paper",
+                                  bgcolor: 'background.paper',
                                   borderRadius: 1,
                                 }}
                               >
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
+                                <Typography variant="caption" color="text.secondary">
                                   Translations:
                                 </Typography>
                                 {Object.entries(message.translated_content).map(
                                   ([lang, text]: [string, any]) => (
-                                    <Typography
-                                      key={lang}
-                                      variant="body2"
-                                      sx={{ mt: 0.5 }}
-                                    >
+                                    <Typography key={lang} variant="body2" sx={{ mt: 0.5 }}>
                                       <strong>{lang}:</strong> {text}
                                     </Typography>
-                                  ),
+                                  )
                                 )}
                               </Box>
                             )}
                             <Typography
                               variant="caption"
                               color="text.secondary"
-                              sx={{ mt: 1, display: "block" }}
+                              sx={{ mt: 1, display: 'block' }}
                             >
                               {formatDate(message.timestamp)}
                             </Typography>

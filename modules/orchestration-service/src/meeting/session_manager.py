@@ -48,6 +48,9 @@ class MeetingSessionManager:
         source_type: str,
         sample_rate: int = 48000,
         channels: int = 2,
+        source_languages: list[str] | None = None,
+        target_languages: list[str] | None = None,
+        meeting_metadata: dict | None = None,
     ) -> Meeting:
         """Create a new ephemeral meeting session and persist it."""
         now = datetime.now(UTC)
@@ -57,6 +60,9 @@ class MeetingSessionManager:
             status="ephemeral",
             started_at=now,
             last_activity_at=now,
+            source_languages=source_languages,
+            target_languages=target_languages,
+            meeting_metadata=meeting_metadata,
         )
         self.db.add(session)
         await self.db.commit()
@@ -91,6 +97,15 @@ class MeetingSessionManager:
         logger.info("session_ended", session_id=str(session_id))
         return session
 
+    async def discard_session(self, session_id: uuid.UUID) -> None:
+        """Delete an unpromoted ephemeral session so it does not pollute history."""
+        session = await self.db.get(Meeting, session_id)
+        if session is None:
+            return
+        await self.db.delete(session)
+        await self.db.commit()
+        logger.info("session_discarded", session_id=str(session_id))
+
     async def update_heartbeat(self, session_id: uuid.UUID) -> None:
         """Update the last_activity_at timestamp for an active session."""
         await self.db.execute(
@@ -98,6 +113,36 @@ class MeetingSessionManager:
             .where(Meeting.id == session_id)
             .values(last_activity_at=datetime.now(UTC))
         )
+        await self.db.commit()
+
+    async def update_target_languages(
+        self,
+        session_id: uuid.UUID,
+        target_languages: list[str] | None,
+    ) -> None:
+        """Persist the current target language list for recovery/read models."""
+        await self.db.execute(
+            update(Meeting)
+            .where(Meeting.id == session_id)
+            .values(target_languages=target_languages)
+        )
+        await self.db.commit()
+
+    async def add_source_language(self, session_id: uuid.UUID, source_language: str | None) -> None:
+        """Track detected source languages without duplicating entries."""
+        if not source_language:
+            return
+
+        session = await self.db.get(Meeting, session_id)
+        if session is None:
+            return
+
+        existing = list(session.source_languages or [])
+        if source_language in existing:
+            return
+
+        existing.append(source_language)
+        session.source_languages = existing
         await self.db.commit()
 
     async def add_transcript(
@@ -113,9 +158,34 @@ class MeetingSessionManager:
     ) -> MeetingChunk:
         """Persist a real-time transcript chunk to meeting_chunks."""
         async with self._db_lock:
+            dedupe_key = str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"{session_id}:{source_id or ''}:{speaker_id or ''}:{timestamp_ms}:{int(is_final)}:{language}:{text}",
+                )
+            )
+            existing = await self.db.execute(
+                select(MeetingChunk).where(
+                    MeetingChunk.meeting_id == session_id,
+                    MeetingChunk.chunk_id == dedupe_key,
+                )
+            )
+            chunk = existing.scalar_one_or_none()
+            if chunk is not None:
+                chunk.text = text
+                chunk.timestamp_ms = timestamp_ms
+                chunk.source_language = language
+                chunk.confidence = confidence
+                chunk.is_final = is_final
+                chunk.speaker_id = speaker_id
+                chunk.source_id = source_id
+                await self.db.commit()
+                await self.db.refresh(chunk)
+                return chunk
+
             chunk = MeetingChunk(
                 meeting_id=session_id,          # canonical FK column
-                chunk_id=str(uuid.uuid4()),     # generate dedup key for pipeline chunks
+                chunk_id=dedupe_key,
                 text=text,
                 timestamp_ms=timestamp_ms,
                 source_language=language,
@@ -168,7 +238,9 @@ class MeetingSessionManager:
 
     async def save_translation(
         self,
-        chunk_id: uuid.UUID | None,
+        *,
+        chunk_id: uuid.UUID | None = None,
+        sentence_id: uuid.UUID | None = None,
         translated_text: str,
         source_language: str,
         target_language: str,
@@ -180,8 +252,12 @@ class MeetingSessionManager:
         Called after streaming translation completes. chunk_id may be None
         if the chunk wasn't persisted (ephemeral mode or timing race).
         """
+        if (chunk_id is None) == (sentence_id is None):
+            raise ValueError("Translations must reference exactly one of chunk_id or sentence_id")
+
         async with self._db_lock:
             translation = MeetingTranslation(
+                sentence_id=sentence_id,
                 chunk_id=chunk_id,
                 translated_text=translated_text,
                 source_language=source_language,

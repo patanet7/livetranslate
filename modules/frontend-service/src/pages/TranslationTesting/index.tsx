@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -33,7 +33,7 @@ import {
   Accordion,
   CircularProgress,
   IconButton,
-} from "@mui/material";
+} from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   PlayArrow as PlayIcon,
@@ -45,9 +45,9 @@ import {
   Translate as TranslateIcon,
   Settings as SettingsIcon,
   Analytics as AnalyticsIcon,
-} from "@mui/icons-material";
-import { useWebSocket } from "@/hooks/useWebSocket";
-import { useApiClient } from "@/hooks/useApiClient";
+} from '@mui/icons-material';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useApiClient } from '@/hooks/useApiClient';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -95,7 +95,7 @@ interface PromptTemplate {
   description: string;
   template: string;
   languagePairs: string[];
-  category: "general" | "technical" | "medical" | "legal" | "conversational";
+  category: 'general' | 'technical' | 'medical' | 'legal' | 'conversational';
   version: string;
   isActive: boolean;
   performanceMetrics?: {
@@ -105,32 +105,28 @@ interface PromptTemplate {
   };
 }
 
+const DEFAULT_TARGET_LANGUAGES = ['zh'];
+
 const TranslationTesting: React.FC = () => {
   const { isConnected, sendMessage: wsSendMessage } = useWebSocket();
   const { translateText } = useApiClient();
 
   const [tabValue, setTabValue] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
-  const [streamingResults, setStreamingResults] = useState<TranslationTest[]>(
-    [],
-  );
+  const [streamingText, setStreamingText] = useState('');
+  const [streamingResults, setStreamingResults] = useState<TranslationTest[]>([]);
 
   // Test Configuration
-  const [sourceLanguage, setSourceLanguage] = useState("auto");
-  const [targetLanguages, setTargetLanguages] = useState<string[]>([
-    ...DEFAULT_TARGET_LANGUAGES,
-  ]);
-  const [testText, setTestText] = useState("Hello world! How are you today?");
+  const [sourceLanguage, setSourceLanguage] = useState('auto');
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
+  const [testText, setTestText] = useState('Hello world! How are you today?');
   const [batchTestTexts, setBatchTestTexts] = useState<string[]>([]);
-  const [selectedPrompt, setSelectedPrompt] = useState<string>("default");
+  const [selectedPrompt, setSelectedPrompt] = useState<string>('default');
 
   // Translation Results
   const [singleResults, setSingleResults] = useState<TranslationTest[]>([]);
   const [batchResults, setBatchResults] = useState<TranslationTest[]>([]);
-  const [comparisonResults, setComparisonResults] = useState<TranslationTest[]>(
-    [],
-  );
+  const [comparisonResults, setComparisonResults] = useState<TranslationTest[]>([]);
   const [testHistory, setTestHistory] = useState<TranslationTest[]>([]);
 
   // Processing States
@@ -141,14 +137,14 @@ const TranslationTesting: React.FC = () => {
   // Prompt Management
   const [prompts, setPrompts] = useState<PromptTemplate[]>([
     {
-      id: "default",
-      name: "Default Translation",
-      description: "Standard translation prompt for general use",
+      id: 'default',
+      name: 'Default Translation',
+      description: 'Standard translation prompt for general use',
       template:
-        "Translate the following text from {source_language} to {target_language}. Provide only the translation without any explanation:\n\n{text}",
-      languagePairs: ["*"],
-      category: "general",
-      version: "1.0",
+        'Translate the following text from {source_language} to {target_language}. Provide only the translation without any explanation:\n\n{text}',
+      languagePairs: ['*'],
+      category: 'general',
+      version: '1.0',
       isActive: true,
       performanceMetrics: {
         avgQuality: 0.85,
@@ -157,14 +153,14 @@ const TranslationTesting: React.FC = () => {
       },
     },
     {
-      id: "conversational",
-      name: "Conversational Style",
-      description: "Natural conversational translation with context awareness",
+      id: 'conversational',
+      name: 'Conversational Style',
+      description: 'Natural conversational translation with context awareness',
       template:
-        "Translate this conversational text naturally, maintaining the tone and style from {source_language} to {target_language}:\n\n{text}\n\nKeep the natural flow and cultural context.",
-      languagePairs: ["en-es", "en-fr", "zh-en"],
-      category: "conversational",
-      version: "1.2",
+        'Translate this conversational text naturally, maintaining the tone and style from {source_language} to {target_language}:\n\n{text}\n\nKeep the natural flow and cultural context.',
+      languagePairs: ['en-es', 'en-fr', 'zh-en'],
+      category: 'conversational',
+      version: '1.2',
       isActive: true,
       performanceMetrics: {
         avgQuality: 0.92,
@@ -174,38 +170,31 @@ const TranslationTesting: React.FC = () => {
     },
   ]);
 
-  const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
-    null,
-  );
-  const [newPromptText, setNewPromptText] = useState("");
+  const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(null);
+  const [newPromptText, setNewPromptText] = useState('');
 
   const supportedLanguages = [
-    { code: "auto", name: "Auto Detect", flag: "🌐" },
-    { code: "en", name: "English", flag: "🇺🇸" },
-    { code: "es", name: "Spanish", flag: "🇪🇸" },
-    { code: "fr", name: "French", flag: "🇫🇷" },
-    { code: "de", name: "German", flag: "🇩🇪" },
-    { code: "it", name: "Italian", flag: "🇮🇹" },
-    { code: "pt", name: "Portuguese", flag: "🇵🇹" },
-    { code: "ja", name: "Japanese", flag: "🇯🇵" },
-    { code: "ko", name: "Korean", flag: "🇰🇷" },
-    { code: "zh", name: "Chinese", flag: "🇨🇳" },
-    { code: "ru", name: "Russian", flag: "🇷🇺" },
-    { code: "ar", name: "Arabic", flag: "🇸🇦" },
+    { code: 'auto', name: 'Auto Detect', flag: '🌐' },
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'fr', name: 'French', flag: '🇫🇷' },
+    { code: 'de', name: 'German', flag: '🇩🇪' },
+    { code: 'it', name: 'Italian', flag: '🇮🇹' },
+    { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
+    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+    { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
+    { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
   ];
 
-  const handleTabChange = useCallback(
-    (_event: React.SyntheticEvent, newValue: number) => {
-      setTabValue(newValue);
-    },
-    [],
-  );
+  const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  }, []);
 
   const handleLanguageToggle = useCallback((language: string) => {
     setTargetLanguages((prev) =>
-      prev.includes(language)
-        ? prev.filter((lang) => lang !== language)
-        : [...prev, language],
+      prev.includes(language) ? prev.filter((lang) => lang !== language) : [...prev, language]
     );
   }, []);
 
@@ -233,7 +222,7 @@ const TranslationTesting: React.FC = () => {
         // Extract the actual translation data from the API response
         const translationData = result.success ? result.data : null;
         if (!translationData) {
-          console.error("Translation failed:", result.error || "Unknown error");
+          console.error('Translation failed:', result.error || 'Unknown error');
           continue;
         }
 
@@ -242,13 +231,12 @@ const TranslationTesting: React.FC = () => {
           sourceText: testText,
           sourceLanguage: sourceLanguage,
           targetLanguage: targetLang,
-          translatedText: translationData.translated_text || "",
+          translatedText: translationData.translated_text || '',
           confidence: translationData.confidence || 0,
-          processingTime:
-            translationData.processing_time || Date.now() - startTime,
+          processingTime: translationData.processing_time || Date.now() - startTime,
           timestamp: Date.now(),
           promptId: selectedPrompt,
-          modelUsed: translationData.model_used || "unknown",
+          modelUsed: translationData.model_used || 'unknown',
           qualityScore: translationData.quality_score || undefined,
         };
 
@@ -258,18 +246,12 @@ const TranslationTesting: React.FC = () => {
       setSingleResults(results);
       setTestHistory((prev) => [...results, ...prev]);
     } catch (error) {
-      console.error("Translation test failed:", error);
+      console.error('Translation test failed:', error);
     } finally {
       setIsTesting(false);
       setTestProgress(0);
     }
-  }, [
-    testText,
-    sourceLanguage,
-    targetLanguages,
-    selectedPrompt,
-    translateText,
-  ]);
+  }, [testText, sourceLanguage, targetLanguages, selectedPrompt, translateText]);
 
   const handleBatchTranslationTest = useCallback(async () => {
     if (batchTestTexts.length === 0 || targetLanguages.length === 0) return;
@@ -297,10 +279,7 @@ const TranslationTesting: React.FC = () => {
           // Extract the actual translation data from the API response
           const translationData = result.success ? result.data : null;
           if (!translationData) {
-            console.error(
-              "Batch translation failed:",
-              result.error || "Unknown error",
-            );
+            console.error('Batch translation failed:', result.error || 'Unknown error');
             continue;
           }
 
@@ -309,13 +288,12 @@ const TranslationTesting: React.FC = () => {
             sourceText: text,
             sourceLanguage: sourceLanguage,
             targetLanguage: targetLang,
-            translatedText: translationData.translated_text || "",
+            translatedText: translationData.translated_text || '',
             confidence: translationData.confidence || 0,
-            processingTime:
-              translationData.processing_time || Date.now() - startTime,
+            processingTime: translationData.processing_time || Date.now() - startTime,
             timestamp: Date.now(),
             promptId: selectedPrompt,
-            modelUsed: translationData.model_used || "unknown",
+            modelUsed: translationData.model_used || 'unknown',
             qualityScore: translationData.quality_score || undefined,
           };
 
@@ -328,18 +306,12 @@ const TranslationTesting: React.FC = () => {
       setBatchResults(results);
       setTestHistory((prev) => [...results, ...prev]);
     } catch (error) {
-      console.error("Batch translation test failed:", error);
+      console.error('Batch translation test failed:', error);
     } finally {
       setIsTesting(false);
       setBatchProgress(0);
     }
-  }, [
-    batchTestTexts,
-    sourceLanguage,
-    targetLanguages,
-    selectedPrompt,
-    translateText,
-  ]);
+  }, [batchTestTexts, sourceLanguage, targetLanguages, selectedPrompt, translateText]);
 
   const handleStreamingTranslationTest = useCallback(() => {
     if (!isConnected || !streamingText.trim()) return;
@@ -347,20 +319,20 @@ const TranslationTesting: React.FC = () => {
     setIsStreaming(true);
     setStreamingResults([]);
 
-    (wsSendMessage as any)("translation:start_streaming", {
+    (wsSendMessage as any)('translation:start_streaming', {
       source_language: sourceLanguage,
       target_languages: targetLanguages,
       prompt_id: selectedPrompt,
     });
 
     // Simulate streaming text by sending chunks
-    const words = streamingText.split(" ");
-    let currentText = "";
+    const words = streamingText.split(' ');
+    let currentText = '';
 
     words.forEach((word, index) => {
       setTimeout(() => {
-        currentText += (index > 0 ? " " : "") + word;
-        (wsSendMessage as any)("translation:text_chunk", {
+        currentText += (index > 0 ? ' ' : '') + word;
+        (wsSendMessage as any)('translation:text_chunk', {
           text_chunk: currentText,
           is_final: index === words.length - 1,
         });
@@ -371,20 +343,12 @@ const TranslationTesting: React.FC = () => {
       () => {
         setIsStreaming(false);
       },
-      words.length * 500 + 1000,
+      words.length * 500 + 1000
     );
-  }, [
-    isConnected,
-    wsSendMessage,
-    streamingText,
-    sourceLanguage,
-    targetLanguages,
-    selectedPrompt,
-  ]);
+  }, [isConnected, wsSendMessage, streamingText, sourceLanguage, targetLanguages, selectedPrompt]);
 
   const handlePromptComparison = useCallback(async () => {
-    if (!testText.trim() || targetLanguages.length === 0 || prompts.length < 2)
-      return;
+    if (!testText.trim() || targetLanguages.length === 0 || prompts.length < 2) return;
 
     setIsTesting(true);
     setComparisonResults([]);
@@ -406,10 +370,7 @@ const TranslationTesting: React.FC = () => {
           // Extract the actual translation data from the API response
           const translationData = result.success ? result.data : null;
           if (!translationData) {
-            console.error(
-              "Prompt comparison translation failed:",
-              result.error || "Unknown error",
-            );
+            console.error('Prompt comparison translation failed:', result.error || 'Unknown error');
             continue;
           }
 
@@ -418,13 +379,12 @@ const TranslationTesting: React.FC = () => {
             sourceText: testText,
             sourceLanguage: sourceLanguage,
             targetLanguage: targetLang,
-            translatedText: translationData.translated_text || "",
+            translatedText: translationData.translated_text || '',
             confidence: translationData.confidence || 0,
-            processingTime:
-              translationData.processing_time || Date.now() - startTime,
+            processingTime: translationData.processing_time || Date.now() - startTime,
             timestamp: Date.now(),
             promptId: prompt.id,
-            modelUsed: translationData.model_used || "unknown",
+            modelUsed: translationData.model_used || 'unknown',
             qualityScore: translationData.quality_score || undefined,
           };
 
@@ -434,20 +394,18 @@ const TranslationTesting: React.FC = () => {
 
       setComparisonResults(results);
     } catch (error) {
-      console.error("Prompt comparison failed:", error);
+      console.error('Prompt comparison failed:', error);
     } finally {
       setIsTesting(false);
     }
   }, [testText, sourceLanguage, targetLanguages, prompts, translateText]);
 
   const handleAddBatchText = useCallback(() => {
-    setBatchTestTexts((prev) => [...prev, ""]);
+    setBatchTestTexts((prev) => [...prev, '']);
   }, []);
 
   const handleUpdateBatchText = useCallback((index: number, text: string) => {
-    setBatchTestTexts((prev) =>
-      prev.map((item, i) => (i === index ? text : item)),
-    );
+    setBatchTestTexts((prev) => prev.map((item, i) => (i === index ? text : item)));
   }, []);
 
   const handleRemoveBatchText = useCallback((index: number) => {
@@ -458,13 +416,11 @@ const TranslationTesting: React.FC = () => {
     if (editingPrompt) {
       setPrompts((prev) =>
         prev.map((p) =>
-          p.id === editingPrompt.id
-            ? { ...editingPrompt, template: newPromptText }
-            : p,
-        ),
+          p.id === editingPrompt.id ? { ...editingPrompt, template: newPromptText } : p
+        )
       );
       setEditingPrompt(null);
-      setNewPromptText("");
+      setNewPromptText('');
     }
   }, [editingPrompt, newPromptText]);
 
@@ -473,45 +429,42 @@ const TranslationTesting: React.FC = () => {
     return lang ? `${lang.flag} ${lang.name}` : code;
   }, []);
 
-  const exportResults = useCallback(
-    (results: TranslationTest[], filename: string) => {
-      const csv = [
+  const exportResults = useCallback((results: TranslationTest[], filename: string) => {
+    const csv = [
+      [
+        'Source Text',
+        'Source Language',
+        'Target Language',
+        'Translation',
+        'Confidence',
+        'Processing Time (ms)',
+        'Quality Score',
+        'Prompt ID',
+        'Model Used',
+      ].join(','),
+      ...results.map((r) =>
         [
-          "Source Text",
-          "Source Language",
-          "Target Language",
-          "Translation",
-          "Confidence",
-          "Processing Time (ms)",
-          "Quality Score",
-          "Prompt ID",
-          "Model Used",
-        ].join(","),
-        ...results.map((r) =>
-          [
-            `"${r.sourceText.replace(/"/g, '""')}"`,
-            r.sourceLanguage,
-            r.targetLanguage,
-            `"${r.translatedText.replace(/"/g, '""')}"`,
-            r.confidence.toFixed(3),
-            r.processingTime.toString(),
-            (r.qualityScore || 0).toFixed(3),
-            r.promptId || "",
-            r.modelUsed || "",
-          ].join(","),
-        ),
-      ].join("\n");
+          `"${r.sourceText.replace(/"/g, '""')}"`,
+          r.sourceLanguage,
+          r.targetLanguage,
+          `"${r.translatedText.replace(/"/g, '""')}"`,
+          r.confidence.toFixed(3),
+          r.processingTime.toString(),
+          (r.qualityScore || 0).toFixed(3),
+          r.promptId || '',
+          r.modelUsed || '',
+        ].join(',')
+      ),
+    ].join('\n');
 
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${filename}-${new Date().toISOString().split("T")[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    [],
-  );
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
 
   // Note: WebSocket message handling is now managed by the useWebSocket hook
   // and Redux store. Streaming results would be handled through Redux actions.
@@ -522,21 +475,21 @@ const TranslationTesting: React.FC = () => {
         🌍 Advanced Translation Testing & Prompt Management
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Comprehensive translation testing suite with real-time streaming, batch
-        processing, and advanced prompt management
+        Comprehensive translation testing suite with real-time streaming, batch processing, and
+        advanced prompt management
       </Typography>
 
-      <Alert severity={isConnected ? "success" : "warning"} sx={{ mb: 3 }}>
+      <Alert severity={isConnected ? 'success' : 'warning'} sx={{ mb: 3 }}>
         <Typography variant="body2">
-          WebSocket Status:{" "}
+          WebSocket Status:{' '}
           {isConnected
-            ? "Connected - Real-time features available"
-            : "Disconnected - Using REST API fallback"}
+            ? 'Connected - Real-time features available'
+            : 'Disconnected - Using REST API fallback'}
         </Typography>
       </Alert>
 
-      <Paper sx={{ width: "100%", mb: 3 }}>
-        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+      <Paper sx={{ width: '100%', mb: 3 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs
             value={tabValue}
             onChange={handleTabChange}
@@ -644,7 +597,7 @@ const TranslationTesting: React.FC = () => {
                   </Typography>
                   <FormGroup row sx={{ mb: 2 }}>
                     {supportedLanguages
-                      .filter((lang) => lang.code !== "auto")
+                      .filter((lang) => lang.code !== 'auto')
                       .map((lang) => (
                         <FormControlLabel
                           key={lang.code}
@@ -660,9 +613,7 @@ const TranslationTesting: React.FC = () => {
                       ))}
                   </FormGroup>
 
-                  <Box
-                    sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}
-                  >
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                     {targetLanguages.map((lang) => (
                       <Chip
                         key={lang}
@@ -677,29 +628,15 @@ const TranslationTesting: React.FC = () => {
                   <Button
                     variant="contained"
                     onClick={handleSingleTranslationTest}
-                    disabled={
-                      !testText.trim() ||
-                      targetLanguages.length === 0 ||
-                      isTesting
-                    }
+                    disabled={!testText.trim() || targetLanguages.length === 0 || isTesting}
                     fullWidth
-                    startIcon={
-                      isTesting ? (
-                        <CircularProgress size={20} />
-                      ) : (
-                        <TranslateIcon />
-                      )
-                    }
+                    startIcon={isTesting ? <CircularProgress size={20} /> : <TranslateIcon />}
                   >
-                    {isTesting ? "Translating..." : "Test Translation"}
+                    {isTesting ? 'Translating...' : 'Test Translation'}
                   </Button>
 
                   {isTesting && (
-                    <LinearProgress
-                      variant="determinate"
-                      value={testProgress}
-                      sx={{ mt: 2 }}
-                    />
+                    <LinearProgress variant="determinate" value={testProgress} sx={{ mt: 2 }} />
                   )}
                 </CardContent>
               </Card>
@@ -715,16 +652,11 @@ const TranslationTesting: React.FC = () => {
                   {singleResults.length > 0 ? (
                     <Box>
                       {singleResults.map((result) => (
-                        <Paper
-                          key={result.id}
-                          sx={{ p: 2, mb: 2, backgroundColor: "primary.50" }}
-                        >
+                        <Paper key={result.id} sx={{ p: 2, mb: 2, backgroundColor: 'primary.50' }}>
                           <Typography variant="body1" sx={{ mb: 1 }}>
                             {result.translatedText}
                           </Typography>
-                          <Box
-                            sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}
-                          >
+                          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                             <Chip
                               label={`${getLanguageName(result.sourceLanguage)} → ${getLanguageName(result.targetLanguage)}`}
                               size="small"
@@ -733,23 +665,14 @@ const TranslationTesting: React.FC = () => {
                             <Chip
                               label={`Confidence: ${(result.confidence * 100).toFixed(1)}%`}
                               size="small"
-                              color={
-                                result.confidence > 0.8 ? "success" : "warning"
-                              }
+                              color={result.confidence > 0.8 ? 'success' : 'warning'}
                             />
-                            <Chip
-                              label={`${result.processingTime}ms`}
-                              size="small"
-                            />
+                            <Chip label={`${result.processingTime}ms`} size="small" />
                             {result.qualityScore && (
                               <Chip
                                 label={`Quality: ${(result.qualityScore * 100).toFixed(1)}%`}
                                 size="small"
-                                color={
-                                  result.qualityScore > 0.8
-                                    ? "success"
-                                    : "warning"
-                                }
+                                color={result.qualityScore > 0.8 ? 'success' : 'warning'}
                               />
                             )}
                           </Box>
@@ -757,9 +680,7 @@ const TranslationTesting: React.FC = () => {
                       ))}
                     </Box>
                   ) : (
-                    <Alert severity="info">
-                      Run a translation test to see results here.
-                    </Alert>
+                    <Alert severity="info">Run a translation test to see results here.</Alert>
                   )}
                 </CardContent>
               </Card>
@@ -774,8 +695,8 @@ const TranslationTesting: React.FC = () => {
                 📊 Batch Translation Testing
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Test multiple texts simultaneously to evaluate translation
-                performance across different inputs
+                Test multiple texts simultaneously to evaluate translation performance across
+                different inputs
               </Typography>
 
               <Box sx={{ mb: 2 }}>
@@ -783,15 +704,13 @@ const TranslationTesting: React.FC = () => {
                   Test Texts:
                 </Typography>
                 {batchTestTexts.map((text, index) => (
-                  <Box key={index} sx={{ display: "flex", gap: 1, mb: 1 }}>
+                  <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1 }}>
                     <TextField
                       fullWidth
                       size="small"
                       placeholder={`Test text ${index + 1}`}
                       value={text}
-                      onChange={(e) =>
-                        handleUpdateBatchText(index, e.target.value)
-                      }
+                      onChange={(e) => handleUpdateBatchText(index, e.target.value)}
                     />
                     <IconButton
                       onClick={() => handleRemoveBatchText(index)}
@@ -802,42 +721,27 @@ const TranslationTesting: React.FC = () => {
                     </IconButton>
                   </Box>
                 ))}
-                <Button
-                  variant="outlined"
-                  onClick={handleAddBatchText}
-                  size="small"
-                  sx={{ mt: 1 }}
-                >
+                <Button variant="outlined" onClick={handleAddBatchText} size="small" sx={{ mt: 1 }}>
                   Add Text
                 </Button>
               </Box>
 
-              <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                 <Button
                   variant="contained"
                   onClick={handleBatchTranslationTest}
                   disabled={
-                    batchTestTexts.length === 0 ||
-                    targetLanguages.length === 0 ||
-                    isTesting
+                    batchTestTexts.length === 0 || targetLanguages.length === 0 || isTesting
                   }
-                  startIcon={
-                    isTesting ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      <AssessmentIcon />
-                    )
-                  }
+                  startIcon={isTesting ? <CircularProgress size={20} /> : <AssessmentIcon />}
                 >
-                  {isTesting ? "Processing..." : "Run Batch Test"}
+                  {isTesting ? 'Processing...' : 'Run Batch Test'}
                 </Button>
 
                 {batchResults.length > 0 && (
                   <Button
                     variant="outlined"
-                    onClick={() =>
-                      exportResults(batchResults, "batch-translation-results")
-                    }
+                    onClick={() => exportResults(batchResults, 'batch-translation-results')}
                     startIcon={<DownloadIcon />}
                   >
                     Export Results
@@ -846,11 +750,7 @@ const TranslationTesting: React.FC = () => {
               </Box>
 
               {isTesting && (
-                <LinearProgress
-                  variant="determinate"
-                  value={batchProgress}
-                  sx={{ mb: 2 }}
-                />
+                <LinearProgress variant="determinate" value={batchProgress} sx={{ mb: 2 }} />
               )}
 
               {batchResults.length > 0 && (
@@ -875,23 +775,16 @@ const TranslationTesting: React.FC = () => {
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={getLanguageName(result.targetLanguage)}
-                              size="small"
-                            />
+                            <Chip label={getLanguageName(result.targetLanguage)} size="small" />
                           </TableCell>
                           <TableCell sx={{ maxWidth: 300 }}>
-                            <Typography variant="body2">
-                              {result.translatedText}
-                            </Typography>
+                            <Typography variant="body2">{result.translatedText}</Typography>
                           </TableCell>
                           <TableCell>
                             <Chip
                               label={`${(result.confidence * 100).toFixed(1)}%`}
                               size="small"
-                              color={
-                                result.confidence > 0.8 ? "success" : "warning"
-                              }
+                              color={result.confidence > 0.8 ? 'success' : 'warning'}
                             />
                           </TableCell>
                           <TableCell>{result.processingTime}</TableCell>
@@ -900,11 +793,7 @@ const TranslationTesting: React.FC = () => {
                               <Chip
                                 label={`${(result.qualityScore * 100).toFixed(1)}%`}
                                 size="small"
-                                color={
-                                  result.qualityScore > 0.8
-                                    ? "success"
-                                    : "warning"
-                                }
+                                color={result.qualityScore > 0.8 ? 'success' : 'warning'}
                               />
                             )}
                           </TableCell>
@@ -939,18 +828,14 @@ const TranslationTesting: React.FC = () => {
                 placeholder="Type or paste text that will be sent in chunks to simulate real-time translation..."
               />
 
-              <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                 <Button
                   variant="contained"
                   onClick={handleStreamingTranslationTest}
-                  disabled={
-                    !streamingText.trim() || !isConnected || isStreaming
-                  }
-                  startIcon={
-                    isStreaming ? <CircularProgress size={20} /> : <PlayIcon />
-                  }
+                  disabled={!streamingText.trim() || !isConnected || isStreaming}
+                  startIcon={isStreaming ? <CircularProgress size={20} /> : <PlayIcon />}
                 >
-                  {isStreaming ? "Streaming..." : "Start Streaming Test"}
+                  {isStreaming ? 'Streaming...' : 'Start Streaming Test'}
                 </Button>
 
                 {isStreaming && (
@@ -966,9 +851,8 @@ const TranslationTesting: React.FC = () => {
 
               {!isConnected && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
-                  WebSocket connection required for streaming translation
-                  testing. Please check your connection to the translation
-                  service.
+                  WebSocket connection required for streaming translation testing. Please check your
+                  connection to the translation service.
                 </Alert>
               )}
 
@@ -978,19 +862,14 @@ const TranslationTesting: React.FC = () => {
                     Streaming Results:
                   </Typography>
                   {streamingResults.map((result, index) => (
-                    <Paper
-                      key={index}
-                      sx={{ p: 2, mb: 1, backgroundColor: "success.50" }}
-                    >
+                    <Paper key={index} sx={{ p: 2, mb: 1, backgroundColor: 'success.50' }}>
                       <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>
-                          {getLanguageName(result.targetLanguage)}:
-                        </strong>{" "}
+                        <strong>{getLanguageName(result.targetLanguage)}:</strong>{' '}
                         {result.translatedText}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Confidence: {(result.confidence * 100).toFixed(1)}% |
-                        Time: {result.processingTime}ms
+                        Confidence: {(result.confidence * 100).toFixed(1)}% | Time:{' '}
+                        {result.processingTime}ms
                       </Typography>
                     </Paper>
                   ))}
@@ -1007,8 +886,8 @@ const TranslationTesting: React.FC = () => {
                 🔍 Prompt Comparison & A/B Testing
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Compare different prompt templates to find the most effective
-                approach for your use case
+                Compare different prompt templates to find the most effective approach for your use
+                case
               </Typography>
 
               <TextField
@@ -1040,15 +919,11 @@ const TranslationTesting: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handlePromptComparison}
-                disabled={
-                  !testText.trim() || targetLanguages.length === 0 || isTesting
-                }
-                startIcon={
-                  isTesting ? <CircularProgress size={20} /> : <CompareIcon />
-                }
+                disabled={!testText.trim() || targetLanguages.length === 0 || isTesting}
+                startIcon={isTesting ? <CircularProgress size={20} /> : <CompareIcon />}
                 sx={{ mb: 2 }}
               >
-                {isTesting ? "Comparing..." : "Run Prompt Comparison"}
+                {isTesting ? 'Comparing...' : 'Run Prompt Comparison'}
               </Button>
 
               {comparisonResults.length > 0 && (
@@ -1066,42 +941,28 @@ const TranslationTesting: React.FC = () => {
                     </TableHead>
                     <TableBody>
                       {comparisonResults.map((result) => {
-                        const prompt = prompts.find(
-                          (p) => p.id === result.promptId,
-                        );
+                        const prompt = prompts.find((p) => p.id === result.promptId);
                         return (
                           <TableRow key={result.id}>
                             <TableCell>
                               <Typography variant="body2" fontWeight="bold">
                                 {prompt?.name || result.promptId}
                               </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
+                              <Typography variant="caption" color="text.secondary">
                                 v{prompt?.version}
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                label={getLanguageName(result.targetLanguage)}
-                                size="small"
-                              />
+                              <Chip label={getLanguageName(result.targetLanguage)} size="small" />
                             </TableCell>
                             <TableCell sx={{ maxWidth: 300 }}>
-                              <Typography variant="body2">
-                                {result.translatedText}
-                              </Typography>
+                              <Typography variant="body2">{result.translatedText}</Typography>
                             </TableCell>
                             <TableCell>
                               <Chip
                                 label={`${(result.confidence * 100).toFixed(1)}%`}
                                 size="small"
-                                color={
-                                  result.confidence > 0.8
-                                    ? "success"
-                                    : "warning"
-                                }
+                                color={result.confidence > 0.8 ? 'success' : 'warning'}
                               />
                             </TableCell>
                             <TableCell>
@@ -1109,11 +970,7 @@ const TranslationTesting: React.FC = () => {
                                 <Chip
                                   label={`${(result.qualityScore * 100).toFixed(1)}%`}
                                   size="small"
-                                  color={
-                                    result.qualityScore > 0.8
-                                      ? "success"
-                                      : "warning"
-                                  }
+                                  color={result.qualityScore > 0.8 ? 'success' : 'warning'}
                                 />
                               )}
                             </TableCell>
@@ -1136,8 +993,7 @@ const TranslationTesting: React.FC = () => {
                 🛠️ Prompt Template Management
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Create, edit, and manage translation prompt templates for
-                different use cases
+                Create, edit, and manage translation prompt templates for different use cases
               </Typography>
             </Grid>
 
@@ -1147,43 +1003,35 @@ const TranslationTesting: React.FC = () => {
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Box
                       sx={{
-                        display: "flex",
-                        alignItems: "center",
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: 2,
-                        width: "100%",
+                        width: '100%',
                       }}
                     >
                       <Typography variant="subtitle1" fontWeight="bold">
                         {prompt.name}
                       </Typography>
-                      <Chip
-                        label={prompt.category}
-                        size="small"
-                        color="primary"
-                      />
+                      <Chip label={prompt.category} size="small" color="primary" />
                       <Chip label={`v${prompt.version}`} size="small" />
                       <Switch
                         checked={prompt.isActive}
                         onChange={(e) => {
                           setPrompts((prev) =>
                             prev.map((p) =>
-                              p.id === prompt.id
-                                ? { ...p, isActive: e.target.checked }
-                                : p,
-                            ),
+                              p.id === prompt.id ? { ...p, isActive: e.target.checked } : p
+                            )
                           );
                         }}
                         size="small"
                       />
                       {prompt.performanceMetrics && (
-                        <Box sx={{ display: "flex", gap: 1, ml: "auto" }}>
+                        <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
                           <Chip
                             label={`Quality: ${(prompt.performanceMetrics.avgQuality * 100).toFixed(0)}%`}
                             size="small"
                             color={
-                              prompt.performanceMetrics.avgQuality > 0.8
-                                ? "success"
-                                : "warning"
+                              prompt.performanceMetrics.avgQuality > 0.8 ? 'success' : 'warning'
                             }
                           />
                           <Chip
@@ -1199,11 +1047,7 @@ const TranslationTesting: React.FC = () => {
                     </Box>
                   </AccordionSummary>
                   <AccordionDetails>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mb: 2 }}
-                    >
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       {prompt.description}
                     </Typography>
 
@@ -1212,11 +1056,7 @@ const TranslationTesting: React.FC = () => {
                       multiline
                       rows={6}
                       label="Prompt Template"
-                      value={
-                        editingPrompt?.id === prompt.id
-                          ? newPromptText
-                          : prompt.template
-                      }
+                      value={editingPrompt?.id === prompt.id ? newPromptText : prompt.template}
                       onChange={(e) => {
                         if (editingPrompt?.id === prompt.id) {
                           setNewPromptText(e.target.value);
@@ -1227,28 +1067,24 @@ const TranslationTesting: React.FC = () => {
                       helperText="Use {source_language}, {target_language}, and {text} as placeholders"
                     />
 
-                    <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                       <Typography variant="caption">Language Pairs:</Typography>
                       {prompt.languagePairs.map((pair, index) => (
                         <Chip key={index} label={pair} size="small" />
                       ))}
                     </Box>
 
-                    <Box sx={{ display: "flex", gap: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
                       {editingPrompt?.id === prompt.id ? (
                         <>
-                          <Button
-                            variant="contained"
-                            onClick={handleSavePrompt}
-                            size="small"
-                          >
+                          <Button variant="contained" onClick={handleSavePrompt} size="small">
                             Save Changes
                           </Button>
                           <Button
                             variant="outlined"
                             onClick={() => {
                               setEditingPrompt(null);
-                              setNewPromptText("");
+                              setNewPromptText('');
                             }}
                             size="small"
                           >
@@ -1282,13 +1118,12 @@ const TranslationTesting: React.FC = () => {
                 📈 Translation Analytics & Performance
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Comprehensive analytics and performance metrics for your
-                translation tests
+                Comprehensive analytics and performance metrics for your translation tests
               </Typography>
 
               <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 2, textAlign: "center" }}>
+                  <Paper sx={{ p: 2, textAlign: 'center' }}>
                     <Typography variant="h4" color="primary">
                       {testHistory.length}
                     </Typography>
@@ -1299,14 +1134,11 @@ const TranslationTesting: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 2, textAlign: "center" }}>
+                  <Paper sx={{ p: 2, textAlign: 'center' }}>
                     <Typography variant="h4" color="success.main">
                       {testHistory.length > 0
                         ? (
-                            (testHistory.reduce(
-                              (sum, t) => sum + t.confidence,
-                              0,
-                            ) /
+                            (testHistory.reduce((sum, t) => sum + t.confidence, 0) /
                               testHistory.length) *
                             100
                           ).toFixed(1)
@@ -1320,14 +1152,12 @@ const TranslationTesting: React.FC = () => {
                 </Grid>
 
                 <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 2, textAlign: "center" }}>
+                  <Paper sx={{ p: 2, textAlign: 'center' }}>
                     <Typography variant="h4" color="info.main">
                       {testHistory.length > 0
                         ? Math.round(
-                            testHistory.reduce(
-                              (sum, t) => sum + t.processingTime,
-                              0,
-                            ) / testHistory.length,
+                            testHistory.reduce((sum, t) => sum + t.processingTime, 0) /
+                              testHistory.length
                           )
                         : 0}
                       ms
@@ -1340,12 +1170,10 @@ const TranslationTesting: React.FC = () => {
 
                 {testHistory.length > 0 && (
                   <Grid item xs={12}>
-                    <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                       <Button
                         variant="outlined"
-                        onClick={() =>
-                          exportResults(testHistory, "translation-history")
-                        }
+                        onClick={() => exportResults(testHistory, 'translation-history')}
                         startIcon={<DownloadIcon />}
                       >
                         Export All Results
@@ -1382,16 +1210,10 @@ const TranslationTesting: React.FC = () => {
                                 </Typography>
                               </TableCell>
                               <TableCell>
-                                <Chip
-                                  label={getLanguageName(result.sourceLanguage)}
-                                  size="small"
-                                />
+                                <Chip label={getLanguageName(result.sourceLanguage)} size="small" />
                               </TableCell>
                               <TableCell>
-                                <Chip
-                                  label={getLanguageName(result.targetLanguage)}
-                                  size="small"
-                                />
+                                <Chip label={getLanguageName(result.targetLanguage)} size="small" />
                               </TableCell>
                               <TableCell sx={{ maxWidth: 200 }}>
                                 <Typography variant="body2" noWrap>
@@ -1402,18 +1224,14 @@ const TranslationTesting: React.FC = () => {
                                 <Chip
                                   label={`${(result.confidence * 100).toFixed(1)}%`}
                                   size="small"
-                                  color={
-                                    result.confidence > 0.8
-                                      ? "success"
-                                      : "warning"
-                                  }
+                                  color={result.confidence > 0.8 ? 'success' : 'warning'}
                                 />
                               </TableCell>
                               <TableCell>{result.processingTime}ms</TableCell>
                               <TableCell>
                                 <Typography variant="caption">
-                                  {prompts.find((p) => p.id === result.promptId)
-                                    ?.name || result.promptId}
+                                  {prompts.find((p) => p.id === result.promptId)?.name ||
+                                    result.promptId}
                                 </Typography>
                               </TableCell>
                             </TableRow>

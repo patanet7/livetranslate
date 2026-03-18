@@ -391,11 +391,59 @@ async def lifespan(app: FastAPI):
         get_settings()
 
         # Initialize dependencies
-        from dependencies import startup_dependencies
+        from dependencies import get_database_manager, get_translation_service_client, startup_dependencies
+        from meeting.heartbeat import run_heartbeat_monitor
+        from meeting.session_manager import MeetingSessionManager
+        from meeting.translation_recovery import recover_pending_translations_with_fresh_session
 
         await startup_dependencies()
 
         logger.info("[OK] All managers started successfully")
+
+        # Recover stale meeting sessions and start orphan monitoring once per app.
+        try:
+            from routers.audio.websocket_audio import RECORDING_BASE_PATH
+
+            meeting_db_session = await get_database_manager().get_session_direct()
+            meeting_session_manager = MeetingSessionManager(
+                db=meeting_db_session,
+                recording_base_path=RECORDING_BASE_PATH,
+            )
+            recovered = await meeting_session_manager.recover_on_startup()
+            untranslated = await meeting_session_manager.recover_untranslated()
+
+            async def _recover_pending_meeting_translations() -> None:
+                translation_db_session = await get_database_manager().get_session_direct()
+                try:
+                    translation_service = get_translation_service_client()
+                    stats = await recover_pending_translations_with_fresh_session(
+                        translation_db_session,
+                        RECORDING_BASE_PATH,
+                        translation_service,
+                    )
+                    logger.info("meeting_translation_recovery_finished", **stats)
+                except Exception as recovery_exc:
+                    logger.warning(
+                        "meeting_translation_recovery_failed",
+                        error=str(recovery_exc),
+                    )
+                finally:
+                    await translation_db_session.close()
+
+            app.state.meeting_runtime_db_session = meeting_db_session
+            app.state.meeting_heartbeat_task = asyncio.create_task(
+                run_heartbeat_monitor(meeting_session_manager)
+            )
+            app.state.meeting_translation_recovery_task = asyncio.create_task(
+                _recover_pending_meeting_translations()
+            )
+            logger.info(
+                "meeting_runtime_started",
+                recovered_active_sessions=len(recovered),
+                untranslated_chunks=len(untranslated),
+            )
+        except Exception as e:
+            logger.warning(f"[WARN] Meeting runtime startup failed (non-fatal): {e}")
 
         # Start Fireflies auto-connect polling (if enabled)
         from routers.fireflies import start_auto_connect
@@ -434,12 +482,9 @@ async def lifespan(app: FastAPI):
 
         # Warm up translation LLM at startup (not per-session)
         try:
-            from translation.config import TranslationConfig
-            from translation.service import TranslationService
             from livetranslate_common.models import TranslationRequest
 
-            translation_config = TranslationConfig()
-            translation_service = TranslationService(translation_config)
+            translation_service = get_translation_service_client()
             await translation_service.translate(TranslationRequest(
                 text="hello",
                 source_language="en",
@@ -447,9 +492,11 @@ async def lifespan(app: FastAPI):
             ))
             translation_service.clear_context()
             app.state.translation_service_warmed = True
+            app.state.translation_service_warmup_task = None
             logger.info("llm_warm_up_complete_at_startup")
         except Exception as e:
             app.state.translation_service_warmed = False
+            app.state.translation_service_warmup_task = None
             logger.debug("llm_warm_up_skipped_at_startup", reason=str(e))
 
         yield
@@ -486,6 +533,30 @@ async def lifespan(app: FastAPI):
         from routers.fireflies import stop_auto_connect
 
         await stop_auto_connect()
+
+        heartbeat_task = getattr(app.state, "meeting_heartbeat_task", None)
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
+        translation_recovery_task = getattr(app.state, "meeting_translation_recovery_task", None)
+        if translation_recovery_task:
+            if not translation_recovery_task.done():
+                translation_recovery_task.cancel()
+            try:
+                await translation_recovery_task
+            except asyncio.CancelledError:
+                pass
+
+        meeting_db_session = getattr(app.state, "meeting_runtime_db_session", None)
+        if meeting_db_session:
+            try:
+                await meeting_db_session.close()
+            except Exception as e:
+                logger.warning(f"[WARN] Meeting runtime DB cleanup error: {e}")
 
         # Cleanup dependencies
         from dependencies import shutdown_dependencies

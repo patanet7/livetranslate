@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useState,
-  useRef,
-  useEffect,
-  useMemo,
-} from "react";
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -23,9 +17,9 @@ import ReactFlow, {
   Panel,
   useKeyPress,
   useOnSelectionChange,
-} from "reactflow";
-import "reactflow/dist/style.css";
-import { PipelineCallbacksProvider } from "./PipelineCallbacksContext";
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import { PipelineCallbacksProvider } from './PipelineCallbacksContext';
 import {
   Box,
   Card,
@@ -41,7 +35,7 @@ import {
   ListItemText,
   Divider,
   useTheme,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Save,
   PlayArrow,
@@ -62,11 +56,11 @@ import {
   Settings,
   ExpandMore,
   ExpandLess,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 
-import AudioStageNode from "./AudioStageNode";
-import { AudioComponent } from "./ComponentLibrary";
-import SettingsPanel from "./SettingsPanel";
+import AudioStageNode from './AudioStageNode';
+import { AudioComponent } from './ComponentLibrary';
+import SettingsPanel from './SettingsPanel';
 
 interface PipelineCanvasProps {
   initialPipeline?: PipelineData;
@@ -91,7 +85,7 @@ interface PipelineData {
   modified: Date;
   metadata: {
     totalLatency: number;
-    complexity: "simple" | "moderate" | "complex";
+    complexity: 'simple' | 'moderate' | 'complex';
     validated: boolean;
     errors: string[];
     warnings: string[];
@@ -112,23 +106,15 @@ const nodeTypes: NodeTypes = {
 
 // Custom edge styles with animation support
 const createAnimatedEdge = (isRealtimeActive: boolean) => {
-  return ({ sourceX, sourceY, targetX, targetY, style = {}, data }: any) => {
+  return ({ sourceX, sourceY, targetX, targetY, style = {} }: any) => {
     const path = `M ${sourceX} ${sourceY} C ${sourceX + 100} ${sourceY}, ${targetX - 100} ${targetY}, ${targetX} ${targetY}`;
-    const strokeColor = isRealtimeActive
-      ? "#4caf50"
-      : style.stroke || "#2196f3";
+    const strokeColor = isRealtimeActive ? '#4caf50' : style.stroke || '#2196f3';
     const strokeWidth = isRealtimeActive ? 3 : style.strokeWidth || 2;
 
     return (
       <g>
         {/* Base path */}
-        <path
-          d={path}
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-          opacity={0.3}
-        />
+        <path d={path} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} opacity={0.3} />
         {/* Animated path overlay when active */}
         {isRealtimeActive && (
           <path
@@ -139,7 +125,7 @@ const createAnimatedEdge = (isRealtimeActive: boolean) => {
             strokeDasharray="10 5"
             strokeLinecap="round"
             style={{
-              animation: "dash 1s linear infinite",
+              animation: 'dash 1s linear infinite',
             }}
           />
         )}
@@ -154,10 +140,6 @@ const createAnimatedEdge = (isRealtimeActive: boolean) => {
       </g>
     );
   };
-};
-
-const edgeTypes: EdgeTypes = {
-  audioConnection: createAnimatedEdge(false),
 };
 
 const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
@@ -181,7 +163,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     () => ({
       audioConnection: createAnimatedEdge(isRealtimeActive),
     }),
-    [isRealtimeActive],
+    [isRealtimeActive]
   );
 
   const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
@@ -192,34 +174,29 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     nodeId?: string;
   } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [selectedNodeForSettings, setSelectedNodeForSettings] = useState<
-    string | null
-  >(null);
-  const [validationResult, setValidationResult] =
-    useState<PipelineValidationResult | null>(null);
+  const [selectedNodeForSettings, setSelectedNodeForSettings] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<PipelineValidationResult | null>(null);
   const [validationExpanded, setValidationExpanded] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
-    severity: "success" | "error" | "warning" | "info";
+    severity: 'success' | 'error' | 'warning' | 'info';
   }>({
     open: false,
-    message: "",
-    severity: "info",
+    message: '',
+    severity: 'info',
   });
 
-  const [history, setHistory] = useState<{ nodes: Node[]; edges: Edge[] }[]>(
-    [],
-  );
+  const [history, setHistory] = useState<{ nodes: Node[]; edges: Edge[] }[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
   // Keyboard shortcuts
-  const deletePressed = useKeyPress("Delete");
-  const ctrlZ = useKeyPress(["Control+z", "Meta+z"]);
-  const ctrlY = useKeyPress(["Control+y", "Meta+y"]);
-  const ctrlC = useKeyPress(["Control+c", "Meta+c"]);
-  const ctrlV = useKeyPress(["Control+v", "Meta+v"]);
-  const ctrlS = useKeyPress(["Control+s", "Meta+s"]);
+  const deletePressed = useKeyPress('Delete');
+  const ctrlZ = useKeyPress(['Control+z', 'Meta+z']);
+  const ctrlY = useKeyPress(['Control+y', 'Meta+y']);
+  const ctrlC = useKeyPress(['Control+c', 'Meta+c']);
+  const ctrlV = useKeyPress(['Control+v', 'Meta+v']);
+  const ctrlS = useKeyPress(['Control+s', 'Meta+s']);
 
   // Define callback handlers early (before state initialization)
   const handleNodeSettingsOpen = useCallback((nodeId: string) => {
@@ -227,109 +204,87 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     setSettingsOpen(true);
   }, []);
 
-  const handleGainChange = useCallback(
-    (nodeId: string, type: "in" | "out", value: number) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === nodeId) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                [type === "in" ? "gainIn" : "gainOut"]: value,
-              },
-            };
-          }
-          return node;
-        }),
-      );
-    },
-    [],
-  );
+  const handleGainChange = useCallback((nodeId: string, type: 'in' | 'out', value: number) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              [type === 'in' ? 'gainIn' : 'gainOut']: value,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, []);
 
-  const handleParameterChange = useCallback(
-    (nodeId: string, paramName: string, value: number) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === nodeId) {
-            const updatedParameters = node.data.parameters.map((param: any) => {
-              if (param.name === paramName) {
-                return { ...param, value };
-              }
-              return param;
-            });
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                parameters: updatedParameters,
-              },
-            };
-          }
-          return node;
-        }),
-      );
-    },
-    [],
-  );
+  const handleParameterChange = useCallback((nodeId: string, paramName: string, value: number) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          const updatedParameters = node.data.parameters.map((param: any) => {
+            if (param.name === paramName) {
+              return { ...param, value };
+            }
+            return param;
+          });
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              parameters: updatedParameters,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, []);
 
-  const handleToggleEnabled = useCallback(
-    (nodeId: string, enabled: boolean) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === nodeId) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                enabled,
-              },
-            };
-          }
-          return node;
-        }),
-      );
-    },
-    [],
-  );
+  const handleToggleEnabled = useCallback((nodeId: string, enabled: boolean) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              enabled,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, []);
 
   // Initialize state with nodes from initial pipeline
-  const [nodes, setNodes, onNodesChange] = useNodesState(
-    initialPipeline?.nodes || [],
-  );
-  const [edges, setEdges, onEdgesChange] = useEdgesState(
-    initialPipeline?.edges || [],
-  );
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialPipeline?.nodes || []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialPipeline?.edges || []);
 
   // Keyboard shortcut handlers - MUST be defined before useEffects that call them
   const handleDeleteSelected = useCallback(() => {
     const selectedIds = selectedNodes.map((n) => n.id);
-    console.log(
-      "Deleting nodes:",
-      selectedIds,
-      "Selected nodes count:",
-      selectedNodes.length,
-    );
+    console.log('Deleting nodes:', selectedIds, 'Selected nodes count:', selectedNodes.length);
     if (selectedIds.length === 0) {
       setSnackbar({
         open: true,
-        message: "No components selected for deletion",
-        severity: "warning",
+        message: 'No components selected for deletion',
+        severity: 'warning',
       });
       return;
     }
     setNodes((nds) => nds.filter((node) => !selectedIds.includes(node.id)));
     setEdges((eds) =>
-      eds.filter(
-        (edge) =>
-          !selectedIds.includes(edge.source) &&
-          !selectedIds.includes(edge.target),
-      ),
+      eds.filter((edge) => !selectedIds.includes(edge.source) && !selectedIds.includes(edge.target))
     );
     setSnackbar({
       open: true,
       message: `Deleted ${selectedIds.length} component(s)`,
-      severity: "info",
+      severity: 'info',
     });
   }, [selectedNodes, setNodes, setEdges]);
 
@@ -338,7 +293,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     setSnackbar({
       open: true,
       message: `Copied ${selectedNodes.length} component(s)`,
-      severity: "info",
+      severity: 'info',
     });
   }, [selectedNodes]);
 
@@ -358,7 +313,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     setSnackbar({
       open: true,
       message: `Pasted ${pastedNodes.length} component(s)`,
-      severity: "success",
+      severity: 'success',
     });
   }, [copiedNodes, setNodes]);
 
@@ -381,27 +336,42 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
   }, [history, historyIndex, setNodes, setEdges]);
 
   const handleSave = useCallback(() => {
+    const totalLatency = nodes.reduce((sum, node) => {
+      if (node.data.metrics?.processingTimeMs) {
+        return sum + node.data.metrics.processingTimeMs;
+      }
+      return sum;
+    }, 0);
+    const complexity: PipelineData['metadata']['complexity'] =
+      nodes.length <= 3 ? 'simple' : nodes.length <= 7 ? 'moderate' : 'complex';
     const pipelineData: PipelineData = {
       id: initialPipeline?.id || `pipeline_${Date.now()}`,
-      name: initialPipeline?.name || "Untitled Pipeline",
-      description: initialPipeline?.description || "",
+      name: initialPipeline?.name || 'Untitled Pipeline',
+      description: initialPipeline?.description || '',
       nodes,
       edges,
       created: initialPipeline?.created || new Date(),
       modified: new Date(),
+      metadata: {
+        totalLatency,
+        complexity,
+        validated: validationResult?.valid ?? false,
+        errors: validationResult?.errors || [],
+        warnings: validationResult?.warnings || [],
+      },
     };
     onPipelineChange?.(pipelineData);
     setSnackbar({
       open: true,
-      message: "Pipeline saved successfully",
-      severity: "success",
+      message: 'Pipeline saved successfully',
+      severity: 'success',
     });
-  }, [initialPipeline, nodes, edges, onPipelineChange]);
+  }, [initialPipeline, nodes, edges, onPipelineChange, validationResult]);
 
   // Track node selection
   useOnSelectionChange({
     onChange: ({ nodes }) => {
-      console.log("Selection changed:", nodes.length, "nodes selected");
+      console.log('Selection changed:', nodes.length, 'nodes selected');
       setSelectedNodes(nodes);
     },
   });
@@ -474,19 +444,17 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     const suggestions: string[] = [];
 
     // Check for input node
-    const inputNodes = nodes.filter((n) => n.data.stageType === "input");
+    const inputNodes = nodes.filter((n) => n.data.stageType === 'input');
     if (inputNodes.length === 0) {
-      errors.push("Pipeline must have at least one input component");
+      errors.push('Pipeline must have at least one input component');
     } else if (inputNodes.length > 1) {
-      warnings.push(
-        "Multiple input components detected. Consider using a mixer if needed.",
-      );
+      warnings.push('Multiple input components detected. Consider using a mixer if needed.');
     }
 
     // Check for output node
-    const outputNodes = nodes.filter((n) => n.data.stageType === "output");
+    const outputNodes = nodes.filter((n) => n.data.stageType === 'output');
     if (outputNodes.length === 0) {
-      errors.push("Pipeline must have at least one output component");
+      errors.push('Pipeline must have at least one output component');
     }
 
     // Check for disconnected nodes
@@ -498,22 +466,16 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
 
     const disconnectedNodes = nodes.filter(
       (n) =>
-        n.data.stageType !== "input" &&
-        n.data.stageType !== "output" &&
-        !connectedNodeIds.has(n.id),
+        n.data.stageType !== 'input' && n.data.stageType !== 'output' && !connectedNodeIds.has(n.id)
     );
 
     if (disconnectedNodes.length > 0) {
-      warnings.push(
-        `${disconnectedNodes.length} component(s) are not connected to the pipeline`,
-      );
+      warnings.push(`${disconnectedNodes.length} component(s) are not connected to the pipeline`);
     }
 
     // Check for cycles
     if (hasCycle(nodes, edges)) {
-      errors.push(
-        "Pipeline contains a cycle. Audio pipelines must be acyclic.",
-      );
+      errors.push('Pipeline contains a cycle. Audio pipelines must be acyclic.');
     }
 
     // Calculate total latency
@@ -526,28 +488,19 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
 
     if (totalLatency > 100) {
       warnings.push(
-        `High total latency: ${totalLatency.toFixed(1)}ms. Consider optimizing for real-time performance.`,
+        `High total latency: ${totalLatency.toFixed(1)}ms. Consider optimizing for real-time performance.`
       );
     }
 
     // Suggestions
-    const hasNoiseReduction = nodes.some((n) =>
-      n.data.label.includes("Noise Reduction"),
-    );
+    const hasNoiseReduction = nodes.some((n) => n.data.label.includes('Noise Reduction'));
     if (!hasNoiseReduction) {
-      suggestions.push("Consider adding Noise Reduction for cleaner audio");
+      suggestions.push('Consider adding Noise Reduction for cleaner audio');
     }
 
-    const hasNormalization = nodes.some((n) =>
-      n.data.label.includes("LUFS Normalization"),
-    );
-    if (
-      !hasNormalization &&
-      outputNodes.some((n) => n.data.label.includes("File Output"))
-    ) {
-      suggestions.push(
-        "Consider adding LUFS Normalization for broadcast-compliant output",
-      );
+    const hasNormalization = nodes.some((n) => n.data.label.includes('LUFS Normalization'));
+    if (!hasNormalization && outputNodes.some((n) => n.data.label.includes('File Output'))) {
+      suggestions.push('Consider adding LUFS Normalization for broadcast-compliant output');
     }
 
     setValidationResult({
@@ -603,25 +556,19 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       if (!sourceNode || !targetNode) return;
 
       // Prevent connecting input to input or output to output
-      if (
-        sourceNode.data.stageType === "input" &&
-        targetNode.data.stageType === "input"
-      ) {
+      if (sourceNode.data.stageType === 'input' && targetNode.data.stageType === 'input') {
         setSnackbar({
           open: true,
-          message: "Cannot connect input to input",
-          severity: "error",
+          message: 'Cannot connect input to input',
+          severity: 'error',
         });
         return;
       }
-      if (
-        sourceNode.data.stageType === "output" &&
-        targetNode.data.stageType === "output"
-      ) {
+      if (sourceNode.data.stageType === 'output' && targetNode.data.stageType === 'output') {
         setSnackbar({
           open: true,
-          message: "Cannot connect output to output",
-          severity: "error",
+          message: 'Cannot connect output to output',
+          severity: 'error',
         });
         return;
       }
@@ -631,19 +578,19 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
         addEdge(
           {
             ...params,
-            type: "audioConnection",
+            type: 'audioConnection',
             animated: true,
-            style: { stroke: "#4caf50", strokeWidth: 2 },
+            style: { stroke: '#4caf50', strokeWidth: 2 },
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: "#4caf50",
+              color: '#4caf50',
             },
           },
-          eds,
-        ),
+          eds
+        )
       );
     },
-    [nodes, setEdges],
+    [nodes, setEdges]
   );
 
   const onDrop = useCallback(
@@ -653,9 +600,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
       if (!reactFlowBounds || !reactFlowInstance) return;
 
-      const componentData = event.dataTransfer.getData(
-        "application/audioComponent",
-      );
+      const componentData = event.dataTransfer.getData('application/audioComponent');
       if (!componentData) return;
 
       const component: AudioComponent = JSON.parse(componentData);
@@ -666,7 +611,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
 
       const newNode: Node = {
         id: `${component.id}_${Date.now()}`,
-        type: "audioStage",
+        type: 'audioStage',
         position,
         data: {
           componentId: component.id, // Store the component type ID for backend API
@@ -687,14 +632,14 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
             cpuUsage: 5,
           },
           isProcessing: false,
-          status: "idle",
+          status: 'idle',
           parameters: component.parameters.map((param) => ({
             name: param.name,
             value: param.defaultValue,
             min: param.min || 0,
             max: param.max || 100,
             step: param.step || 1,
-            unit: param.unit || "",
+            unit: param.unit || '',
             description: param.description,
           })),
         },
@@ -704,15 +649,15 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       setSnackbar({
         open: true,
         message: `Added ${component.label} to pipeline`,
-        severity: "success",
+        severity: 'success',
       });
     },
-    [reactFlowInstance, setNodes],
+    [reactFlowInstance, setNodes]
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
+    event.dataTransfer.dropEffect = 'move';
   }, []);
 
   const handleContextMenu = (event: React.MouseEvent, nodeId?: string) => {
@@ -727,7 +672,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
   const handleClear = () => {
     setNodes([]);
     setEdges([]);
-    setSnackbar({ open: true, message: "Pipeline cleared", severity: "info" });
+    setSnackbar({ open: true, message: 'Pipeline cleared', severity: 'info' });
   };
 
   const handleProcessingToggle = () => {
@@ -739,8 +684,8 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       } else {
         setSnackbar({
           open: true,
-          message: "Fix validation errors before processing",
-          severity: "error",
+          message: 'Fix validation errors before processing',
+          severity: 'error',
         });
       }
     }
@@ -763,7 +708,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       handleToggleEnabled,
       websocket,
       isRealtimeActive,
-    ],
+    ]
   );
 
   return (
@@ -771,27 +716,27 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       className="pipeline-studio"
       sx={{
         height,
-        width: "100%",
-        position: "absolute",
+        width: '100%',
+        position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        overflow: "hidden",
+        overflow: 'hidden',
         margin: 0,
         padding: 0,
       }}
     >
       <ReactFlowProvider>
-        <PipelineCallbacksProvider value={pipelineCallbacks}>
+        <PipelineCallbacksProvider value={{ ...pipelineCallbacks, websocket: websocket ?? null }}>
           <div
             ref={reactFlowWrapper}
             style={{
-              width: "100%",
-              height: "100%",
+              width: '100%',
+              height: '100%',
               margin: 0,
               padding: 0,
-              position: "absolute",
+              position: 'absolute',
               top: 0,
               left: 0,
             }}
@@ -800,11 +745,11 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
               style={{
                 margin: 0,
                 padding: 0,
-                position: "absolute",
+                position: 'absolute',
                 top: 0,
                 left: 0,
-                width: "100%",
-                height: "100%",
+                width: '100%',
+                height: '100%',
               }}
               nodes={nodes}
               edges={edges}
@@ -814,9 +759,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
               onInit={setReactFlowInstance}
               onDrop={onDrop}
               onDragOver={onDragOver}
-              onNodeContextMenu={(event, node) =>
-                handleContextMenu(event, node.id)
-              }
+              onNodeContextMenu={(event, node) => handleContextMenu(event, node.id)}
               onPaneContextMenu={handleContextMenu}
               nodeTypes={nodeTypes}
               edgeTypes={dynamicEdgeTypes}
@@ -825,8 +768,8 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
               nodesDraggable={true}
               elementsSelectable={true}
               selectNodesOnDrag={true}
-              multiSelectionKeyCode={["Control", "Meta"]}
-              deleteKeyCode={["Delete", "Backspace"]}
+              multiSelectionKeyCode={['Control', 'Meta']}
+              deleteKeyCode={['Delete', 'Backspace']}
             >
               {/* Canvas Controls */}
               <Panel position="top-left">
@@ -836,7 +779,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                       <span>
                         <IconButton
                           onClick={handleProcessingToggle}
-                          color={isProcessing ? "error" : "success"}
+                          color={isProcessing ? 'error' : 'success'}
                           disabled={!validationResult?.valid && !isProcessing}
                         >
                           {isProcessing ? <Stop /> : <PlayArrow />}
@@ -861,10 +804,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                     <Divider orientation="vertical" flexItem />
 
                     <Tooltip title="Undo (Ctrl+Z)">
-                      <IconButton
-                        onClick={handleUndo}
-                        disabled={historyIndex <= 0}
-                      >
+                      <IconButton onClick={handleUndo} disabled={historyIndex <= 0}>
                         <Undo />
                       </IconButton>
                     </Tooltip>
@@ -905,79 +845,52 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
               <Panel position="top-center">
                 <Box>
                   <Card sx={{ p: 1, minWidth: 300 }}>
-                    <Box
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      gap={2}
-                    >
+                    <Box display="flex" alignItems="center" justifyContent="center" gap={2}>
                       <Typography variant="body2" fontWeight="bold">
                         Pipeline Status:
                       </Typography>
                       {validationResult?.valid ? (
-                        <Chip
-                          icon={<CheckCircle />}
-                          label="Valid"
-                          color="success"
-                          size="small"
-                        />
+                        <Chip icon={<CheckCircle />} label="Valid" color="success" size="small" />
                       ) : (
                         <Chip
                           icon={<Error />}
                           label={`${validationResult?.errors.length || 0} Errors`}
                           color="error"
                           size="small"
-                          onClick={() =>
-                            setValidationExpanded(!validationExpanded)
-                          }
-                          onDelete={() =>
-                            setValidationExpanded(!validationExpanded)
-                          }
-                          deleteIcon={
-                            validationExpanded ? <ExpandLess /> : <ExpandMore />
-                          }
+                          onClick={() => setValidationExpanded(!validationExpanded)}
+                          onDelete={() => setValidationExpanded(!validationExpanded)}
+                          deleteIcon={validationExpanded ? <ExpandLess /> : <ExpandMore />}
                           sx={{
-                            cursor: "pointer",
-                            "& .MuiChip-deleteIcon": {
-                              color: "inherit",
-                              "&:hover": {
-                                color: "inherit",
+                            cursor: 'pointer',
+                            '& .MuiChip-deleteIcon': {
+                              color: 'inherit',
+                              '&:hover': {
+                                color: 'inherit',
                               },
                             },
                           }}
                         />
                       )}
-                      {validationResult &&
-                        validationResult.warnings.length > 0 && (
-                          <Chip
-                            icon={<Warning />}
-                            label={`${validationResult.warnings.length} Warnings`}
-                            color="warning"
-                            size="small"
-                            onClick={() =>
-                              setValidationExpanded(!validationExpanded)
-                            }
-                            onDelete={() =>
-                              setValidationExpanded(!validationExpanded)
-                            }
-                            deleteIcon={
-                              validationExpanded ? (
-                                <ExpandLess />
-                              ) : (
-                                <ExpandMore />
-                              )
-                            }
-                            sx={{
-                              cursor: "pointer",
-                              "& .MuiChip-deleteIcon": {
-                                color: "inherit",
-                                "&:hover": {
-                                  color: "inherit",
-                                },
+                      {validationResult && validationResult.warnings.length > 0 && (
+                        <Chip
+                          icon={<Warning />}
+                          label={`${validationResult.warnings.length} Warnings`}
+                          color="warning"
+                          size="small"
+                          onClick={() => setValidationExpanded(!validationExpanded)}
+                          onDelete={() => setValidationExpanded(!validationExpanded)}
+                          deleteIcon={validationExpanded ? <ExpandLess /> : <ExpandMore />}
+                          sx={{
+                            cursor: 'pointer',
+                            '& .MuiChip-deleteIcon': {
+                              color: 'inherit',
+                              '&:hover': {
+                                color: 'inherit',
                               },
-                            }}
-                          />
-                        )}
+                            },
+                          }}
+                        />
+                      )}
                       <Chip
                         icon={<Timeline />}
                         label={`${nodes.reduce((sum, node) => sum + (node.data.metrics?.processingTimeMs || 0), 0).toFixed(1)}ms`}
@@ -994,9 +907,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                       <Card sx={{ mt: 1, p: 2, minWidth: 400, maxWidth: 600 }}>
                         <Box>
                           {validationResult.errors.length > 0 && (
-                            <Box
-                              mb={validationResult.warnings.length > 0 ? 2 : 0}
-                            >
+                            <Box mb={validationResult.warnings.length > 0 ? 2 : 0}>
                               <Typography
                                 variant="subtitle2"
                                 color="error.main"
@@ -1006,11 +917,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                                 Errors ({validationResult.errors.length})
                               </Typography>
                               {validationResult.errors.map((error, index) => (
-                                <Alert
-                                  key={index}
-                                  severity="error"
-                                  sx={{ mb: 1 }}
-                                >
+                                <Alert key={index} severity="error" sx={{ mb: 1 }}>
                                   {error}
                                 </Alert>
                               ))}
@@ -1027,17 +934,11 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                               >
                                 Warnings ({validationResult.warnings.length})
                               </Typography>
-                              {validationResult.warnings.map(
-                                (warning, index) => (
-                                  <Alert
-                                    key={index}
-                                    severity="warning"
-                                    sx={{ mb: 1 }}
-                                  >
-                                    {warning}
-                                  </Alert>
-                                ),
-                              )}
+                              {validationResult.warnings.map((warning, index) => (
+                                <Alert key={index} severity="warning" sx={{ mb: 1 }}>
+                                  {warning}
+                                </Alert>
+                              ))}
                             </Box>
                           )}
 
@@ -1049,20 +950,13 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                                 fontWeight="bold"
                                 mb={1}
                               >
-                                Suggestions (
-                                {validationResult.suggestions.length})
+                                Suggestions ({validationResult.suggestions.length})
                               </Typography>
-                              {validationResult.suggestions.map(
-                                (suggestion, index) => (
-                                  <Alert
-                                    key={index}
-                                    severity="info"
-                                    sx={{ mb: 1 }}
-                                  >
-                                    {suggestion}
-                                  </Alert>
-                                ),
-                              )}
+                              {validationResult.suggestions.map((suggestion, index) => (
+                                <Alert key={index} severity="info" sx={{ mb: 1 }}>
+                                  {suggestion}
+                                </Alert>
+                              ))}
                             </Box>
                           )}
                         </Box>
@@ -1086,62 +980,54 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                   position="top-right"
                   style={{
                     backgroundColor:
-                      theme.palette.mode === "dark"
-                        ? "rgba(0, 0, 0, 0.8)"
-                        : "rgba(255, 255, 255, 0.8)",
+                      theme.palette.mode === 'dark'
+                        ? 'rgba(0, 0, 0, 0.8)'
+                        : 'rgba(255, 255, 255, 0.8)',
                     border: `1px solid ${
-                      theme.palette.mode === "dark"
-                        ? "rgba(255, 255, 255, 0.12)"
-                        : "rgba(0, 0, 0, 0.12)"
+                      theme.palette.mode === 'dark'
+                        ? 'rgba(255, 255, 255, 0.12)'
+                        : 'rgba(0, 0, 0, 0.12)'
                     }`,
-                    borderRadius: "8px",
+                    borderRadius: '8px',
                   }}
                   nodeStrokeColor={(node) => {
                     switch (node.data.stageType) {
-                      case "input":
+                      case 'input':
                         return theme.palette.primary.main;
-                      case "processing":
+                      case 'processing':
                         return theme.palette.success.main;
-                      case "output":
+                      case 'output':
                         return theme.palette.warning.main;
                       default:
                         return theme.palette.grey[500];
                     }
                   }}
                   nodeColor={(node) => {
-                    const alpha = theme.palette.mode === "dark" ? 0.3 : 0.2;
+                    const alpha = theme.palette.mode === 'dark' ? 0.3 : 0.2;
                     switch (node.data.stageType) {
-                      case "input":
-                        return `${theme.palette.primary.main}${Math.round(
-                          alpha * 255,
-                        )
+                      case 'input':
+                        return `${theme.palette.primary.main}${Math.round(alpha * 255)
                           .toString(16)
-                          .padStart(2, "0")}`;
-                      case "processing":
-                        return `${theme.palette.success.main}${Math.round(
-                          alpha * 255,
-                        )
+                          .padStart(2, '0')}`;
+                      case 'processing':
+                        return `${theme.palette.success.main}${Math.round(alpha * 255)
                           .toString(16)
-                          .padStart(2, "0")}`;
-                      case "output":
-                        return `${theme.palette.warning.main}${Math.round(
-                          alpha * 255,
-                        )
+                          .padStart(2, '0')}`;
+                      case 'output':
+                        return `${theme.palette.warning.main}${Math.round(alpha * 255)
                           .toString(16)
-                          .padStart(2, "0")}`;
+                          .padStart(2, '0')}`;
                       default:
-                        return `${theme.palette.grey[500]}${Math.round(
-                          alpha * 255,
-                        )
+                        return `${theme.palette.grey[500]}${Math.round(alpha * 255)
                           .toString(16)
-                          .padStart(2, "0")}`;
+                          .padStart(2, '0')}`;
                     }
                   }}
                   nodeBorderRadius={8}
                   maskColor={
-                    theme.palette.mode === "dark"
-                      ? "rgba(255, 255, 255, 0.1)"
-                      : "rgba(0, 0, 0, 0.1)"
+                    theme.palette.mode === 'dark'
+                      ? 'rgba(255, 255, 255, 0.1)'
+                      : 'rgba(0, 0, 0, 0.1)'
                   }
                 />
               )}
@@ -1163,9 +1049,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
           onClose={() => setContextMenu(null)}
           anchorReference="anchorPosition"
           anchorPosition={
-            contextMenu !== null
-              ? { top: contextMenu.y, left: contextMenu.x }
-              : undefined
+            contextMenu !== null ? { top: contextMenu.y, left: contextMenu.x } : undefined
           }
         >
           {contextMenu?.nodeId && (
@@ -1241,12 +1125,12 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
           open={snackbar.open}
           autoHideDuration={3000}
           onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
           <Alert
             onClose={() => setSnackbar({ ...snackbar, open: false })}
             severity={snackbar.severity}
-            sx={{ width: "100%" }}
+            sx={{ width: '100%' }}
           >
             {snackbar.message}
           </Alert>

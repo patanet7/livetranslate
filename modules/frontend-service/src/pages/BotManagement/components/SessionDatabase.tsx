@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -32,7 +32,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Search as SearchIcon,
   Visibility as VisibilityIcon,
@@ -43,12 +43,12 @@ import {
   Translate as TranslateIcon,
   Person as PersonIcon,
   Assessment as AssessmentIcon,
-} from "@mui/icons-material";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { DatePicker as MuiDatePicker } from "@mui/x-date-pickers/DatePicker";
-import { format, parseISO } from "date-fns";
-import { TabPanel } from "@/components/ui";
+} from '@mui/icons-material';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV2';
+import { DatePicker as MuiDatePicker } from '@mui/x-date-pickers/DatePicker';
+import { format, parseISO } from 'date-fns';
+import { TabPanel } from '@/components/ui';
 
 interface SessionDatabaseProps {
   onError: (error: string) => void;
@@ -62,7 +62,7 @@ interface BotSession {
   organizerEmail: string;
   startTime: string;
   endTime: string | null;
-  status: "active" | "completed" | "error" | "terminated";
+  status: 'active' | 'completed' | 'error' | 'terminated';
   participantCount: number;
   totalAudioChunks: number;
   totalCaptions: number;
@@ -93,22 +93,18 @@ interface SpeakerActivity {
   sessionId: string;
   speakerId: string;
   speakerName: string;
-  eventType: "join" | "leave" | "speaking_start" | "speaking_end";
+  eventType: 'join' | 'leave' | 'speaking_start' | 'speaking_end';
   timestamp: string;
   confidence: number;
   duration?: number;
 }
 
-export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
-  onError,
-}) => {
+export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => {
   const [tabValue, setTabValue] = useState(0);
   const [sessions, setSessions] = useState<BotSession[]>([]);
   const [translations, setTranslations] = useState<Translation[]>([]);
   const [speakers, setSpeakers] = useState<SpeakerActivity[]>([]);
-  const [selectedSession, setSelectedSession] = useState<BotSession | null>(
-    null,
-  );
+  const [selectedSession, setSelectedSession] = useState<BotSession | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Helper function to safely format dates
@@ -116,11 +112,11 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
     try {
       const date = parseISO(dateString);
       if (isNaN(date.getTime())) {
-        return "Invalid date";
+        return 'Invalid date';
       }
       return format(date, formatString);
     } catch (error) {
-      return "Invalid date";
+      return 'Invalid date';
     }
   };
 
@@ -131,11 +127,11 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
   const [speakerPage, setSpeakerPage] = useState(0);
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
-  const [languageFilter, setLanguageFilter] = useState("all");
+  const [languageFilter, setLanguageFilter] = useState('all');
 
   useEffect(() => {
     loadSessions();
@@ -145,48 +141,44 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
 
   const loadSessions = async () => {
     try {
-      const response = await fetch("/api/bot/sessions");
+      const response = await fetch('/api/bot/sessions');
       if (!response.ok) {
-        console.warn(
-          `Sessions API failed with status ${response.status}, using empty array`,
-        );
+        console.warn(`Sessions API failed with status ${response.status}, using empty array`);
         setSessions([]);
         return;
       }
       const data = await response.json();
       setSessions(data);
     } catch (error) {
-      console.error("Error loading sessions:", error);
+      console.error('Error loading sessions:', error);
       setSessions([]);
-      onError("Failed to load session data");
+      onError('Failed to load session data');
     }
   };
 
   const loadTranslations = async () => {
     try {
-      const response = await fetch("/api/bot/translations");
+      const response = await fetch('/api/bot/translations');
       if (!response.ok) {
-        console.warn(
-          `Translations API failed with status ${response.status}, using empty array`,
-        );
+        console.warn(`Translations API failed with status ${response.status}, using empty array`);
         setTranslations([]);
         return;
       }
       const data = await response.json();
       setTranslations(data);
     } catch (error) {
-      console.error("Error loading translations:", error);
+      console.error('Error loading translations:', error);
       setTranslations([]);
-      onError("Failed to load translations");
+      onError('Failed to load translations');
     }
   };
 
   const loadSpeakerActivity = async () => {
     try {
-      const response = await fetch("/api/bot/speaker-activity");
+      const response = await fetch('/api/bot/speaker-activity');
       if (!response.ok) {
         console.warn(
-          `Speaker activity API failed with status ${response.status}, using empty array`,
+          `Speaker activity API failed with status ${response.status}, using empty array`
         );
         setSpeakers([]);
         return;
@@ -194,9 +186,9 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
       const data = await response.json();
       setSpeakers(data);
     } catch (error) {
-      console.error("Error loading speaker activity:", error);
+      console.error('Error loading speaker activity:', error);
       setSpeakers([]);
-      onError("Failed to load speaker activity");
+      onError('Failed to load speaker activity');
     }
   };
 
@@ -208,11 +200,11 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
   const handleExportSession = async (sessionId: string) => {
     try {
       const response = await fetch(`/api/bot/sessions/${sessionId}/export`);
-      if (!response.ok) throw new Error("Failed to export session");
+      if (!response.ok) throw new Error('Failed to export session');
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = `session_${sessionId}_export.json`;
       document.body.appendChild(a);
@@ -220,7 +212,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      onError("Failed to export session");
+      onError('Failed to export session');
     }
   };
 
@@ -231,8 +223,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
       session.meetingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       session.organizerEmail.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "all" || session.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
 
     const matchesDate =
       (!dateFrom || new Date(session.startTime) >= dateFrom) &&
@@ -244,16 +235,12 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
   const filteredTranslations = translations.filter((translation) => {
     const matchesSearch =
       !searchTerm ||
-      translation.originalText
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      translation.translatedText
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
+      translation.originalText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      translation.translatedText.toLowerCase().includes(searchTerm.toLowerCase()) ||
       translation.speakerName.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesLanguage =
-      languageFilter === "all" ||
+      languageFilter === 'all' ||
       translation.sourceLanguage === languageFilter ||
       translation.targetLanguage === languageFilter;
 
@@ -262,21 +249,21 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
-        return "success";
-      case "completed":
-        return "info";
-      case "error":
-        return "error";
-      case "terminated":
-        return "warning";
+      case 'active':
+        return 'success';
+      case 'completed':
+        return 'info';
+      case 'error':
+        return 'error';
+      case 'terminated':
+        return 'warning';
       default:
-        return "default";
+        return 'default';
     }
   };
 
   const formatDuration = (startTime: string, endTime?: string | null) => {
-    if (!endTime) return "Ongoing";
+    if (!endTime) return 'Ongoing';
 
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -295,14 +282,14 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
       <Box>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             mb: 3,
           }}
         >
           <Typography variant="h6">
-            <StorageIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+            <StorageIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
             Session Database
           </Typography>
           <Button
@@ -318,12 +305,12 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
               };
 
               const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-                type: "application/json",
+                type: 'application/json',
               });
               const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
+              const a = document.createElement('a');
               a.href = url;
-              a.download = `livetranslate_export_${format(new Date(), "yyyy-MM-dd_HH-mm-ss")}.json`;
+              a.download = `livetranslate_export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}.json`;
               document.body.appendChild(a);
               a.click();
               URL.revokeObjectURL(url);
@@ -340,7 +327,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography variant="subtitle1">
-                  <FilterListIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+                  <FilterListIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Filters & Search
                 </Typography>
               </AccordionSummary>
@@ -422,23 +409,11 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
         </Card>
 
         {/* Main Content Tabs */}
-        <Paper sx={{ width: "100%" }}>
-          <Tabs
-            value={tabValue}
-            onChange={(_, newValue) => setTabValue(newValue)}
-          >
-            <Tab
-              icon={<AssessmentIcon />}
-              label={`Sessions (${filteredSessions.length})`}
-            />
-            <Tab
-              icon={<TranslateIcon />}
-              label={`Translations (${filteredTranslations.length})`}
-            />
-            <Tab
-              icon={<PersonIcon />}
-              label={`Speaker Activity (${speakers.length})`}
-            />
+        <Paper sx={{ width: '100%' }}>
+          <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+            <Tab icon={<AssessmentIcon />} label={`Sessions (${filteredSessions.length})`} />
+            <Tab icon={<TranslateIcon />} label={`Translations (${filteredTranslations.length})`} />
+            <Tab icon={<PersonIcon />} label={`Speaker Activity (${speakers.length})`} />
           </Tabs>
 
           <TabPanel value={tabValue} index={0}>
@@ -464,17 +439,11 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                         <TableCell>
                           <Box>
                             <Typography variant="body2" fontWeight="bold">
-                              {session.meetingTitle || "Untitled Meeting"}
+                              {session.meetingTitle || 'Untitled Meeting'}
                             </Typography>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {session.meetingId} •{" "}
-                              {safeFormatDate(
-                                session.startTime,
-                                "MMM dd, yyyy HH:mm",
-                              )}
+                            <Typography variant="caption" color="text.secondary">
+                              {session.meetingId} •{' '}
+                              {safeFormatDate(session.startTime, 'MMM dd, yyyy HH:mm')}
                             </Typography>
                           </Box>
                         </TableCell>
@@ -485,32 +454,28 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                             size="small"
                           />
                         </TableCell>
-                        <TableCell>
-                          {formatDuration(session.startTime, session.endTime)}
-                        </TableCell>
+                        <TableCell>{formatDuration(session.startTime, session.endTime)}</TableCell>
                         <TableCell>{session.participantCount}</TableCell>
+                        <TableCell>{session.totalTranslations.toLocaleString()}</TableCell>
                         <TableCell>
-                          {session.totalTranslations.toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <Typography variant="body2" sx={{ mr: 1 }}>
                               {Math.round(session.qualityScore * 100)}%
                             </Typography>
                             <Chip
                               label={
                                 session.qualityScore > 0.8
-                                  ? "Good"
+                                  ? 'Good'
                                   : session.qualityScore > 0.6
-                                    ? "Fair"
-                                    : "Poor"
+                                    ? 'Fair'
+                                    : 'Poor'
                               }
                               color={
                                 session.qualityScore > 0.8
-                                  ? "success"
+                                  ? 'success'
                                   : session.qualityScore > 0.6
-                                    ? "warning"
-                                    : "error"
+                                    ? 'warning'
+                                    : 'error'
                               }
                               size="small"
                               variant="outlined"
@@ -570,7 +535,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                   {filteredTranslations
                     .slice(
                       translationPage * rowsPerPage,
-                      translationPage * rowsPerPage + rowsPerPage,
+                      translationPage * rowsPerPage + rowsPerPage
                     )
                     .map((translation) => (
                       <TableRow key={translation.id}>
@@ -585,27 +550,17 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            label={translation.speakerName}
-                            size="small"
-                            variant="outlined"
-                          />
+                          <Chip label={translation.speakerName} size="small" variant="outlined" />
                         </TableCell>
                         <TableCell>
                           <Stack direction="row" spacing={1}>
-                            <Chip
-                              label={translation.sourceLanguage.toUpperCase()}
-                              size="small"
-                            />
+                            <Chip label={translation.sourceLanguage.toUpperCase()} size="small" />
                             <Typography variant="body2">→</Typography>
-                            <Chip
-                              label={translation.targetLanguage.toUpperCase()}
-                              size="small"
-                            />
+                            <Chip label={translation.targetLanguage.toUpperCase()} size="small" />
                           </Stack>
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <Typography variant="body2">
                               {Math.round(translation.confidence * 100)}%
                             </Typography>
@@ -613,7 +568,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                         </TableCell>
                         <TableCell>
                           <Typography variant="caption">
-                            {safeFormatDate(translation.timestamp, "HH:mm:ss")}
+                            {safeFormatDate(translation.timestamp, 'HH:mm:ss')}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -651,28 +606,21 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                 </TableHead>
                 <TableBody>
                   {speakers
-                    .slice(
-                      speakerPage * rowsPerPage,
-                      speakerPage * rowsPerPage + rowsPerPage,
-                    )
+                    .slice(speakerPage * rowsPerPage, speakerPage * rowsPerPage + rowsPerPage)
                     .map((speaker) => (
                       <TableRow key={speaker.id}>
                         <TableCell>
-                          <Chip
-                            label={speaker.speakerName}
-                            size="small"
-                            variant="outlined"
-                          />
+                          <Chip label={speaker.speakerName} size="small" variant="outlined" />
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={speaker.eventType.replace("_", " ")}
+                            label={speaker.eventType.replace('_', ' ')}
                             size="small"
                             color={
-                              speaker.eventType.includes("join") ||
-                              speaker.eventType.includes("start")
-                                ? "success"
-                                : "warning"
+                              speaker.eventType.includes('join') ||
+                              speaker.eventType.includes('start')
+                                ? 'success'
+                                : 'warning'
                             }
                           />
                         </TableCell>
@@ -681,18 +629,11 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                             {speaker.sessionId.slice(0, 8)}...
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          {Math.round(speaker.confidence * 100)}%
-                        </TableCell>
-                        <TableCell>
-                          {speaker.duration ? `${speaker.duration}s` : "N/A"}
-                        </TableCell>
+                        <TableCell>{Math.round(speaker.confidence * 100)}%</TableCell>
+                        <TableCell>{speaker.duration ? `${speaker.duration}s` : 'N/A'}</TableCell>
                         <TableCell>
                           <Typography variant="caption">
-                            {safeFormatDate(
-                              speaker.timestamp,
-                              "MMM dd, HH:mm:ss",
-                            )}
+                            {safeFormatDate(speaker.timestamp, 'MMM dd, HH:mm:ss')}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -716,15 +657,9 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
         </Paper>
 
         {/* Session Details Modal */}
-        <Dialog
-          open={detailsOpen}
-          onClose={() => setDetailsOpen(false)}
-          maxWidth="md"
-          fullWidth
-        >
+        <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="md" fullWidth>
           <DialogTitle>
-            Session Details:{" "}
-            {selectedSession?.meetingTitle || "Untitled Meeting"}
+            Session Details: {selectedSession?.meetingTitle || 'Untitled Meeting'}
           </DialogTitle>
           <DialogContent>
             {selectedSession && (
@@ -734,33 +669,19 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                     Basic Information
                   </Typography>
                   <Stack spacing={1}>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Bot ID:</Typography>
-                      <Typography variant="body2">
-                        {selectedSession.botId}
-                      </Typography>
+                      <Typography variant="body2">{selectedSession.botId}</Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Meeting ID:</Typography>
-                      <Typography variant="body2">
-                        {selectedSession.meetingId}
-                      </Typography>
+                      <Typography variant="body2">{selectedSession.meetingId}</Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Organizer:</Typography>
-                      <Typography variant="body2">
-                        {selectedSession.organizerEmail}
-                      </Typography>
+                      <Typography variant="body2">{selectedSession.organizerEmail}</Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Status:</Typography>
                       <Chip
                         label={selectedSession.status}
@@ -775,45 +696,29 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({
                     Performance Metrics
                   </Typography>
                   <Stack spacing={1}>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
-                      <Typography variant="body2">
-                        Total Audio Chunks:
-                      </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Total Audio Chunks:</Typography>
                       <Typography variant="body2">
                         {selectedSession.totalAudioChunks.toLocaleString()}
                       </Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Total Captions:</Typography>
                       <Typography variant="body2">
                         {selectedSession.totalCaptions.toLocaleString()}
                       </Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
-                      <Typography variant="body2">
-                        Total Translations:
-                      </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Total Translations:</Typography>
                       <Typography variant="body2">
                         {selectedSession.totalTranslations.toLocaleString()}
                       </Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Average Latency:</Typography>
-                      <Typography variant="body2">
-                        {selectedSession.averageLatency}ms
-                      </Typography>
+                      <Typography variant="body2">{selectedSession.averageLatency}ms</Typography>
                     </Box>
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
-                    >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2">Quality Score:</Typography>
                       <Typography variant="body2">
                         {Math.round(selectedSession.qualityScore * 100)}%

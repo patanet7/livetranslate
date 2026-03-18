@@ -3,20 +3,50 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+const srcRoot = path.resolve(__dirname, './src');
+const muiRoot = path.resolve(__dirname, './node_modules/@mui');
+const emotionRoot = path.resolve(__dirname, './node_modules/@emotion');
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@components': path.resolve(__dirname, './src/components'),
-      '@pages': path.resolve(__dirname, './src/pages'),
-      '@hooks': path.resolve(__dirname, './src/hooks'),
-      '@services': path.resolve(__dirname, './src/services'),
-      '@store': path.resolve(__dirname, './src/store'),
-      '@utils': path.resolve(__dirname, './src/utils'),
-      '@types': path.resolve(__dirname, './src/types'),
-      '@styles': path.resolve(__dirname, './src/styles'),
-    },
+    alias: [
+      { find: /^@mui\/material$/, replacement: path.join(muiRoot, 'material/index.js') },
+      { find: /^@mui\/material\/(.*)$/, replacement: path.join(muiRoot, 'material/$1') },
+      { find: /^@mui\/system$/, replacement: path.join(muiRoot, 'system/index.js') },
+      { find: /^@mui\/system\/(.*)$/, replacement: path.join(muiRoot, 'system/$1') },
+      { find: /^@mui\/styled-engine$/, replacement: path.join(muiRoot, 'styled-engine/index.js') },
+      { find: /^@mui\/styled-engine\/(.*)$/, replacement: path.join(muiRoot, 'styled-engine/$1') },
+      {
+        find: /^@mui\/icons-material$/,
+        replacement: path.join(muiRoot, 'icons-material/index.js'),
+      },
+      {
+        find: /^@mui\/icons-material\/(.*)$/,
+        replacement: path.join(muiRoot, 'icons-material/$1'),
+      },
+      {
+        find: /^@emotion\/react$/,
+        replacement: path.join(emotionRoot, 'react/dist/emotion-react.esm.js'),
+      },
+      {
+        find: /^@emotion\/styled$/,
+        replacement: path.join(emotionRoot, 'styled/dist/emotion-styled.esm.js'),
+      },
+      { find: /^@mui\/material\/node\//, replacement: '@mui/material/' },
+      { find: /^@mui\/system\/node\//, replacement: '@mui/system/' },
+      { find: /^@mui\/styled-engine\/node\//, replacement: '@mui/styled-engine/' },
+      { find: /^@\//, replacement: `${srcRoot}/` },
+      { find: /^@components\//, replacement: `${srcRoot}/components/` },
+      { find: /^@pages\//, replacement: `${srcRoot}/pages/` },
+      { find: /^@hooks\//, replacement: `${srcRoot}/hooks/` },
+      { find: /^@services\//, replacement: `${srcRoot}/services/` },
+      { find: /^@store\//, replacement: `${srcRoot}/store/` },
+      { find: /^@utils\//, replacement: `${srcRoot}/utils/` },
+      { find: /^@types\//, replacement: `${srcRoot}/types/` },
+      { find: /^@styles\//, replacement: `${srcRoot}/styles/` },
+    ],
+    conditions: ['browser'],
   },
   server: {
     port: 5173,
@@ -46,16 +76,39 @@ export default defineConfig({
     include: [
       '@mui/material',
       '@mui/icons-material',
+      '@mui/system',
       '@emotion/react',
       '@emotion/styled',
     ],
     exclude: ['@mui/x-date-pickers'],
+  },
+  ssr: {
+    noExternal: [
+      '@mui/material',
+      '@mui/icons-material',
+      '@mui/system',
+      '@mui/styled-engine',
+      '@emotion/react',
+      '@emotion/styled',
+    ],
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    server: {
+      deps: {
+        inline: [
+          /@mui\/material/,
+          /@mui\/icons-material/,
+          /@mui\/system/,
+          /@mui\/styled-engine/,
+          /@emotion\/react/,
+          /@emotion\/styled/,
+        ],
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

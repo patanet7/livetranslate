@@ -2,6 +2,9 @@
 
 This guide covers current test paths for translation-related runtime checks.
 
+For production-facing backlog triage and replay, use the
+[Translation Backlog Operations Runbook](./translation-backlog-operations.md).
+
 ## Test Targets
 
 - Full pipeline (recommended): `tests/e2e/test_loopback_fullstack.py`

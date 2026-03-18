@@ -29,6 +29,7 @@ import numpy as np
 from clients.transcription_client import WebSocketTranscriptionClient
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from livetranslate_common.logging import get_logger
+from livetranslate_common.models import TranslationRequest
 from livetranslate_common.models.ws_messages import (
     ConfigMessage,
     ConnectedMessage,
@@ -259,6 +260,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     pipeline = None
     transcription_client = None
     translation_service = None
+    translation_context_store = None
     fixture_recorder: FixtureRecorder | None = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
@@ -465,6 +467,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                             pipeline=pipeline,
                             is_draft=True,
                             fixture_recorder=fixture_recorder,
+                            context_store=translation_context_store,
                         ),
                         timeout=cfg.draft_timeout_s,
                     )
@@ -593,6 +596,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     pipeline=pipeline,
                     is_draft=False,
                     fixture_recorder=fixture_recorder,
+                    context_store=translation_context_store,
                     chunk_id=_segment_to_chunk_id.get(msg.segment_id),
                 )
             )
@@ -603,6 +607,11 @@ async def websocket_audio_stream(websocket: WebSocket):
         """Forward language_detected to frontend."""
         nonlocal source_language
         source_language = data.get("language", source_language)
+        if pipeline and pipeline.session_id and source_language:
+            try:
+                await pipeline.session_manager.add_source_language(pipeline.session_id, source_language)
+            except Exception as exc:
+                logger.debug("meeting_source_language_update_failed", error=str(exc))
         await safe_send(
             LanguageDetectedMessage(
                 language=data.get("language", ""),
@@ -694,6 +703,11 @@ async def websocket_audio_stream(websocket: WebSocket):
                 if pipeline:
                     try:
                         await pipeline.start()
+                        if pipeline.session_id and target_language:
+                            await pipeline.session_manager.update_target_languages(
+                                pipeline.session_id,
+                                [target_language],
+                            )
                         logger.info(
                             "pipeline_started",
                             session_id=session_id,
@@ -718,10 +732,24 @@ async def websocket_audio_stream(websocket: WebSocket):
                     # Optionally init translation service + warm up LLM
                     translation_service = _try_create_translation_service()
                     if translation_service:
+                        from translation.context_store import DirectionalContextStore
+
+                        translation_context_store = DirectionalContextStore(
+                            max_entries=translation_service.config.context_window_size,
+                            max_tokens=translation_service.config.max_context_tokens,
+                            cross_direction_max_tokens=translation_service.config.cross_direction_max_tokens,
+                        )
                         # Skip warm-up if already warmed at startup (lifespan)
                         already_warm = getattr(websocket.app.state, "translation_service_warmed", False)
                         if not already_warm:
-                            warmup_task = asyncio.create_task(_warm_up_llm(translation_service))
+                            warmup_task = getattr(
+                                websocket.app.state,
+                                "translation_service_warmup_task",
+                                None,
+                            )
+                            if warmup_task is None or warmup_task.done():
+                                warmup_task = asyncio.create_task(_warm_up_llm(translation_service))
+                                websocket.app.state.translation_service_warmup_task = warmup_task
                             session_tasks.add(warmup_task)
                             warmup_task.add_done_callback(session_tasks.discard)
 
@@ -808,14 +836,22 @@ async def websocket_audio_stream(websocket: WebSocket):
                     target_language = msg.target_language
                     # Clear only the old direction's context — old target language examples
                     # would confuse the LLM into producing wrong-language output.
-                    if translation_service and previous != target_language:
-                        translation_service.clear_context(source_lang=source_language or "", target_lang=previous)
+                    if translation_context_store and previous and previous != target_language:
+                        translation_context_store.clear_direction(source_language or "", previous)
                     logger.info(
                         "target_language_updated",
                         session_id=session_id,
                         previous=previous,
                         target_language=target_language,
                     )
+                    if pipeline and pipeline.session_id:
+                        try:
+                            await pipeline.session_manager.update_target_languages(
+                                pipeline.session_id,
+                                [target_language] if target_language else None,
+                            )
+                        except Exception as exc:
+                            logger.debug("meeting_target_language_update_failed", error=str(exc))
                 # Interpreter mode: store language pair, force auto-detect
                 if msg.interpreter_languages is not None:
                     if len(msg.interpreter_languages) == 2:
@@ -919,12 +955,6 @@ async def websocket_audio_stream(websocket: WebSocket):
                 except Exception:
                     pass
 
-        if translation_service:
-            try:
-                await translation_service.close()
-            except Exception:
-                pass
-
         if fixture_recorder:
             fixture_recorder.stop()
 
@@ -935,11 +965,9 @@ async def websocket_audio_stream(websocket: WebSocket):
 def _try_create_translation_service() -> TranslationService | None:
     """Create a TranslationService if LLM config is available."""
     try:
-        from translation.config import TranslationConfig
-        from translation.service import TranslationService
+        from dependencies import get_translation_service_client
 
-        config = TranslationConfig.from_env()
-        return TranslationService(config)
+        return get_translation_service_client()
     except Exception as exc:
         logger.debug("translation_service_unavailable", reason=str(exc))
         return None
@@ -980,12 +1008,11 @@ async def _translate_and_send(
             # --- Draft: non-streaming, fail-fast, provisional context ---
             # Read last 3 context entries for quality without polluting the window
             _store = context_store or translation_service.context_store
-            draft_context = _store.get(source_lang, target_lang)[-3:] if _store else None
             translation = await translation_service.translate_draft(
                 text=text,
                 source_lang=source_lang,
                 target_lang=target_lang,
-                context=draft_context,
+                context_store=_store,
             )
             latency_ms = (_time.monotonic() - start) * 1000
 
@@ -1021,59 +1048,37 @@ async def _translate_and_send(
             return
 
         # --- Final: streaming with context ---
-        context = translation_service.get_context(source_lang, target_lang)
-        full_text = ""
-        translation = ""
-        try:
-            async for delta in _strip_think_and_stream(
-                translation_service._client.translate_stream(
-                    text, source_lang, target_lang, context,
-                    max_tokens=translation_service.config.max_tokens,
-                )
-            ):
-                full_text += delta
-                sent = await safe_send(
-                    TranslationChunkMessage(
-                        transcript_id=segment_id,
-                        delta=delta,
-                        source_lang=source_lang,
-                        target_lang=target_lang,
-                        is_draft=is_draft,
-                    ).model_dump_json()
-                )
-                if not sent:
-                    return  # WebSocket dead, stop wasting LLM tokens
+        _store = context_store or translation_service.context_store
+        context = _store.get(source_lang, target_lang)
+        request = TranslationRequest(
+            text=text,
+            source_language=source_lang,
+            target_language=target_lang,
+            speaker_name=speaker_name,
+        )
 
-            logger.debug(
-                "stream_complete",
-                segment_id=segment_id,
-                is_draft=False,
-                full_text_len=len(full_text),
-                full_text_preview=full_text[:100],
+        async def _send_delta(delta: str) -> bool:
+            return await safe_send(
+                TranslationChunkMessage(
+                    transcript_id=segment_id,
+                    delta=delta,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    is_draft=is_draft,
+                ).model_dump_json()
             )
-            translation = translation_service._client._extract_translation(full_text)
-        except Exception as stream_exc:
-            logger.warning(
-                "translation_stream_fallback",
-                segment_id=segment_id,
-                is_draft=False,
-                error=str(stream_exc),
-            )
-            from livetranslate_common.models import TranslationRequest
 
-            request = TranslationRequest(
-                text=text,
-                source_language=source_lang,
-                target_language=target_lang,
-                speaker_name=speaker_name,
-            )
-            response = await translation_service.translate(request)
-            translation = response.translated_text
+        response = await translation_service.stream_translate(
+            request,
+            _send_delta,
+            context_store=_store,
+            max_tokens=translation_service.config.max_tokens,
+        )
+        if response is None:
+            return
 
-        latency_ms = (_time.monotonic() - start) * 1000
-
-        # Add to context window (finals only — never drafts)
-        translation_service.context_store.add(source_lang, target_lang, text, translation)
+        translation = response.translated_text
+        latency_ms = response.latency_ms
 
         logger.info(
             "translation_complete",
@@ -1152,6 +1157,7 @@ async def _warm_up_llm(translation_service: TranslationService) -> None:
             target_language="es",
         )
         await translation_service.translate(request, skip_context=True)
+        translation_service.clear_context()
         logger.info("llm_warm_up_complete")
     except Exception as exc:
         logger.debug("llm_warm_up_failed", error=str(exc))

@@ -2,10 +2,12 @@
 Pytest configuration for integration tests
 """
 
+import gc
 import sys
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -21,8 +23,20 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "websocket: mark test as WebSocket-related")
 
 
-@pytest.fixture(scope="function", autouse=True)
-def reset_singletons():
+def _empty_device_cache():
+    try:
+        import torch
+    except ImportError:
+        return
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+        torch.mps.empty_cache()
+
+
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def reset_singletons():
     """
     Reset all dependency singletons before each test.
 
@@ -32,8 +46,9 @@ def reset_singletons():
     """
     # Reset before test
     try:
-        from src.dependencies import reset_dependencies
+        from src.dependencies import reset_dependencies, shutdown_dependencies
 
+        await shutdown_dependencies()
         reset_dependencies()
     except ImportError:
         pass  # Not all tests may have src in path
@@ -42,11 +57,15 @@ def reset_singletons():
 
     # Reset after test (cleanup)
     try:
-        from src.dependencies import reset_dependencies
+        from src.dependencies import reset_dependencies, shutdown_dependencies
 
+        await shutdown_dependencies()
         reset_dependencies()
     except ImportError:
         pass
+
+    gc.collect()
+    _empty_device_cache()
 
 
 @pytest.fixture(scope="session")

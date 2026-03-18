@@ -32,7 +32,7 @@ dependencies = [
 members = [
     "modules/shared",
     "modules/orchestration-service",
-    "modules/whisper-service",
+    "modules/transcription-service",
     "tools/translation_benchmark",
 ]
 

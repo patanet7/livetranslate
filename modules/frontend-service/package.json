@@ -23,6 +23,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "type-check": "tsc --noEmit",
+    "type-check:tests": "tsc --noEmit -p tsconfig.tests.json",
+    "type-check:all": "pnpm run type-check && pnpm run type-check:tests",
     "type-check:watch": "tsc --noEmit --watch",
     "clean": "rimraf dist node_modules/.cache",
     "clean:deps": "rimraf node_modules pnpm-lock.yaml && pnpm install",
