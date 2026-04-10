@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from livetranslate_common.logging import get_logger
+from livetranslate_common.theme import SPEAKER_COLORS as DEFAULT_SPEAKER_COLORS
 
 logger = get_logger()
 
@@ -31,20 +32,6 @@ logger = get_logger()
 # =============================================================================
 # Constants
 # =============================================================================
-
-# Default speaker colors (material design palette)
-DEFAULT_SPEAKER_COLORS = [
-    "#4CAF50",  # Green
-    "#2196F3",  # Blue
-    "#FF9800",  # Orange
-    "#9C27B0",  # Purple
-    "#F44336",  # Red
-    "#00BCD4",  # Cyan
-    "#E91E63",  # Pink
-    "#FFEB3B",  # Yellow
-    "#795548",  # Brown
-    "#607D8B",  # Blue Grey
-]
 
 # Default configuration
 DEFAULT_CAPTION_DURATION_SECONDS = 4.0  # Bubble visible for 4 sec total
