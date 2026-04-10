@@ -11,9 +11,13 @@ from .base import ChunkAdapter, TranscriptChunk
 from .fireflies_adapter import FirefliesChunkAdapter
 from .google_meet_adapter import GoogleMeetChunkAdapter
 from .import_adapter import ImportChunkAdapter
+from .source_adapter import BotAudioCaptionSource, CaptionEvent, CaptionSourceAdapter
 
 __all__ = [
     "AudioUploadChunkAdapter",
+    "BotAudioCaptionSource",
+    "CaptionEvent",
+    "CaptionSourceAdapter",
     "ChunkAdapter",
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
