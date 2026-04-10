@@ -105,6 +105,32 @@ describe('parseCommand', () => {
     expect(result).toEqual({ type: 'query', query: 'help' });
   });
 
+  // --- Demo commands ---
+  it('parses /demo with no arg as replay', () => {
+    const result = parseCommand('/demo');
+    expect(result).toEqual({ type: 'demo', mode: 'replay' });
+  });
+
+  it('parses /demo fireflies as replay', () => {
+    const result = parseCommand('/demo fireflies');
+    expect(result).toEqual({ type: 'demo', mode: 'replay' });
+  });
+
+  it('parses /demo passthrough', () => {
+    const result = parseCommand('/demo passthrough');
+    expect(result).toEqual({ type: 'demo', mode: 'passthrough' });
+  });
+
+  it('parses /demo stop', () => {
+    const result = parseCommand('/demo stop');
+    expect(result).toEqual({ type: 'demo', mode: 'stop' });
+  });
+
+  it('rejects /demo with invalid mode', () => {
+    const result = parseCommand('/demo invalid');
+    expect(result).toEqual({ type: 'unknown', raw: '/demo invalid' });
+  });
+
   // --- Non-commands ---
   it('returns null for non-command text', () => {
     expect(parseCommand('hello everyone')).toBeNull();

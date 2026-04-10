@@ -10,6 +10,7 @@ export type CommandResult =
   | { type: 'set_config'; changes: Record<string, string | number | boolean> }
   | { type: 'adjust_font'; delta: number }
   | { type: 'query'; query: 'status' | 'help' }
+  | { type: 'demo'; mode: string }
   | { type: 'unknown'; raw: string };
 
 const VALID_MODES = new Set(['subtitle', 'split', 'interpreter']);
@@ -98,6 +99,14 @@ export function parseCommand(text: string): CommandResult | null {
 
     case '/help':
       return { type: 'query', query: 'help' };
+
+    case '/demo': {
+      const mode = arg || 'replay';
+      if (['replay', 'fireflies', 'passthrough', 'pretranslated', 'stop'].includes(mode)) {
+        return { type: 'demo', mode: mode === 'fireflies' ? 'replay' : mode };
+      }
+      return { type: 'unknown', raw: trimmed };
+    }
 
     default:
       return { type: 'unknown', raw: trimmed };

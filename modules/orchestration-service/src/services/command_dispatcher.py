@@ -25,11 +25,13 @@ VALID_THEMES = {
 }
 VALID_SOURCES = {"bot": "bot_audio", "fireflies": "fireflies"}
 
+VALID_DEMO_MODES = {"replay", "passthrough", "pretranslated", "stop"}
+
 HELP_TEXT = (
     "Commands: /lang <code>, /font up|down|<size>, "
     "/mode subtitle|split|interpreter, /theme dark|light|contrast, "
     "/speakers on|off, /original on|off, /source bot|fireflies, "
-    "/translate on|off, /status, /help"
+    "/translate on|off, /demo [replay|passthrough|stop], /status, /help"
 )
 
 
@@ -39,6 +41,7 @@ class DispatchResult:
 
     response_text: str
     changed_fields: set[str]
+    demo_action: str | None = None
 
 
 def _parse_toggle(value: str) -> bool | None:
@@ -52,8 +55,9 @@ def _parse_toggle(value: str) -> bool | None:
 class CommandDispatcher:
     """Routes chat commands to MeetingSessionConfig mutations."""
 
-    def __init__(self, config: Any):
+    def __init__(self, config: Any, demo_manager: Any = None):
         self._config = config
+        self._demo_manager = demo_manager
 
     def dispatch(self, text: str, sender: str = "") -> DispatchResult | None:
         """Parse and execute a command. Returns None for non-commands."""
@@ -83,6 +87,8 @@ class CommandDispatcher:
             return self._handle_toggle("translation_enabled", "Translation", arg, trimmed)
         elif cmd == "/source":
             return self._handle_source(arg, trimmed)
+        elif cmd == "/demo":
+            return self._handle_demo(arg, trimmed)
         elif cmd == "/status":
             return self._handle_status()
         elif cmd == "/help":
@@ -149,6 +155,25 @@ class CommandDispatcher:
             changed = self._config.update(caption_source=source)
             return DispatchResult(response_text=f"✓ Caption source: {source}", changed_fields=changed)
         return DispatchResult(response_text="Usage: /source bot|fireflies", changed_fields=set())
+
+    def _handle_demo(self, arg: str, raw: str) -> DispatchResult:
+        if not self._demo_manager:
+            return DispatchResult(
+                response_text="Demo mode not available (no demo_manager configured)",
+                changed_fields=set(),
+            )
+        mode = arg if arg in VALID_DEMO_MODES else "replay"
+        if mode == "stop":
+            return DispatchResult(
+                response_text="⏹ Stopping demo...",
+                changed_fields=set(),
+                demo_action="stop",
+            )
+        return DispatchResult(
+            response_text=f"▶ Starting demo ({mode})...",
+            changed_fields=set(),
+            demo_action=mode,
+        )
 
     def _handle_status(self) -> DispatchResult:
         snap = self._config.snapshot()

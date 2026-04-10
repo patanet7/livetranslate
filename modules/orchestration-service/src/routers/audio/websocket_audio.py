@@ -23,7 +23,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from clients.transcription_client import WebSocketTranscriptionClient
@@ -271,6 +271,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     meeting_config: MeetingSessionConfig | None = None
     command_dispatcher: CommandDispatcher | None = None
     source_orchestrator: SourceOrchestrator | None = None
+    demo_manager: Any = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -784,7 +785,12 @@ async def websocket_audio_stream(websocket: WebSocket):
                     )
 
                 meeting_config = MeetingSessionConfig(session_id=session_id)
-                command_dispatcher = CommandDispatcher(meeting_config)
+                try:
+                    from services.demo_manager import DemoManager
+                    demo_manager = DemoManager()
+                except ImportError:
+                    demo_manager = None
+                command_dispatcher = CommandDispatcher(meeting_config, demo_manager=demo_manager)
                 source_orchestrator = SourceOrchestrator(
                     config=meeting_config,
                     on_caption=lambda event: asyncio.ensure_future(
@@ -940,6 +946,18 @@ async def websocket_audio_stream(websocket: WebSocket):
                                     changes={f: getattr(meeting_config, f) for f in result.changed_fields}
                                 ).model_dump_json()
                             )
+                        # Handle demo actions
+                        if result.demo_action and demo_manager is not None:
+                            try:
+                                if result.demo_action == "stop":
+                                    await demo_manager.stop()
+                                else:
+                                    await demo_manager.start(mode=result.demo_action)
+                            except Exception as exc:
+                                logger.warning("demo_action_failed", error=str(exc))
+                                await safe_send(
+                                    ChatResponseMessage(text=f"Demo error: {exc}").model_dump_json()
+                                )
 
             # --- end_session ---
             elif isinstance(msg, EndSessionMessage):

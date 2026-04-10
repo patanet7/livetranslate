@@ -87,3 +87,24 @@ class TestCommandDispatcher:
     def test_returns_changed_fields(self):
         result = self.dispatcher.dispatch("/lang zh", sender="Alice")
         assert "target_lang" in result.changed_fields
+
+    def test_demo_without_manager(self):
+        result = self.dispatcher.dispatch("/demo", sender="Alice")
+        assert "not available" in result.response_text
+
+    def test_demo_with_manager(self):
+        dispatcher = CommandDispatcher(self.config, demo_manager=object())
+        result = dispatcher.dispatch("/demo replay", sender="Alice")
+        assert result.demo_action == "replay"
+        assert "Starting" in result.response_text
+
+    def test_demo_fireflies_alias(self):
+        dispatcher = CommandDispatcher(self.config, demo_manager=object())
+        result = dispatcher.dispatch("/demo", sender="Alice")
+        assert result.demo_action == "replay"
+
+    def test_demo_stop(self):
+        dispatcher = CommandDispatcher(self.config, demo_manager=object())
+        result = dispatcher.dispatch("/demo stop", sender="Alice")
+        assert result.demo_action == "stop"
+        assert "Stopping" in result.response_text
