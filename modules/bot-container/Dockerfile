@@ -43,7 +43,6 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     pulseaudio \
     xvfb \
-    v4l2loopback-dkms \
     v4l2loopback-utils \
     && rm -rf /var/lib/apt/lists/*
 
