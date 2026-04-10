@@ -31,6 +31,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models import TranslationRequest
 from livetranslate_common.models.ws_messages import (
+    ChatCommandMessage,
+    ChatResponseMessage,
+    ConfigChangedMessage,
     ConfigMessage,
     ConnectedMessage,
     EndMeetingMessage,
@@ -47,6 +50,8 @@ from livetranslate_common.models.ws_messages import (
     parse_ws_message,
 )
 from meeting.downsampler import downsample_to_16k
+from services.command_dispatcher import CommandDispatcher
+from services.meeting_session_config import MeetingSessionConfig
 from testing.fixture_recorder import RECORD_FIXTURES, FixtureRecorder
 
 if TYPE_CHECKING:
@@ -262,6 +267,8 @@ async def websocket_audio_stream(websocket: WebSocket):
     translation_service = None
     translation_context_store = None
     fixture_recorder: FixtureRecorder | None = None
+    meeting_config: MeetingSessionConfig | None = None
+    command_dispatcher: CommandDispatcher | None = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -774,6 +781,9 @@ async def websocket_audio_stream(websocket: WebSocket):
                         ).model_dump_json()
                     )
 
+                meeting_config = MeetingSessionConfig(session_id=session_id)
+                command_dispatcher = CommandDispatcher(meeting_config)
+
             # --- promote_to_meeting ---
             elif isinstance(msg, PromoteToMeetingMessage):
                 if pipeline:
@@ -894,6 +904,23 @@ async def websocket_audio_stream(websocket: WebSocket):
                             session_id=session_id,
                             restored_source=restored,
                         )
+
+            # --- chat_command (meeting participant sent /command in chat) ---
+            elif isinstance(msg, ChatCommandMessage):
+                if command_dispatcher is not None:
+                    result = command_dispatcher.dispatch(msg.command, sender=msg.sender)
+                    if result is not None:
+                        # Send response for bot to type in chat
+                        await safe_send(
+                            ChatResponseMessage(text=result.response_text).model_dump_json()
+                        )
+                        # Notify all listeners of config changes
+                        if result.changed_fields and meeting_config is not None:
+                            await safe_send(
+                                ConfigChangedMessage(
+                                    changes={f: getattr(meeting_config, f) for f in result.changed_fields}
+                                ).model_dump_json()
+                            )
 
             # --- end_session ---
             elif isinstance(msg, EndSessionMessage):
