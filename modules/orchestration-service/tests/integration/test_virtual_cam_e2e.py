@@ -72,3 +72,89 @@ class TestPyvirtualcamDevice:
         assert rgb_frame.dtype == np.uint8
         # Red channel should be ~100 (200 * 0.5)
         assert 90 <= rgb_frame[0, 0, 0] <= 110
+
+
+import time
+
+import pytest
+
+from bot.pil_virtual_cam_renderer import PILVirtualCamRenderer
+from services.meeting_session_config import MeetingSessionConfig
+from services.caption_buffer import CaptionBuffer
+
+
+@pytest.mark.integration
+class TestPILVirtualCamRenderer:
+    def test_creates_with_config(self):
+        config = MeetingSessionConfig(session_id="test-123")
+        buffer = CaptionBuffer()
+        renderer = PILVirtualCamRenderer(config=config, caption_buffer=buffer, use_virtual_cam=False)
+        assert renderer is not None
+        assert renderer.frames_rendered == 0
+
+    def test_renders_frame_on_caption_event(self):
+        config = MeetingSessionConfig(session_id="test-123")
+        buffer = CaptionBuffer()
+        renderer = PILVirtualCamRenderer(config=config, caption_buffer=buffer, use_virtual_cam=False)
+
+        renderer.start_rendering()
+        buffer.add_caption(translated_text="Hello world", speaker_name="Alice")
+
+        time.sleep(0.2)  # Give render loop a few cycles
+
+        assert renderer.frames_rendered > 0
+        assert renderer.last_frame is not None
+        assert renderer.last_frame.shape == (720, 1280, 3)
+
+        renderer.stop_rendering()
+
+    def test_renders_without_captions(self):
+        """Should render waiting frame when no captions exist."""
+        config = MeetingSessionConfig(session_id="test-123")
+        buffer = CaptionBuffer()
+        renderer = PILVirtualCamRenderer(config=config, caption_buffer=buffer, use_virtual_cam=False)
+
+        renderer.start_rendering()
+        time.sleep(0.2)
+
+        assert renderer.frames_rendered > 0
+        assert renderer.last_frame is not None
+        assert renderer.last_frame.shape == (720, 1280, 3)
+
+        renderer.stop_rendering()
+
+    def test_config_snapshot_per_frame(self):
+        """Config changes should be picked up by next frame."""
+        config = MeetingSessionConfig(session_id="test-123", font_size=24)
+        buffer = CaptionBuffer()
+        renderer = PILVirtualCamRenderer(config=config, caption_buffer=buffer, use_virtual_cam=False)
+
+        renderer.start_rendering()
+        time.sleep(0.1)
+
+        config.update(font_size=48)
+        time.sleep(0.1)
+
+        assert renderer.last_config_snapshot["font_size"] == 48
+        renderer.stop_rendering()
+
+    def test_start_stop_lifecycle(self):
+        config = MeetingSessionConfig(session_id="test-123")
+        buffer = CaptionBuffer()
+        renderer = PILVirtualCamRenderer(config=config, caption_buffer=buffer, use_virtual_cam=False)
+
+        assert not renderer.is_running
+        renderer.start_rendering()
+        assert renderer.is_running
+        renderer.stop_rendering()
+        assert not renderer.is_running
+
+    def test_double_start_is_safe(self):
+        config = MeetingSessionConfig(session_id="test-123")
+        buffer = CaptionBuffer()
+        renderer = PILVirtualCamRenderer(config=config, caption_buffer=buffer, use_virtual_cam=False)
+
+        renderer.start_rendering()
+        renderer.start_rendering()  # Should not create second thread
+        time.sleep(0.1)
+        renderer.stop_rendering()
