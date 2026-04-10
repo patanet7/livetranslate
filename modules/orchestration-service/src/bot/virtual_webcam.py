@@ -343,31 +343,34 @@ class VirtualWebcamManager:
             )
 
     def _stream_loop(self):
-        """Main streaming loop."""
+        """Main streaming loop with frame-paced timer."""
         logger.info("Virtual webcam stream loop started")
 
         frame_interval = 1.0 / self.config.fps
-        last_frame_time = time.time()
+        next_frame_time = time.monotonic()
 
         try:
             while self.is_streaming:
-                current_time = time.time()
+                next_frame_time += frame_interval
 
-                if current_time - last_frame_time >= frame_interval:
-                    # Generate new frame
-                    self._generate_frame()
-                    self.frames_generated += 1
-                    last_frame_time = current_time
+                # Generate new frame
+                self._generate_frame()
+                self.frames_generated += 1
 
-                    # Callback for frame generation
-                    if self.on_frame_generated and self.current_frame is not None:
-                        self.on_frame_generated(self.current_frame.copy())
+                # Callback for frame generation
+                if self.on_frame_generated and self.current_frame is not None:
+                    self.on_frame_generated(self.current_frame.copy())
 
                 # Clean up expired translations
                 self._cleanup_expired_translations()
 
-                # Small sleep to prevent busy waiting
-                time.sleep(0.001)
+                # Sleep until next frame is due
+                sleep_time = next_frame_time - time.monotonic()
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                else:
+                    # Frame took too long — skip to next slot
+                    next_frame_time = time.monotonic()
 
         except Exception as e:
             logger.error(f"Error in webcam stream loop: {e}")
