@@ -28,6 +28,11 @@ export const JOIN_NOW_BUTTON = 'button:has-text("Join now")';
 export const CONTINUE_WITHOUT_MIC_CAM = 'button:has-text("Continue without microphone and camera")';
 export const GOT_IT_BUTTON = 'button:has-text("Got it")';
 
+// Built-in closed captions (Meet CC)
+export const CC_BUTTON = '[aria-label="Turn on captions"]';
+export const CC_CONTAINER = '[jscontroller="D1tHje"]';
+export const CC_TEXT_SPAN = '.a4cQT';
+
 /**
  * Try multiple selectors in priority order, return first visible one.
  */
