@@ -78,7 +78,7 @@ class VirtualWebcamIntegrationTest:
             width=1920,
             height=1080,
             fps=30,
-            display_mode=DisplayMode.OVERLAY,
+            display_mode=DisplayMode.SUBTITLE,
             theme=Theme.DARK,
             max_translations_displayed=5,
             translation_duration_seconds=10.0,

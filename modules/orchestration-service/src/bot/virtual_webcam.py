@@ -31,19 +31,16 @@ from typing import Any
 
 import numpy as np
 from livetranslate_common.logging import get_logger
+from livetranslate_common.theme import (
+    SPEAKER_COLORS,
+    DisplayMode,
+    ThemeColors,
+    get_theme_colors,
+    hex_to_rgb,
+)
 from PIL import Image, ImageDraw, ImageFont
 
 logger = get_logger()
-
-
-class DisplayMode(Enum):
-    """Virtual webcam display modes."""
-
-    OVERLAY = "overlay"  # Translation overlay on transparent background
-    SIDEBAR = "sidebar"  # Translations in side panel
-    BOTTOM_BANNER = "bottom_banner"  # Translation ticker at bottom
-    FLOATING = "floating"  # Floating translation boxes
-    FULLSCREEN = "fullscreen"  # Full screen translation display
 
 
 class Theme(Enum):
@@ -60,12 +57,12 @@ class Theme(Enum):
 class WebcamConfig:
     """Virtual webcam configuration."""
 
-    width: int = 1920
-    height: int = 1080
+    width: int = 1280
+    height: int = 720
     fps: int = 30
     format: str = "RGB24"
     device_name: str = "LiveTranslate Virtual Camera"
-    display_mode: DisplayMode = DisplayMode.OVERLAY
+    display_mode: DisplayMode = DisplayMode.SUBTITLE
     theme: Theme = Theme.DARK
     max_translations_displayed: int = 5
     translation_duration_seconds: float = 10.0
@@ -115,16 +112,7 @@ class VirtualWebcamManager:
         self.is_streaming = False
         self.current_translations = deque(maxlen=config.max_translations_displayed)
         self.speakers = {}  # speaker_id -> SpeakerInfo
-        self.speaker_colors = [
-            (255, 100, 100),  # Red
-            (100, 255, 100),  # Green
-            (100, 100, 255),  # Blue
-            (255, 255, 100),  # Yellow
-            (255, 100, 255),  # Magenta
-            (100, 255, 255),  # Cyan
-            (255, 150, 100),  # Orange
-            (150, 255, 100),  # Light Green
-        ]
+        self.speaker_colors = [hex_to_rgb(c) for c in SPEAKER_COLORS]
         self.next_speaker_color = 0
 
         # Rendering
@@ -194,49 +182,18 @@ class VirtualWebcamManager:
 
     def get_theme_colors(self) -> dict[str, tuple[int, int, int]]:
         """Get color scheme for current theme."""
-        themes = {
-            Theme.DARK: {
-                "background": (20, 20, 20),
-                "text_primary": (255, 255, 255),
-                "text_secondary": (200, 200, 200),
-                "accent": (0, 150, 255),
-                "border": (80, 80, 80),
-                "overlay_bg": (0, 0, 0),
-            },
-            Theme.LIGHT: {
-                "background": (240, 240, 240),
-                "text_primary": (20, 20, 20),
-                "text_secondary": (60, 60, 60),
-                "accent": (0, 120, 200),
-                "border": (180, 180, 180),
-                "overlay_bg": (255, 255, 255),
-            },
-            Theme.HIGH_CONTRAST: {
-                "background": (0, 0, 0),
-                "text_primary": (255, 255, 255),
-                "text_secondary": (255, 255, 0),
-                "accent": (255, 0, 255),
-                "border": (255, 255, 255),
-                "overlay_bg": (0, 0, 0),
-            },
-            Theme.MINIMAL: {
-                "background": (250, 250, 250),
-                "text_primary": (40, 40, 40),
-                "text_secondary": (120, 120, 120),
-                "accent": (100, 100, 100),
-                "border": (200, 200, 200),
-                "overlay_bg": (255, 255, 255),
-            },
-            Theme.CORPORATE: {
-                "background": (245, 245, 245),
-                "text_primary": (30, 30, 30),
-                "text_secondary": (80, 80, 80),
-                "accent": (0, 100, 180),
-                "border": (150, 150, 150),
-                "overlay_bg": (248, 248, 248),
-            },
+        theme_colors: ThemeColors = get_theme_colors(self.config.theme.value)
+        # Derive overlay_bg: dark themes use black, light themes use white
+        is_dark = theme_colors.background[0] < 128
+        overlay_bg = (0, 0, 0) if is_dark else (255, 255, 255)
+        return {
+            "background": theme_colors.background,
+            "text_primary": theme_colors.text_primary,
+            "text_secondary": theme_colors.text_secondary,
+            "accent": theme_colors.accent,
+            "border": theme_colors.border,
+            "overlay_bg": overlay_bg,
         }
-        return themes.get(self.config.theme, themes[Theme.DARK])
 
     async def start_stream(self, session_id: str) -> bool:
         """Start virtual webcam streaming."""
@@ -378,19 +335,12 @@ class VirtualWebcamManager:
     def _initialize_frame(self):
         """Initialize the base frame."""
         with self.frame_lock:
-            # Create transparent background or solid color based on display mode
-            if self.config.display_mode == DisplayMode.OVERLAY:
-                # Transparent background for overlay mode
-                self.current_frame = np.zeros(
-                    (self.config.height, self.config.width, 4), dtype=np.uint8
-                )
-            else:
-                # Solid background for other modes
-                colors = self.get_theme_colors()
-                bg_color = colors["background"]
-                self.current_frame = np.full(
-                    (self.config.height, self.config.width, 3), bg_color, dtype=np.uint8
-                )
+            # All canonical display modes use solid backgrounds
+            colors = self.get_theme_colors()
+            bg_color = colors["background"]
+            self.current_frame = np.full(
+                (self.config.height, self.config.width, 3), bg_color, dtype=np.uint8
+            )
 
     def _stream_loop(self):
         """Main streaming loop."""
@@ -434,16 +384,12 @@ class VirtualWebcamManager:
                     # No translations to display - show waiting message
                     self._render_waiting_frame()
                 else:
-                    # Render translations based on display mode
-                    if self.config.display_mode == DisplayMode.OVERLAY:
-                        self._render_overlay_frame()
-                    elif self.config.display_mode == DisplayMode.SIDEBAR:
-                        self._render_sidebar_frame()
-                    elif self.config.display_mode == DisplayMode.BOTTOM_BANNER:
+                    # Render translations based on canonical display mode
+                    if self.config.display_mode == DisplayMode.SUBTITLE:
                         self._render_banner_frame()
-                    elif self.config.display_mode == DisplayMode.FLOATING:
-                        self._render_floating_frame()
-                    elif self.config.display_mode == DisplayMode.FULLSCREEN:
+                    elif self.config.display_mode == DisplayMode.SPLIT:
+                        self._render_sidebar_frame()
+                    elif self.config.display_mode == DisplayMode.INTERPRETER:
                         self._render_fullscreen_frame()
 
         except Exception as e:
@@ -454,11 +400,8 @@ class VirtualWebcamManager:
         self._initialize_frame()
         colors = self.get_theme_colors()
 
-        # Convert to PIL for text rendering
-        if self.config.display_mode == DisplayMode.OVERLAY:
-            img = Image.fromarray(self.current_frame, "RGBA")
-        else:
-            img = Image.fromarray(self.current_frame, "RGB")
+        # Convert to PIL for text rendering (all canonical modes use RGB)
+        img = Image.fromarray(self.current_frame, "RGB")
 
         draw = ImageDraw.Draw(img)
 
@@ -476,10 +419,7 @@ class VirtualWebcamManager:
         draw.text((x, y), text, fill=colors["text_secondary"], font=font)
 
         # Convert back to numpy
-        if self.config.display_mode == DisplayMode.OVERLAY:
-            self.current_frame = np.array(img)
-        else:
-            self.current_frame = np.array(img)
+        self.current_frame = np.array(img)
 
     def _render_overlay_frame(self):
         """Render overlay mode with floating translation boxes."""
@@ -487,7 +427,7 @@ class VirtualWebcamManager:
         colors = self.get_theme_colors()
 
         # Convert to PIL for text rendering
-        img = Image.fromarray(self.current_frame, "RGBA")
+        img = Image.fromarray(self.current_frame, "RGB")
         draw = ImageDraw.Draw(img)
 
         # Group translations by speaker and sort by timestamp
@@ -622,8 +562,8 @@ class VirtualWebcamManager:
         border_color = colors["accent"] if is_original else colors["border"]
         border_width = 2 if is_original else 1
 
-        # Background with opacity
-        overlay_color = colors["overlay_bg"] + (int(255 * self.config.background_opacity),)
+        # Background (RGB mode — opacity not applicable, use solid overlay_bg)
+        overlay_color = colors["overlay_bg"]
         draw.rectangle(
             [(x, y), (x + box_width, y + box_height)],
             fill=overlay_color,
@@ -837,7 +777,7 @@ class VirtualWebcamManager:
             header_height = 25
             draw.rectangle(
                 [(0, 0), (self.config.width, header_height)],
-                fill=colors["overlay_bg"] + (int(255 * 0.9),),
+                fill=colors["overlay_bg"],
                 outline=colors["border"],
                 width=1,
             )
@@ -915,9 +855,9 @@ def create_virtual_webcam(config: WebcamConfig, bot_manager=None) -> VirtualWebc
 
 
 def create_default_webcam_config(
-    display_mode: DisplayMode = DisplayMode.OVERLAY,
+    display_mode: DisplayMode = DisplayMode.SUBTITLE,
     theme: Theme = Theme.DARK,
-    resolution: tuple[int, int] = (1920, 1080),
+    resolution: tuple[int, int] = (1280, 720),
 ) -> WebcamConfig:
     """Create a default webcam configuration."""
     return WebcamConfig(
@@ -931,7 +871,7 @@ def create_default_webcam_config(
 # Example usage
 async def main():
     """Example usage of virtual webcam."""
-    config = create_default_webcam_config(display_mode=DisplayMode.OVERLAY, theme=Theme.DARK)
+    config = create_default_webcam_config(display_mode=DisplayMode.SUBTITLE, theme=Theme.DARK)
 
     webcam = create_virtual_webcam(config)
 
