@@ -118,6 +118,19 @@ export class AudioStreamer {
   }
 
   /**
+   * Forward a caption from Meet's built-in CC to orchestration
+   */
+  sendCaptionEvent(speaker: string, text: string): void {
+    this.send({
+      type: 'caption_event',
+      speaker,
+      text,
+      source: 'meet_cc',
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
    * Handle messages from orchestration service (transcriptions, translations)
    */
   private handleMessage(data: Buffer): void {
