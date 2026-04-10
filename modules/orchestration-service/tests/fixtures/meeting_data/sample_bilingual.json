@@ -1,0 +1,13 @@
+{
+  "source": "bot_audio",
+  "meeting_id": "fixture-bilingual-001",
+  "language": "zh-en",
+  "segments": [
+    {"text": "大家好，今天我们来讨论新项目", "speaker_name": "Alice", "start_time": 0.0, "end_time": 2.5, "is_final": true},
+    {"text": "Hi everyone, let's discuss the new project", "speaker_name": "Bob", "start_time": 3.0, "end_time": 5.0, "is_final": true},
+    {"text": "我觉得我们应该先确定时间表", "speaker_name": "Alice", "start_time": 5.5, "end_time": 7.5, "is_final": true},
+    {"text": "I agree, timeline is important", "speaker_name": "Bob", "start_time": 8.0, "end_time": 9.5, "is_final": true},
+    {"text": "那我们下周一开始吧", "speaker_name": "Alice", "start_time": 10.0, "end_time": 11.5, "is_final": true},
+    {"text": "Sounds good, Monday works for me", "speaker_name": "Bob", "start_time": 12.0, "end_time": 13.5, "is_final": true}
+  ]
+}
