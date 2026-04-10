@@ -211,10 +211,33 @@ class CaptionBuffer:
         # Background task tracking for async callbacks
         self._bg_tasks: set[asyncio.Task] = set()
 
+        # Multi-subscriber support
+        self._subscribers: list[Callable] = []
+
         logger.info(
             f"CaptionBuffer initialized: max_captions={max_captions}, "
             f"duration={default_duration}s, aggregate={aggregate_speaker_text}"
         )
+
+    # =========================================================================
+    # Subscriber API
+    # =========================================================================
+
+    def subscribe(self, callback: Callable) -> None:
+        """Subscribe to caption events. callback(event_type: str, caption: Caption)."""
+        self._subscribers.append(callback)
+
+    def unsubscribe(self, callback: Callable) -> None:
+        """Remove a subscriber."""
+        try:
+            self._subscribers.remove(callback)
+        except ValueError:
+            pass
+
+    def _notify_subscribers(self, event_type: str, caption: "Caption") -> None:
+        """Notify all subscribers of a caption event."""
+        for sub in self._subscribers:
+            self._fire_callback(sub, event_type, caption)
 
     # =========================================================================
     # Callback Helpers
@@ -345,6 +368,7 @@ class CaptionBuffer:
                     # Callback for update
                     if self.on_caption_updated:
                         self._fire_callback(self.on_caption_updated, existing_caption)
+                    self._notify_subscribers("updated", existing_caption)
 
                     return (existing_caption, True)
 
@@ -387,6 +411,7 @@ class CaptionBuffer:
             # Callback
             if self.on_caption_added:
                 self._fire_callback(self.on_caption_added, caption)
+            self._notify_subscribers("added", caption)
 
             logger.debug(
                 f"Caption added: id={caption.id}, speaker={speaker_name}, "
@@ -679,6 +704,7 @@ class CaptionBuffer:
 
             if self.on_caption_expired:
                 self._fire_callback(self.on_caption_expired, caption)
+            self._notify_subscribers("expired", caption)
 
         if expired_ids:
             self._stats.current_caption_count = len(self._captions)
