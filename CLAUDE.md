@@ -71,6 +71,16 @@ Real-time audio capture → transcription → translation page in the SvelteKit 
 - **Mode Guard**: Detection + restart only fires when `lock_language=False` (interpreter mode). Split mode forces whisper hint, skips detection entirely
 - **SessionConfig**: `modules/orchestration-service/src/routers/audio/websocket_audio.py` — manages interpreter↔split mode transitions, language save/restore
 
+#### Meeting Subtitle System (Phase 0+1 ✅, Phase 2 planned)
+- **Design Spec**: `docs/superpowers/specs/2026-04-10-meeting-subtitle-system-design.md`
+- **MeetingSessionConfig**: `modules/orchestration-service/src/services/meeting_session_config.py` — plain class (NOT Pydantic), thread-safe `update()` + subscriber notification + `snapshot()` for per-frame reads
+- **Canonical Theme**: `modules/shared/src/livetranslate_common/theme.py` — single source of truth for speaker colors, DisplayMode (`subtitle`/`split`/`interpreter`), ThemeColors (5 themes). Dashboard mirror: `modules/dashboard-service/src/lib/theme.ts`
+- **CaptionSourceAdapter**: `modules/orchestration-service/src/services/pipeline/adapters/source_adapter.py` — protocol + `BotAudioCaptionSource`. `CaptionEvent` is the canonical event schema
+- **PILVirtualCamRenderer**: `modules/orchestration-service/src/bot/pil_virtual_cam_renderer.py` — wires VirtualWebcamManager → pyvirtualcam, frame-paced, dirty-flag, config snapshot per frame
+- **CaptionBuffer**: Extended with multi-subscriber (`subscribe`/`unsubscribe`), backward compat with legacy single-callbacks
+- **VirtualWebcamManager**: Refactored to 1280x720, canonical DisplayMode, shared theme colors, frame-paced timer (no busy-wait)
+- **Phase 2 plan**: `docs/superpowers/plans/2026-04-10-meeting-subtitle-system-phase2.md` — TypeScript chat commands, CommandDispatcher, GoogleMeetBot integration
+
 #### Configuration Synchronization System ✅
 - **ConfigurationSyncManager**: `modules/orchestration-service/src/audio/config_sync.py`
 - **Dashboard Settings**: `modules/dashboard-service/src/pages/Settings/`
