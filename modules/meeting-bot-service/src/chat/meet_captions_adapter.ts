@@ -80,12 +80,12 @@ export class MeetCaptionsAdapter {
     if (!this.isRunning) return;
 
     try {
-      const texts = await this.page.evaluate((containerSel: string, textSel: string) => {
+      const texts = await this.page.evaluate(({ containerSel, textSel }: { containerSel: string; textSel: string }) => {
         const container = document.querySelector(containerSel);
         if (!container) return [];
         const spans = container.querySelectorAll(textSel);
         return Array.from(spans).map(s => s.textContent || '');
-      }, CC_CONTAINER, CC_TEXT_SPAN);
+      }, { containerSel: CC_CONTAINER, textSel: CC_TEXT_SPAN });
 
       for (const rawText of texts) {
         if (!rawText.trim()) continue;
