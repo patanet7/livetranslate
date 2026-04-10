@@ -52,6 +52,7 @@ from livetranslate_common.models.ws_messages import (
 from meeting.downsampler import downsample_to_16k
 from services.command_dispatcher import CommandDispatcher
 from services.meeting_session_config import MeetingSessionConfig
+from services.source_orchestrator import SourceOrchestrator
 from testing.fixture_recorder import RECORD_FIXTURES, FixtureRecorder
 
 if TYPE_CHECKING:
@@ -269,6 +270,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     fixture_recorder: FixtureRecorder | None = None
     meeting_config: MeetingSessionConfig | None = None
     command_dispatcher: CommandDispatcher | None = None
+    source_orchestrator: SourceOrchestrator | None = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -783,6 +785,23 @@ async def websocket_audio_stream(websocket: WebSocket):
 
                 meeting_config = MeetingSessionConfig(session_id=session_id)
                 command_dispatcher = CommandDispatcher(meeting_config)
+                source_orchestrator = SourceOrchestrator(
+                    config=meeting_config,
+                    on_caption=lambda event: asyncio.ensure_future(
+                        safe_send(json.dumps({
+                            "type": "caption_added",
+                            "caption": {
+                                "id": event.caption_id,
+                                "text": event.text,
+                                "speaker_name": event.speaker_name,
+                                "speaker_color": event.speaker_color,
+                                "source_lang": event.source_lang,
+                                "is_draft": event.is_draft,
+                            }
+                        }))
+                    ),
+                )
+                await source_orchestrator.start()
 
             # --- promote_to_meeting ---
             elif isinstance(msg, PromoteToMeetingMessage):
@@ -981,6 +1000,9 @@ async def websocket_audio_stream(websocket: WebSocket):
                     await db_session.close()
                 except Exception:
                     pass
+
+        if source_orchestrator:
+            await source_orchestrator.stop()
 
         if fixture_recorder:
             fixture_recorder.stop()
