@@ -24,6 +24,9 @@ export class AudioStreamer {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
 
+  public onChatResponse: ((text: string) => void) | null = null;
+  public onConfigChanged: ((changes: Record<string, any>) => void) | null = null;
+
   constructor(config: AudioStreamConfig, logger: Logger) {
     this.config = {
       sampleRate: 16000,
@@ -104,6 +107,17 @@ export class AudioStreamer {
   }
 
   /**
+   * Send a chat command to orchestration service for processing
+   */
+  sendChatCommand(command: string, sender: string): void {
+    this.send({
+      type: 'chat_command',
+      command,
+      sender,
+    });
+  }
+
+  /**
    * Handle messages from orchestration service (transcriptions, translations)
    */
   private handleMessage(data: Buffer): void {
@@ -130,6 +144,18 @@ export class AudioStreamer {
           this.logger.error('Received error from orchestration', {
             error: message.error
           });
+          break;
+
+        case 'chat_response':
+          if (this.onChatResponse) {
+            this.onChatResponse(message.text);
+          }
+          break;
+
+        case 'config_changed':
+          if (this.onConfigChanged) {
+            this.onConfigChanged(message.changes);
+          }
           break;
 
         default:
