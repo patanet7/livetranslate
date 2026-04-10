@@ -23,7 +23,30 @@ from meeting.translation_recovery import (
 from routers import meetings as meetings_router
 from services.meeting_store import MeetingStore
 
-from .test_translation_recovery import _FakeTranslationService
+from types import SimpleNamespace
+
+from livetranslate_common.models import TranslationResponse
+
+
+class _FakeTranslationService:
+    """Minimal fake for observability tests."""
+
+    def __init__(self) -> None:
+        self.config = SimpleNamespace(
+            context_window_size=3,
+            max_context_tokens=512,
+            cross_direction_max_tokens=128,
+            model="fake-recovery-model",
+        )
+
+    async def translate(self, request, skip_context: bool = False, context_store=None):
+        return TranslationResponse(
+            translated_text=f"{request.target_language}:{request.text}",
+            source_language=request.source_language,
+            target_language=request.target_language,
+            model_used=self.config.model,
+            latency_ms=1.5,
+        )
 
 
 @pytest.mark.asyncio
