@@ -15,11 +15,15 @@ import createBrowserContext from '../lib/chromium';
 import { GOOGLE_LOBBY_MODE_HOST_TEXT, GOOGLE_REQUEST_DENIED, GOOGLE_REQUEST_TIMEOUT } from '../constants';
 import { vp9MimeType, webmMimeType } from '../lib/recording';
 import { createAudioStreamer, AudioStreamer } from '../audio_streaming';
+import { ChatPoller } from '../chat/chat_poller';
+import { ChatResponder } from '../chat/chat_responder';
 
 export class GoogleMeetBot extends MeetBotBase {
   private _logger: Logger;
   private _correlationId: string;
   private audioStreamer: AudioStreamer | null = null;
+  private chatPoller: ChatPoller | null = null;
+  private chatResponder: ChatResponder | null = null;
 
   constructor(logger: Logger, correlationId: string) {
     super();
@@ -472,6 +476,30 @@ export class GoogleMeetBot extends MeetBotBase {
         this._logger.error('Failed to set up audio streaming', { error: error.message });
         // Don't throw - continue with bot operation even if audio streaming fails
       }
+
+      // Set up chat system for live command control
+      this.chatResponder = new ChatResponder(this.page, this._logger);
+      this.chatPoller = new ChatPoller(this.page, this._logger, (command, sender) => {
+        // Forward commands to orchestration via WebSocket
+        if (this.audioStreamer) {
+          this.audioStreamer.sendChatCommand(command, sender);
+        }
+      });
+
+      // Wire chat responses from orchestration back to Meet chat
+      if (this.audioStreamer) {
+        this.audioStreamer.onChatResponse = async (text: string) => {
+          if (this.chatResponder) {
+            await this.chatResponder.sendMessage(text);
+          }
+        };
+      }
+
+      // Start polling chat for commands
+      await this.chatPoller.start();
+
+      // Send join announcement
+      await this.chatResponder.sendJoinMessage();
     }
 
     try {
@@ -1002,6 +1030,13 @@ export class GoogleMeetBot extends MeetBotBase {
   async leave(): Promise<void> {
     try {
       this._logger.info('Leaving meeting and cleaning up...');
+
+      // Stop chat poller
+      if (this.chatPoller) {
+        this.chatPoller.stop();
+        this.chatPoller = null;
+      }
+      this.chatResponder = null;
 
       // Close audio streamer
       if (this.audioStreamer) {
