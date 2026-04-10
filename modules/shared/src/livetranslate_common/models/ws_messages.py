@@ -8,7 +8,7 @@ JSON strings received over a WebSocket connection.
 from __future__ import annotations
 
 import json
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -286,6 +286,28 @@ class ErrorMessage(BaseModel):
     recoverable: bool = True
 
 
+class ChatCommandMessage(BaseModel):
+    """Chat command from meeting participant, forwarded by bot."""
+
+    type: Literal["chat_command"] = "chat_command"
+    command: str
+    sender: str = ""
+
+
+class ChatResponseMessage(BaseModel):
+    """Response text for bot to type in meeting chat."""
+
+    type: Literal["chat_response"] = "chat_response"
+    text: str
+
+
+class ConfigChangedMessage(BaseModel):
+    """Notification that MeetingSessionConfig changed."""
+
+    type: Literal["config_changed"] = "config_changed"
+    changes: dict[str, Any] = {}
+
+
 # ---------------------------------------------------------------------------
 # Message registries
 # ---------------------------------------------------------------------------
@@ -297,6 +319,7 @@ _CLIENT_MESSAGES: dict[str, type[BaseModel]] = {
     "end_meeting": EndMeetingMessage,
     "config": ConfigMessage,
     "end": EndMessage,
+    "chat_command": ChatCommandMessage,
 }
 
 _SERVER_MESSAGES: dict[str, type[BaseModel]] = {
@@ -311,6 +334,8 @@ _SERVER_MESSAGES: dict[str, type[BaseModel]] = {
     "language_detected": LanguageDetectedMessage,
     "backend_switched": BackendSwitchedMessage,
     "error": ErrorMessage,
+    "chat_response": ChatResponseMessage,
+    "config_changed": ConfigChangedMessage,
 }
 
 _ALL_MESSAGES: dict[str, type[BaseModel]] = {**_CLIENT_MESSAGES, **_SERVER_MESSAGES}

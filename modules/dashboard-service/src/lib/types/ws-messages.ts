@@ -42,7 +42,8 @@ export type ClientMessage =
   | PromoteToMeetingMessage
   | EndMeetingMessage
   | ConfigMessage
-  | EndMessage;
+  | EndMessage
+  | ChatCommandMessage;
 
 // Server → Client
 export interface ConnectedMessage {
@@ -145,6 +146,22 @@ export interface ErrorMessage {
   recoverable: boolean;
 }
 
+export interface ChatCommandMessage {
+  type: 'chat_command';
+  command: string;
+  sender: string;
+}
+
+export interface ChatResponseMessage {
+  type: 'chat_response';
+  text: string;
+}
+
+export interface ConfigChangedMessage {
+  type: 'config_changed';
+  changes: Record<string, unknown>;
+}
+
 export type ServerMessage =
   | ConnectedMessage
   | SegmentMessage
@@ -156,7 +173,9 @@ export type ServerMessage =
   | ServiceStatusMessage
   | LanguageDetectedMessage
   | BackendSwitchedMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | ChatResponseMessage
+  | ConfigChangedMessage;
 
 export function parseServerMessage(raw: string): ServerMessage | null {
   try {
@@ -166,6 +185,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       'connected', 'segment', 'interim', 'translation', 'translation_chunk',
       'meeting_started', 'recording_status', 'service_status',
       'language_detected', 'backend_switched', 'error',
+      'chat_response', 'config_changed',
     ];
     if (!knownTypes.includes(data.type)) return null;
     // Unsafe cast: validates `type` discriminant only, not field presence/types.
