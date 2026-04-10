@@ -84,3 +84,36 @@ class TestSourceOrchestrator:
         await asyncio.sleep(0.05)
 
         assert isinstance(self.orchestrator.active_source, FirefliesCaptionSource)
+
+
+class TestSourceOrchestratorResilience:
+    def setup_method(self):
+        self.config = MeetingSessionConfig(session_id="test-resilience")
+        self.events: list[CaptionEvent] = []
+        self.orchestrator = SourceOrchestrator(
+            config=self.config,
+            on_caption=lambda e: self.events.append(e),
+        )
+
+    @pytest.mark.asyncio
+    async def test_restart_on_source_error(self):
+        """If active source crashes, orchestrator restarts it."""
+        await self.orchestrator.start()
+        source = self.orchestrator.active_source
+        assert source.is_running
+
+        # Simulate source crash
+        await source.stop()
+        assert not source.is_running
+
+        # Orchestrator detects and restarts
+        await self.orchestrator.health_check()
+        assert self.orchestrator.active_source.is_running
+
+    @pytest.mark.asyncio
+    async def test_health_check_noop_when_healthy(self):
+        """Health check doesn't restart a healthy source."""
+        await self.orchestrator.start()
+        source_before = self.orchestrator.active_source
+        await self.orchestrator.health_check()
+        assert self.orchestrator.active_source is source_before
