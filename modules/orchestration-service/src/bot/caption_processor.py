@@ -20,23 +20,23 @@ import re
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from livetranslate_common.logging import get_logger
 
 logger = get_logger()
 
 
-@dataclass
-class SpeakerInfo:
+class SpeakerInfo(BaseModel):
     """Information about a meeting participant."""
 
     speaker_id: str
     display_name: str
     email: str | None = None
-    role: str | None = None  # 'organizer', 'participant', 'guest'
+    role: str | None = None
     join_time: float | None = None
     leave_time: float | None = None
     is_active: bool = True
@@ -44,8 +44,7 @@ class SpeakerInfo:
     utterance_count: int = 0
 
 
-@dataclass
-class CaptionSegment:
+class CaptionSegment(BaseModel):
     """A single caption segment with speaker and timing information."""
 
     speaker_id: str
@@ -58,15 +57,14 @@ class CaptionSegment:
     segment_id: str | None = None
 
 
-@dataclass
-class SpeakerTimelineEvent:
-    """Event in the speaker timeline (speaking, joining, leaving, etc.)."""
+class SpeakerTimelineEvent(BaseModel):
+    """Event in the speaker timeline."""
 
-    event_type: str  # 'speaking_start', 'speaking_end', 'join', 'leave', 'role_change'
+    event_type: str
     speaker_id: str
     timestamp: float
     duration: float | None = None
-    metadata: dict[str, Any] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class GoogleMeetCaptionParser:
@@ -641,14 +639,6 @@ class GoogleMeetCaptionProcessor:
 
         while self.is_processing:
             try:
-                # This is where we would interface with Google Meet's caption API
-                # For now, simulate caption processing
-                caption_data = self._capture_google_meet_captions()
-
-                if caption_data:
-                    for caption_line, timestamp in caption_data:
-                        self.process_caption_line(caption_line, timestamp)
-
                 time.sleep(0.1)  # 100ms intervals
 
             except Exception as e:
@@ -659,23 +649,13 @@ class GoogleMeetCaptionProcessor:
 
         logger.info("Caption processing loop ended")
 
-    def _capture_google_meet_captions(self) -> list[tuple[str, float]] | None:
-        """
-        Capture captions from Google Meet.
-
-        This is a placeholder for actual Google Meet caption API integration.
-        """
-        # TODO: Implement actual Google Meet caption capture
-        # For now, return empty to test the pipeline
-        return []
-
     def get_current_timeline(self) -> dict[str, Any]:
         """Get current speaker timeline data."""
         return {
             "session_id": self.session_id,
             "timeline": self.timeline_manager.get_speaker_timeline(),
             "speakers": {
-                speaker_id: asdict(speaker_info)
+                speaker_id: speaker_info.model_dump()
                 for speaker_id, speaker_info in self.timeline_manager.speakers.items()
             },
             "statistics": self.timeline_manager.get_statistics(),
