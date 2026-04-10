@@ -7,15 +7,9 @@
   import { CaptionStore } from '$lib/stores/captions.svelte';
   import type { CaptionEvent, DisplayMode } from '$lib/types';
 
-  // --- URL parameters ---
+  // --- URL parameters (static / not live-switchable) ---
   const sessionId = $derived($page.url.searchParams.get('session') ?? '');
   const lang = $derived($page.url.searchParams.get('lang') ?? '');
-  const showSpeaker = $derived($page.url.searchParams.get('showSpeaker') !== 'false');
-  const showOriginal = $derived($page.url.searchParams.get('showOriginal') !== 'false');
-  const fontSize = $derived.by(() => {
-    const raw = parseInt($page.url.searchParams.get('fontSize') ?? '18', 10);
-    return isNaN(raw) ? 18 : raw;
-  });
   const position = $derived(
     ($page.url.searchParams.get('position') ?? 'bottom') as 'top' | 'center' | 'bottom'
   );
@@ -36,9 +30,20 @@
       : 'transparent'
   );
   const showStatus = $derived($page.url.searchParams.get('showStatus') !== 'false');
-  const mode = $derived(
-    ($page.url.searchParams.get('mode') ?? 'both') as DisplayMode
-  );
+
+  // --- Live-switchable config (initialized from URL params, overridable via config_changed WS events) ---
+  let liveShowSpeaker = $state(true);
+  let liveFontSize = $state(18);
+  let liveShowOriginal = $state(true);
+  let liveMode = $state<string>('both');
+  let liveTheme = $state<string>('dark');
+
+  $effect(() => {
+    liveFontSize = parseInt($page.url.searchParams.get('fontSize') ?? '18', 10) || 18;
+    liveShowSpeaker = $page.url.searchParams.get('showSpeaker') !== 'false';
+    liveShowOriginal = $page.url.searchParams.get('showOriginal') !== 'false';
+    liveMode = $page.url.searchParams.get('mode') ?? 'both';
+  });
 
   // Dedicated instances (not singletons) for overlay
   const ws = new WebSocketStore();
@@ -120,11 +125,11 @@
       : captions.captions
   );
 
-  // Determine whether to show original text based on both showOriginal and mode
+  // Determine whether to show original text based on both liveShowOriginal and liveMode
   const shouldShowOriginal = $derived(
-    showOriginal && (mode === 'both' || mode === 'english')
+    liveShowOriginal && (liveMode === 'both' || liveMode === 'english')
   );
-  const shouldShowTranslated = $derived(mode === 'both' || mode === 'translated');
+  const shouldShowTranslated = $derived(liveMode === 'both' || liveMode === 'translated');
 
   // Copy URL helper for the help screen
   let copySuccess = $state(false);
@@ -175,6 +180,15 @@
         case 'session_cleared':
           captions.clear();
           fadingIds = new Set();
+          break;
+        case 'config_changed':
+          if (msg.changes) {
+            if ('font_size' in msg.changes) liveFontSize = msg.changes.font_size;
+            if ('show_speakers' in msg.changes) liveShowSpeaker = msg.changes.show_speakers;
+            if ('show_original' in msg.changes) liveShowOriginal = msg.changes.show_original;
+            if ('display_mode' in msg.changes) liveMode = msg.changes.display_mode;
+            if ('theme' in msg.changes) liveTheme = msg.changes.theme;
+          }
           break;
       }
     };
@@ -248,7 +262,7 @@
 {:else}
   <div
     class="captions-overlay"
-    style="background: {bgColor}; font-size: {fontSize}px; justify-content: {positionAlign};"
+    style="background: {bgColor}; font-size: {liveFontSize}px; justify-content: {positionAlign};"
   >
     <!-- Connection status indicator -->
     {#if showStatus}
@@ -266,7 +280,7 @@
           style="--fade-duration: {fadeTime}ms;"
           data-caption-id={caption.id}
         >
-          {#if showSpeaker}
+          {#if liveShowSpeaker}
             <span class="speaker" style="color: {caption.speaker_color};">
               {caption.speaker_name}
             </span>

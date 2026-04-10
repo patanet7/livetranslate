@@ -26,6 +26,7 @@ export type CaptionEvent =
 	| { event: 'caption_expired'; caption_id: string }
 	| { event: 'caption_updated'; caption: Caption }
 	| { event: 'interim_caption'; caption: InterimCaption }
-	| { event: 'session_cleared' };
+	| { event: 'session_cleared' }
+	| { event: 'config_changed'; changes: Record<string, any> };
 
 export type DisplayMode = 'both' | 'translated' | 'english';
