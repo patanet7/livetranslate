@@ -32,18 +32,17 @@
   const showStatus = $derived($page.url.searchParams.get('showStatus') !== 'false');
 
   // --- Live-switchable config (initialized from URL params, overridable via config_changed WS events) ---
-  let liveShowSpeaker = $state(true);
-  let liveFontSize = $state(18);
-  let liveShowOriginal = $state(true);
-  let liveMode = $state<string>('both');
-  let liveTheme = $state<string>('dark');
+  // Read URL params once at parse time (not in $effect, which would re-run and clobber WS values)
+  const initFontSize = parseInt($page.url.searchParams.get('fontSize') ?? '18', 10) || 18;
+  const initShowSpeaker = $page.url.searchParams.get('showSpeaker') !== 'false';
+  const initShowOriginal = $page.url.searchParams.get('showOriginal') !== 'false';
+  const initMode = $page.url.searchParams.get('mode') ?? 'both';
 
-  $effect(() => {
-    liveFontSize = parseInt($page.url.searchParams.get('fontSize') ?? '18', 10) || 18;
-    liveShowSpeaker = $page.url.searchParams.get('showSpeaker') !== 'false';
-    liveShowOriginal = $page.url.searchParams.get('showOriginal') !== 'false';
-    liveMode = $page.url.searchParams.get('mode') ?? 'both';
-  });
+  let liveShowSpeaker = $state(initShowSpeaker);
+  let liveFontSize = $state(initFontSize);
+  let liveShowOriginal = $state(initShowOriginal);
+  let liveMode = $state<string>(initMode);
+  let liveTheme = $state<string>('dark');
 
   // Dedicated instances (not singletons) for overlay
   const ws = new WebSocketStore();
@@ -125,11 +124,18 @@
       : captions.captions
   );
 
-  // Determine whether to show original text based on both liveShowOriginal and liveMode
+  // Determine whether to show original text based on both liveShowOriginal and liveMode.
+  // Handles both legacy modes (both/translated/english) and spec canonical modes (subtitle/split/interpreter).
   const shouldShowOriginal = $derived(
-    liveShowOriginal && (liveMode === 'both' || liveMode === 'english')
+    liveShowOriginal && (
+      liveMode === 'both' || liveMode === 'english' ||
+      liveMode === 'split' || liveMode === 'interpreter'
+    )
   );
-  const shouldShowTranslated = $derived(liveMode === 'both' || liveMode === 'translated');
+  const shouldShowTranslated = $derived(
+    liveMode === 'both' || liveMode === 'translated' ||
+    liveMode === 'subtitle' || liveMode === 'split' || liveMode === 'interpreter'
+  );
 
   // Copy URL helper for the help screen
   let copySuccess = $state(false);

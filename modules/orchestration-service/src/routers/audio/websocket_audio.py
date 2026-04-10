@@ -795,14 +795,19 @@ async def websocket_audio_stream(websocket: WebSocket):
                     config=meeting_config,
                     on_caption=lambda event: asyncio.ensure_future(
                         safe_send(json.dumps({
-                            "type": "caption_added",
+                            "event": "caption_added",
                             "caption": {
                                 "id": event.caption_id,
-                                "text": event.text,
-                                "speaker_name": event.speaker_name,
+                                "text": event.translated_text or event.text,
+                                "original_text": event.text,
+                                "translated_text": event.translated_text or "",
+                                "speaker_name": event.speaker_name or "",
                                 "speaker_color": event.speaker_color,
-                                "source_lang": event.source_lang,
-                                "is_draft": event.is_draft,
+                                "target_language": event.target_lang or "",
+                                "confidence": event.confidence,
+                                "duration_seconds": 4.0,
+                                "created_at": event.timestamp.isoformat(),
+                                "expires_at": (event.expires_at or event.timestamp).isoformat(),
                             }
                         }))
                     ),

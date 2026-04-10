@@ -141,14 +141,25 @@ class VirtualWebcamManager:
         logger.info(f"  Theme: {config.theme.value}")
 
     def _load_fonts(self):
-        """Load fonts for text rendering."""
+        """Load fonts for text rendering. Prioritizes CJK-capable fonts."""
         try:
-            # Try to load common system fonts
+            # CJK-capable fonts first, then Latin fallbacks.
+            # Container (Dockerfile): fonts-unifont covers CJK.
+            # macOS: STHeiti, Hiragino, PingFang cover CJK.
             font_paths = [
+                # Container (Linux) — CJK capable
+                "/usr/share/fonts/truetype/unifont/unifont.ttf",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                # macOS — CJK capable
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                "/Library/Fonts/Arial Unicode.ttf",
+                # Latin fallbacks (no CJK)
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                 "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                "/System/Library/Fonts/Arial.ttf",  # macOS
-                "C:/Windows/Fonts/arial.ttf",  # Windows
+                "/System/Library/Fonts/Arial.ttf",
+                "C:/Windows/Fonts/arial.ttf",
             ]
 
             font_loaded = False
@@ -163,21 +174,19 @@ class VirtualWebcamManager:
                             font_path, self.config.font_size - 6
                         )
                         font_loaded = True
-                        logger.info(f"Loaded font: {font_path}")
+                        logger.info("font_loaded", path=font_path, size=self.config.font_size)
                         break
                     except Exception as e:
-                        logger.debug(f"Failed to load font {font_path}: {e}")
+                        logger.debug("font_load_failed", path=font_path, error=str(e))
 
             if not font_loaded:
-                # Fall back to default font
                 self.fonts["regular"] = ImageFont.load_default()
                 self.fonts["bold"] = ImageFont.load_default()
                 self.fonts["small"] = ImageFont.load_default()
-                logger.warning("Using default font - text may not render optimally")
+                logger.warning("font_fallback_default", hint="CJK text will render as boxes")
 
         except Exception as e:
-            logger.error(f"Error loading fonts: {e}")
-            # Use default fonts as fallback
+            logger.error("font_load_error", error=str(e))
             self.fonts["regular"] = ImageFont.load_default()
             self.fonts["bold"] = ImageFont.load_default()
             self.fonts["small"] = ImageFont.load_default()
