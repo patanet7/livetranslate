@@ -40,6 +40,8 @@ from livetranslate_common.theme import (
 )
 from PIL import Image, ImageDraw, ImageFont
 
+from bot.text_wrapper import wrap_text
+
 logger = get_logger()
 
 
@@ -596,39 +598,13 @@ class VirtualWebcamManager:
                 font=self.fonts.get("bold", ImageFont.load_default()),
             )
 
-        # Main text with word wrapping
+        # Main text with multi-script wrapping
         main_text = translation.text
-        if len(main_text) > 60:  # Wrap longer text
-            words = main_text.split()
-            lines = []
-            current_line = ""
-
-            for word in words:
-                test_line = current_line + " " + word if current_line else word
-                if len(test_line) > 60:
-                    if current_line:
-                        lines.append(current_line)
-                        current_line = word
-                    else:
-                        lines.append(word)
-                else:
-                    current_line = test_line
-
-            if current_line:
-                lines.append(current_line)
-
-            # Display up to 2 lines
-            for i, line in enumerate(lines[:2]):
-                draw.text(
-                    (x + 10, y + 45 + (i * 18)),
-                    line + ("..." if i == 1 and len(lines) > 2 else ""),
-                    fill=colors["text_primary"],
-                    font=self.fonts.get("regular", ImageFont.load_default()),
-                )
-        else:
+        lines = wrap_text(main_text, max_chars=60, max_lines=2)
+        for i, line in enumerate(lines):
             draw.text(
-                (x + 10, y + 45),
-                main_text,
+                (x + 10, y + 45 + (i * 18)),
+                line,
                 fill=colors["text_primary"],
                 font=self.fonts.get("regular", ImageFont.load_default()),
             )
@@ -687,25 +663,9 @@ class VirtualWebcamManager:
             y += 20
 
         # Wrap text for sidebar
-        words = translation.text.split()
-        lines = []
-        current_line = ""
+        lines = wrap_text(translation.text, max_chars=30, max_lines=3)
 
-        for word in words:
-            test_line = current_line + " " + word if current_line else word
-            if len(test_line) > 30:  # Approximate character limit for sidebar
-                if current_line:
-                    lines.append(current_line)
-                    current_line = word
-                else:
-                    lines.append(word)
-            else:
-                current_line = test_line
-
-        if current_line:
-            lines.append(current_line)
-
-        for line in lines[:3]:  # Limit to 3 lines
+        for line in lines:
             draw.text(
                 (x, y),
                 line,
