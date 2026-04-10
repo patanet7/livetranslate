@@ -9,8 +9,9 @@
  */
 
 import type { SegmentMessage, InterimMessage, TranslationMessage, TranslationChunkMessage } from '$lib/types/ws-messages';
+import { type DisplayMode, SPEAKER_COLORS } from '$lib/theme';
 
-export type DisplayMode = 'split' | 'subtitle' | 'transcript' | 'interpreter';
+export type { DisplayMode };
 
 const STORAGE_KEY = 'livetranslate:loopback-config';
 
@@ -61,12 +62,6 @@ export interface CaptionEntry {
 // I2: Cap captions to prevent unbounded growth in long sessions.
 // ~2400 segments per 2-hour meeting at 1 segment/3s — 5000 gives ample headroom.
 const MAX_CAPTIONS = 5000;
-
-// Speaker color palette
-const SPEAKER_COLORS = [
-  '#3b82f6', '#a855f7', '#22c55e', '#f97316', '#ec4899',
-  '#06b6d4', '#eab308', '#ef4444', '#8b5cf6', '#14b8a6',
-];
 
 function createLoopbackStore() {
   let captions = $state<CaptionEntry[]>([]);
