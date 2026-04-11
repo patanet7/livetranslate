@@ -791,36 +791,22 @@ async def websocket_audio_stream(websocket: WebSocket):
                 except ImportError:
                     demo_manager = None
                 command_dispatcher = CommandDispatcher(meeting_config, demo_manager=demo_manager)
-                from datetime import timedelta
-                from routers.captions import get_connection_manager as get_caption_ws_manager
+                from routers.captions import get_caption_buffer
 
-                def _build_caption_msg(event):
-                    created = event.timestamp
-                    expires = event.expires_at or (created + timedelta(seconds=10))
-                    return {
-                        "event": "caption_added",
-                        "caption": {
-                            "id": event.caption_id,
-                            "text": event.translated_text or event.text,
-                            "original_text": event.text,
-                            "translated_text": event.translated_text or "",
-                            "speaker_name": event.speaker_name or "",
-                            "speaker_color": event.speaker_color,
-                            "target_language": event.target_lang or "",
-                            "confidence": event.confidence,
-                            "duration_seconds": 10.0,
-                            "created_at": created.isoformat(),
-                            "expires_at": expires.isoformat(),
-                        },
-                    }
+                # Use the SAME CaptionBuffer that the overlay WebSocket reads from.
+                # get_caption_buffer() registers broadcast callbacks automatically —
+                # caption_added/expired events flow to all overlay WS clients.
+                caption_buffer = get_caption_buffer(session_id)
 
                 async def _on_source_caption(event):
-                    msg = _build_caption_msg(event)
-                    # Send to audio WS client (bot virtual camera)
-                    await safe_send(json.dumps(msg))
-                    # Broadcast to all overlay/captions WS clients
-                    caption_ws = get_caption_ws_manager()
-                    await caption_ws.broadcast_to_session(session_id, msg)
+                    caption_buffer.add_caption(
+                        translated_text=event.translated_text or event.text,
+                        original_text=event.text,
+                        speaker_name=event.speaker_name or "",
+                        target_language=event.target_lang or "",
+                        confidence=event.confidence,
+                        caption_id=event.caption_id,
+                    )
 
                 source_orchestrator = SourceOrchestrator(
                     config=meeting_config,
