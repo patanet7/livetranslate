@@ -198,6 +198,61 @@ class DemoManager:
 
         self._pretranslated_task = asyncio.create_task(_inject())
 
+    def start_direct_replay(self, on_chunk) -> None:
+        """Replay scenario chunks directly through a callback.
+
+        Unlike pretranslated injection (which uses CaptionBuffer), this sends
+        raw chunks to the provided callback — typically the SourceOrchestrator's
+        on_caption or a WebSocket send function.
+
+        Args:
+            on_chunk: async callable(chunk_dict) receiving each replay chunk.
+        """
+        if not self._scenario:
+            return
+
+        async def _replay():
+            try:
+                chunks = self._scenario.chunks
+                logger.info(
+                    "direct_replay_starting",
+                    chunks=len(chunks),
+                    mode=self.mode,
+                )
+                last_delay = 0.0
+                for i, chunk in enumerate(chunks):
+                    if not self.active:
+                        logger.info("direct_replay_stopped", after_chunks=i)
+                        break
+
+                    # Use replay timing if available
+                    target_ms = getattr(chunk, "_replay_delay_ms", 0.0)
+                    if target_ms > last_delay:
+                        await asyncio.sleep((target_ms - last_delay) / 1000.0)
+                    last_delay = target_ms
+
+                    await on_chunk({
+                        "text": chunk.text,
+                        "speaker_name": chunk.speaker_name,
+                        "chunk_id": chunk.chunk_id,
+                        "start_time": chunk.start_time,
+                        "end_time": chunk.end_time,
+                        "translated_text": chunk.translated_text,
+                    })
+
+                    if i == 0:
+                        logger.info("direct_replay_first_chunk", speaker=chunk.speaker_name)
+                    elif i % 50 == 0:
+                        logger.debug("direct_replay_progress", chunk=i, total=len(chunks))
+
+                logger.info("direct_replay_complete", total_chunks=len(chunks))
+            except asyncio.CancelledError:
+                logger.debug("direct_replay_cancelled")
+            except Exception as e:
+                logger.warning("direct_replay_error", error=str(e), exc_info=True)
+
+        self._pretranslated_task = asyncio.create_task(_replay())
+
     async def stop(self):
         """Stop the demo server and reset state."""
         async with self._lock:

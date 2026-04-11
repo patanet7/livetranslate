@@ -957,7 +957,20 @@ async def websocket_audio_stream(websocket: WebSocket):
                                 if result.demo_action == "stop":
                                     await demo_manager.stop()
                                 else:
-                                    await demo_manager.start(mode=result.demo_action)
+                                    await demo_manager.start(mode=result.demo_action, speed_multiplier=2.0)
+                                    # Pipe replay chunks directly into the active source
+                                    if source_orchestrator and source_orchestrator.active_source:
+                                        from services.pipeline.adapters.fireflies_caption_source import FirefliesCaptionSource
+                                        # Switch to fireflies source for demo
+                                        if not isinstance(source_orchestrator.active_source, FirefliesCaptionSource):
+                                            await source_orchestrator.switch_source("fireflies")
+                                        ff_source = source_orchestrator.active_source
+
+                                        async def _on_demo_chunk(chunk: dict) -> None:
+                                            if isinstance(ff_source, FirefliesCaptionSource):
+                                                await ff_source.handle_chunk(chunk)
+
+                                        demo_manager.start_direct_replay(_on_demo_chunk)
                             except Exception as exc:
                                 logger.warning("demo_action_failed", error=str(exc))
                                 await safe_send(
