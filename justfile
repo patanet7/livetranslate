@@ -237,7 +237,7 @@ db-down:
 
 # Run Alembic migrations
 db-migrate:
-    cd {{orchestration_dir}} && uv run alembic upgrade head
+    cd {{orchestration_dir}} && DATABASE_URL=postgresql://postgres:postgres@localhost:5432/livetranslate uv run alembic upgrade head
 
 # Open PostgreSQL shell
 db-shell:
@@ -419,12 +419,17 @@ bot-build:
 
 # Start infrastructure for bot (Postgres + Redis + migrations)
 bot-infra:
+    #!/usr/bin/env bash
+    set -euo pipefail
     just db-up
-    @echo "Waiting for Postgres..."
-    @for i in $$(seq 1 30); do docker exec livetranslate-postgres pg_isready -U postgres 2>/dev/null && break; sleep 1; done
-    @sleep 2
+    echo "Waiting for Postgres..."
+    for i in $(seq 1 30); do
+        docker exec livetranslate-postgres pg_isready -U postgres 2>/dev/null && break
+        sleep 1
+    done
+    sleep 2
     just db-migrate
-    @echo "✓ Infrastructure ready (Postgres + Redis + migrations)"
+    echo "✓ Infrastructure ready (Postgres + Redis + migrations)"
 
 # Start a bot to join a Google Meet (requires: just bot-infra, just dev or orchestration running)
 # Usage: just bot-join "https://meet.google.com/xxx-yyyy-zzz"
@@ -472,12 +477,14 @@ bot-list:
     curl -s "http://localhost:3000/api/bot/list" | python3 -m json.tool
 
 # Run demo mode (no real meeting needed — replays captured Fireflies data)
+# Requires: just bot-full running in another terminal.
 # Usage: just bot-demo
 bot-demo:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! curl -sf http://localhost:3000/ >/dev/null 2>&1; then
-        echo "ERROR: Orchestration not running on :3000."
+    if ! lsof -i :3000 -sTCP:LISTEN >/dev/null 2>&1; then
+        echo "Orchestration not running. Start it first:"
+        echo "  just bot-full    (in another terminal)"
         exit 1
     fi
     echo "Starting demo replay..."
