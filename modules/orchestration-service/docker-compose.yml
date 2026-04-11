@@ -30,7 +30,7 @@ services:
       - ./logs:/app/logs
 
     networks:
-      - livetranslate
+      - livetranslate-network
 
     restart: unless-stopped
 
@@ -42,5 +42,5 @@ services:
       start_period: 10s
 
 networks:
-  livetranslate:
+  livetranslate-network:
     external: true

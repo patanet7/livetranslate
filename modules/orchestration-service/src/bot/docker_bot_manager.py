@@ -71,9 +71,9 @@ class BotConfig:
     user_id: str
 
     # Optional
-    orchestration_ws_url: str = "ws://orchestration:3000/ws"
-    redis_url: str | None = "redis://redis:6379"
-    bot_manager_url: str | None = "http://orchestration:3000"
+    orchestration_ws_url: str = "ws://host.docker.internal:3000/api/audio/stream"
+    redis_url: str | None = "redis://livetranslate-redis:6379"
+    bot_manager_url: str | None = "http://host.docker.internal:3000"
     language: str = "en"
     task: str = "transcribe"
     enable_virtual_webcam: bool = False
@@ -88,7 +88,7 @@ class BotConfig:
 
     # Docker
     docker_image: str = "livetranslate-bot:latest"
-    docker_network: str = "livetranslate_default"
+    docker_network: str = "livetranslate-network"
 
     def to_env_vars(self) -> dict[str, str]:
         """Convert config to Docker environment variables"""

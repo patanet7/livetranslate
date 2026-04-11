@@ -406,6 +406,117 @@ create-lang-detect-fixtures:
 test-lang-detect:
     cd {{dashboard_dir}} && npx playwright test tests/e2e/language-detection-replay.spec.ts --headed
 
+# ==============================================================================
+# Bot — Build, Launch, Join Meetings
+# ==============================================================================
+
+bot_container_dir := project_root / "modules/bot-container"
+
+# Build the bot Docker image
+bot-build:
+    docker build -t livetranslate-bot:latest {{bot_container_dir}}
+    @echo "✓ Built livetranslate-bot:latest"
+
+# Start infrastructure for bot (Postgres + Redis + migrations)
+bot-infra:
+    just db-up
+    @echo "Waiting for Postgres..."
+    @until docker exec livetranslate-postgres pg_isready -U livetranslate 2>/dev/null; do sleep 1; done
+    just db-migrate
+    @echo "✓ Infrastructure ready (Postgres + Redis + migrations)"
+
+# Start a bot to join a Google Meet (requires: just bot-infra, just dev or orchestration running)
+# Usage: just bot-join "https://meet.google.com/xxx-yyyy-zzz"
+bot-join meeting_url:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Check bot image exists
+    if ! docker image inspect livetranslate-bot:latest >/dev/null 2>&1; then
+        echo "Bot image not found. Building..."
+        just bot-build
+    fi
+    # Check orchestration is running
+    if ! curl -sf http://localhost:3000/ >/dev/null 2>&1; then
+        echo "ERROR: Orchestration not running on :3000. Start it first:"
+        echo "  just dev  OR  uv run python modules/orchestration-service/src/main_fastapi.py"
+        exit 1
+    fi
+    # Check Redis is running
+    if ! docker exec livetranslate-redis redis-cli ping >/dev/null 2>&1; then
+        echo "ERROR: Redis not running. Start with: just db-up"
+        exit 1
+    fi
+    echo "Starting bot for: {{meeting_url}}"
+    RESPONSE=$(curl -s -X POST http://localhost:3000/api/bot/start \
+        -H "Content-Type: application/json" \
+        -d "{\"meeting_url\": \"{{meeting_url}}\", \"user_token\": \"dev-token\", \"user_id\": \"dev-user\", \"enable_virtual_webcam\": false}")
+    echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+    CONNECTION_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('connection_id',''))" 2>/dev/null)
+    if [ -n "$CONNECTION_ID" ]; then
+        echo ""
+        echo "✓ Bot started: $CONNECTION_ID"
+        echo "  Status:  curl http://localhost:3000/api/bot/status/$CONNECTION_ID"
+        echo "  Stop:    just bot-stop $CONNECTION_ID"
+        echo "  Overlay: http://localhost:5173/captions?session=$CONNECTION_ID"
+    fi
+
+# Stop a running bot
+bot-stop connection_id:
+    curl -s -X POST "http://localhost:3000/api/bot/stop/{{connection_id}}" \
+        -H "Content-Type: application/json" \
+        -d '{"timeout": 30}' | python3 -m json.tool
+
+# List all bots
+bot-list:
+    curl -s "http://localhost:3000/api/bot/list" | python3 -m json.tool
+
+# Run demo mode (no real meeting needed — replays captured Fireflies data)
+# Usage: just bot-demo
+bot-demo:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! curl -sf http://localhost:3000/ >/dev/null 2>&1; then
+        echo "ERROR: Orchestration not running on :3000."
+        exit 1
+    fi
+    echo "Starting demo replay..."
+    uv run python tools/bot_demo.py
+
+# Full bot pipeline: start infra + orchestration + dashboard + demo
+bot-full:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'kill 0' EXIT
+    echo "Starting full pipeline..."
+    just bot-infra
+    echo ""
+    echo "Starting orchestration..."
+    TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+    LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
+    PYTHONUNBUFFERED=1 uv run python -u modules/orchestration-service/src/main_fastapi.py &
+    sleep 3
+    echo ""
+    echo "Starting dashboard..."
+    cd {{dashboard_dir}} && PUBLIC_WS_URL=ws://localhost:3000 PUBLIC_APP_NAME=LiveTranslate npm run dev -- --port 5173 &
+    sleep 3
+    echo ""
+    echo "========================================="
+    echo "  LiveTranslate Bot Pipeline Ready"
+    echo "========================================="
+    echo "  Dashboard:     http://localhost:5173"
+    echo "  Orchestration: http://localhost:3000"
+    echo ""
+    echo "  Join meeting:  just bot-join 'https://meet.google.com/xxx-yyyy-zzz'"
+    echo "  Run demo:      just bot-demo"
+    echo "========================================="
+    echo ""
+    echo "Press Ctrl+C to stop all."
+    wait
+
+# ==============================================================================
+# Benchmarks
+# ==============================================================================
+
 # Full benchmark: VAC sweep + pipeline benchmark across all meeting languages (stub)
 # Use this for CI dry-run validation. Set stub=false to use real backend.
 benchmark lang="zh" stub="true":
