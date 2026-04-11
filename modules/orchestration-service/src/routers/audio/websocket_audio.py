@@ -791,26 +791,40 @@ async def websocket_audio_stream(websocket: WebSocket):
                 except ImportError:
                     demo_manager = None
                 command_dispatcher = CommandDispatcher(meeting_config, demo_manager=demo_manager)
+                from datetime import timedelta
+                from routers.captions import get_connection_manager as get_caption_ws_manager
+
+                def _build_caption_msg(event):
+                    created = event.timestamp
+                    expires = event.expires_at or (created + timedelta(seconds=10))
+                    return {
+                        "event": "caption_added",
+                        "caption": {
+                            "id": event.caption_id,
+                            "text": event.translated_text or event.text,
+                            "original_text": event.text,
+                            "translated_text": event.translated_text or "",
+                            "speaker_name": event.speaker_name or "",
+                            "speaker_color": event.speaker_color,
+                            "target_language": event.target_lang or "",
+                            "confidence": event.confidence,
+                            "duration_seconds": 10.0,
+                            "created_at": created.isoformat(),
+                            "expires_at": expires.isoformat(),
+                        },
+                    }
+
+                async def _on_source_caption(event):
+                    msg = _build_caption_msg(event)
+                    # Send to audio WS client (bot virtual camera)
+                    await safe_send(json.dumps(msg))
+                    # Broadcast to all overlay/captions WS clients
+                    caption_ws = get_caption_ws_manager()
+                    await caption_ws.broadcast_to_session(session_id, msg)
+
                 source_orchestrator = SourceOrchestrator(
                     config=meeting_config,
-                    on_caption=lambda event: asyncio.ensure_future(
-                        safe_send(json.dumps({
-                            "event": "caption_added",
-                            "caption": {
-                                "id": event.caption_id,
-                                "text": event.translated_text or event.text,
-                                "original_text": event.text,
-                                "translated_text": event.translated_text or "",
-                                "speaker_name": event.speaker_name or "",
-                                "speaker_color": event.speaker_color,
-                                "target_language": event.target_lang or "",
-                                "confidence": event.confidence,
-                                "duration_seconds": 4.0,
-                                "created_at": event.timestamp.isoformat(),
-                                "expires_at": (event.expires_at or event.timestamp).isoformat(),
-                            }
-                        }))
-                    ),
+                    on_caption=lambda event: asyncio.ensure_future(_on_source_caption(event)),
                 )
                 await source_orchestrator.start()
 
@@ -957,7 +971,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                                 if result.demo_action == "stop":
                                     await demo_manager.stop()
                                 else:
-                                    await demo_manager.start(mode=result.demo_action, speed_multiplier=2.0)
+                                    await demo_manager.start(mode=result.demo_action, speed_multiplier=1.0)
                                     # Pipe replay chunks directly into the active source
                                     if source_orchestrator and source_orchestrator.active_source:
                                         from services.pipeline.adapters.fireflies_caption_source import FirefliesCaptionSource

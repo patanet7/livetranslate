@@ -64,19 +64,15 @@ class DemoManager:
         Returns dict with transcript_id, speakers, base_url, and mode.
         """
         async with self._lock:
+            # Auto-stop previous demo if running (avoids port conflicts)
             if self.active:
-                raise RuntimeError("Demo is already running")
+                logger.info("demo_auto_stopping_previous")
+                await self._stop_internal()
 
             if speakers is None:
                 speakers = ["Alice Chen", "Bob Martinez", "Charlie Kim"]
 
             self.mode = mode
-
-            self.server = FirefliesDemoServer(
-                host="localhost",
-                port=DEMO_PORT,
-                valid_api_keys={DEMO_API_KEY},
-            )
 
             if mode == "replay":
                 # Replay a real captured meeting
@@ -105,21 +101,27 @@ class DemoManager:
             self._scenario = scenario
             self._injection_delay_ms = chunk_delay_ms
 
-            if mode == "pretranslated":
-                # Only register the meeting for GraphQL — don't stream chunks
-                # via Socket.IO. The injection task handles caption delivery.
-                self.server._meetings.append(scenario.meeting)
-            else:
-                self.server.add_scenario(scenario)
+            # Only start the Socket.IO server for modes that need it
+            # (direct replay via start_direct_replay skips this entirely)
+            if mode != "replay":
+                self.server = FirefliesDemoServer(
+                    host="localhost",
+                    port=DEMO_PORT,
+                    valid_api_keys={DEMO_API_KEY},
+                )
+                if mode == "pretranslated":
+                    self.server._meetings.append(scenario.meeting)
+                else:
+                    self.server.add_scenario(scenario)
 
-            try:
-                await self.server.start()
-            except OSError as e:
-                self.server = None
-                raise RuntimeError(
-                    f"Cannot start demo server on port {DEMO_PORT}: {e}. "
-                    "Is another demo or process already using this port?"
-                ) from e
+                try:
+                    await self.server.start()
+                except OSError as e:
+                    self.server = None
+                    raise RuntimeError(
+                        f"Cannot start demo server on port {DEMO_PORT}: {e}. "
+                        "Is another demo or process already using this port?"
+                    ) from e
 
             self.transcript_id = scenario.transcript_id
             self._speakers = speakers
@@ -134,7 +136,7 @@ class DemoManager:
             return {
                 "transcript_id": self.transcript_id,
                 "speakers": speakers,
-                "base_url": self.server.base_url,
+                "base_url": self.server.base_url if self.server else None,
                 "num_exchanges": num_events,
                 "chunk_delay_ms": chunk_delay_ms,
                 "mode": mode,
@@ -253,32 +255,34 @@ class DemoManager:
 
         self._pretranslated_task = asyncio.create_task(_replay())
 
+    async def _stop_internal(self) -> None:
+        """Internal stop — does NOT acquire lock (caller must hold it)."""
+        if self._pretranslated_task and not self._pretranslated_task.done():
+            self._pretranslated_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._pretranslated_task
+            self._pretranslated_task = None
+
+        if self.server:
+            try:
+                await self.server.stop()
+            except BaseException as e:
+                logger.warning("demo_server_stop_error", error=str(e))
+            self.server = None
+
+        self.session_id = None
+        self.transcript_id = None
+        self._speakers = []
+        self._scenario = None
+        self._injection_delay_ms = 2000.0
+        self.mode = "passthrough"
+        self.active = False
+        logger.info("demo_stopped")
+
     async def stop(self):
         """Stop the demo server and reset state."""
         async with self._lock:
-            # Cancel pretranslated injection
-            if self._pretranslated_task and not self._pretranslated_task.done():
-                self._pretranslated_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._pretranslated_task
-                self._pretranslated_task = None
-
-            if self.server:
-                try:
-                    await self.server.stop()
-                except BaseException as e:
-                    logger.warning(f"Demo server stop error (ignored): {e}")
-                self.server = None
-
-            self.session_id = None
-            self.transcript_id = None
-            self._speakers = []
-            self._scenario = None
-            self._injection_delay_ms = 2000.0
-            self.mode = "passthrough"
-            self.active = False
-
-            logger.info("Demo stopped")
+            await self._stop_internal()
 
     def get_status(self) -> dict:
         """Return current demo status."""
