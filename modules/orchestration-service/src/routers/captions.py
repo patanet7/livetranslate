@@ -166,25 +166,37 @@ def get_caption_buffer(session_id: str) -> CaptionBuffer:
             }
         )
 
-        # Register callback for caption broadcasting
-        async def on_caption_added(caption: CaptionEntry):
+        # Register callbacks for caption broadcasting
+        async def on_caption_added(caption):
             await _connection_manager.broadcast_to_session(
                 session_id,
                 {
                     "event": "caption_added",
-                    "caption": caption.model_dump(mode="json"),
+                    "caption": caption.to_dict(),
                 },
-                target_language=caption.target_language,
             )
 
-        async def on_caption_expired(caption_id: str):
+        async def on_caption_updated(caption):
+            await _connection_manager.broadcast_to_session(
+                session_id,
+                {
+                    "event": "caption_updated",
+                    "caption": caption.to_dict(),
+                },
+            )
+
+        async def on_caption_expired(caption):
             await _connection_manager.broadcast_to_session(
                 session_id,
                 {
                     "event": "caption_expired",
-                    "caption_id": caption_id,
+                    "caption_id": caption.id,
                 },
             )
+
+        buffer.on_caption_added = on_caption_added
+        buffer.on_caption_updated = on_caption_updated
+        buffer.on_caption_expired = on_caption_expired
 
         # Store for session
         _caption_buffers[session_id] = buffer
@@ -454,6 +466,7 @@ async def add_caption(session_id: str, request: AddCaptionRequest):
         buffer.set_speaker_color(request.speaker_name, request.speaker_color)
 
     # Add caption to buffer - returns (Caption, was_updated)
+    # Broadcasting happens automatically via registered on_caption_added/updated callbacks
     caption, was_updated = buffer.add_caption(
         translated_text=request.text,
         speaker_name=request.speaker_name,
@@ -461,17 +474,6 @@ async def add_caption(session_id: str, request: AddCaptionRequest):
         target_language=request.target_language,
         confidence=request.confidence,
         duration=request.duration_seconds,
-    )
-
-    # Broadcast to WebSocket clients - use appropriate event
-    manager = get_connection_manager()
-    event_type = "caption_updated" if was_updated else "caption_added"
-    await manager.broadcast_to_session(
-        session_id,
-        {
-            "event": event_type,
-            "caption": caption.to_dict(),
-        },
     )
 
     action = "updated" if was_updated else "added"

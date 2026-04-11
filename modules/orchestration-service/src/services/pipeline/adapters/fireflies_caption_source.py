@@ -50,15 +50,19 @@ class FirefliesCaptionSource:
         text = raw_chunk.get("text", "")
         speaker_name = raw_chunk.get("speaker_name", "Unknown")
         chunk_id = raw_chunk.get("chunk_id", str(uuid.uuid4()))
+        translated_text = raw_chunk.get("translated_text")
+        target_lang = raw_chunk.get("target_lang") or raw_chunk.get("target_language")
 
         event = CaptionEvent(
             event_type="added",
             caption_id=chunk_id,
             text=text,
+            translated_text=translated_text or None,
             speaker_name=speaker_name,
             speaker_color=self._get_speaker_color(speaker_name),
-            source_lang="auto",
-            confidence=1.0,
+            source_lang=raw_chunk.get("source_lang", "auto"),
+            target_lang=target_lang,
+            confidence=raw_chunk.get("confidence", 1.0),
             is_draft=False,
         )
 

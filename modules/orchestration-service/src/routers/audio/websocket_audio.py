@@ -272,6 +272,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     command_dispatcher: CommandDispatcher | None = None
     source_orchestrator: SourceOrchestrator | None = None
     demo_manager: Any = None
+    caption_buffer = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -478,6 +479,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                             is_draft=True,
                             fixture_recorder=fixture_recorder,
                             context_store=translation_context_store,
+                            caption_buffer=caption_buffer,
                         ),
                         timeout=cfg.draft_timeout_s,
                     )
@@ -608,6 +610,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     fixture_recorder=fixture_recorder,
                     context_store=translation_context_store,
                     chunk_id=_segment_to_chunk_id.get(msg.segment_id),
+                    caption_buffer=caption_buffer,
                 )
             )
             session_tasks.add(task)
@@ -799,14 +802,18 @@ async def websocket_audio_stream(websocket: WebSocket):
                 caption_buffer = get_caption_buffer(session_id)
 
                 async def _on_source_caption(event):
-                    caption_buffer.add_caption(
-                        translated_text=event.translated_text or event.text,
-                        original_text=event.text,
-                        speaker_name=event.speaker_name or "",
-                        target_language=event.target_lang or "",
-                        confidence=event.confidence,
-                        caption_id=event.caption_id,
-                    )
+                    try:
+                        caption_buffer.add_caption(
+                            translated_text=event.translated_text or event.text,
+                            original_text=event.text,
+                            speaker_name=event.speaker_name or "",
+                            target_language=event.target_lang or target_language or "",
+                            confidence=event.confidence,
+                            caption_id=event.caption_id,
+                            chunk_ids=[event.caption_id] if event.caption_id else None,
+                        )
+                    except Exception as exc:
+                        logger.warning("source_caption_failed", error=str(exc), caption_id=event.caption_id)
 
                 source_orchestrator = SourceOrchestrator(
                     config=meeting_config,
@@ -964,13 +971,27 @@ async def websocket_audio_stream(websocket: WebSocket):
                                         # Switch to fireflies source for demo
                                         if not isinstance(source_orchestrator.active_source, FirefliesCaptionSource):
                                             await source_orchestrator.switch_source("fireflies")
-                                        ff_source = source_orchestrator.active_source
-
                                         async def _on_demo_chunk(chunk: dict) -> None:
-                                            if isinstance(ff_source, FirefliesCaptionSource):
-                                                await ff_source.handle_chunk(chunk)
+                                            """Staged injection: original text first, translation pops in after delay."""
+                                            translated = chunk.pop("translated_text", None)
+                                            # Phase 1: inject with original text only
+                                            active = source_orchestrator.active_source if source_orchestrator else None
+                                            if isinstance(active, FirefliesCaptionSource):
+                                                await active.handle_chunk(chunk)
+                                            # Phase 2: schedule translation update after realistic delay
+                                            if translated and caption_buffer:
+                                                caption_id = chunk.get("chunk_id")
+                                                if caption_id:
+                                                    async def _inject_translation(cid=caption_id, text=translated):
+                                                        import random
+                                                        await asyncio.sleep(0.5 + random.random() * 1.0)
+                                                        caption_buffer.update_translation(cid, text)
+                                                    asyncio.ensure_future(_inject_translation())
 
                                         demo_manager.start_direct_replay(_on_demo_chunk)
+                                        # Track replay task for clean shutdown
+                                        if demo_manager._pretranslated_task:
+                                            session_tasks.add(demo_manager._pretranslated_task)
                             except Exception as exc:
                                 logger.warning("demo_action_failed", error=str(exc))
                                 await safe_send(
@@ -1037,6 +1058,12 @@ async def websocket_audio_stream(websocket: WebSocket):
                 except Exception:
                     pass
 
+        if demo_manager and demo_manager.active:
+            try:
+                await demo_manager.stop()
+            except Exception:
+                pass
+
         if source_orchestrator:
             await source_orchestrator.stop()
 
@@ -1071,6 +1098,7 @@ async def _translate_and_send(
     fixture_recorder: FixtureRecorder | None = None,
     context_store: DirectionalContextStore | None = None,
     chunk_id: uuid.UUID | None = None,
+    caption_buffer: "CaptionBuffer | None" = None,
 ) -> None:
     """Translate a segment and forward to the frontend.
 
@@ -1130,6 +1158,17 @@ async def _translate_and_send(
                     is_draft=True,
                 ).model_dump_json()
             )
+
+            # Mirror draft translation into CaptionBuffer for overlay
+            if caption_buffer:
+                caption_buffer.add_caption(
+                    translated_text=translation,
+                    original_text=text,
+                    speaker_name=speaker_name or "",
+                    target_language=target_lang,
+                    confidence=0.7,
+                    caption_id=f"seg-{segment_id}",
+                )
             return
 
         # --- Final: streaming with context ---
@@ -1194,6 +1233,24 @@ async def _translate_and_send(
                 is_draft=False,
             ).model_dump_json()
         )
+
+        # Mirror final translation into CaptionBuffer for overlay.
+        # If a draft caption exists (same caption_id), update it in-place.
+        # Otherwise create a new caption.
+        if caption_buffer:
+            cap_id = f"seg-{segment_id}"
+            existing = caption_buffer.get_caption(cap_id)
+            if existing:
+                caption_buffer.update_translation(cap_id, translation, extend_duration=4.0)
+            else:
+                caption_buffer.add_caption(
+                    translated_text=translation,
+                    original_text=text,
+                    speaker_name=speaker_name or "",
+                    target_language=target_lang,
+                    confidence=1.0,
+                    caption_id=cap_id,
+                )
 
         # Persist to DB when in meeting mode (finals only)
         if pipeline and pipeline.is_meeting and pipeline.session_manager:

@@ -46,16 +46,16 @@
 
   // Dedicated instances (not singletons) for overlay
   const ws = new WebSocketStore();
-  const captions = new CaptionStore(10_000);
+  const captions = new CaptionStore(8_000);
 
   // Sync maxCaptions param into the store
   $effect(() => {
     captions.maxCaptions = maxCaptions;
   });
 
-  // Enable caption aggregation: same speaker within 3s window appends text
+  // Enable caption aggregation: same speaker within 5s window appends text (matches Python CaptionBuffer)
   $effect(() => {
-    captions.aggregateWindowMs = 3_000;
+    captions.aggregateWindowMs = 5_000;
   });
 
   // Track captions that are fading out
@@ -295,7 +295,13 @@
             <p class="original">{caption.original_text}</p>
           {/if}
           {#if shouldShowTranslated}
-            <p class="translated">{caption.translated_text || caption.text}</p>
+            {@const translatedText = caption.translated_text || caption.text}
+            {@const isTranslating = translatedText === caption.original_text && caption.original_text}
+            {#if isTranslating}
+              <p class="translated translating">{translatedText}</p>
+            {:else}
+              <p class="translated">{translatedText}</p>
+            {/if}
           {/if}
         </div>
       {/each}
@@ -517,6 +523,12 @@
     color: #fff;
     font-weight: 500;
     margin: 2px 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .translated.translating {
+    opacity: 0.5;
+    font-style: italic;
   }
 
   @keyframes fadeIn {

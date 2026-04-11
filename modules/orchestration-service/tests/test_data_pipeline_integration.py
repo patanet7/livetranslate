@@ -68,7 +68,7 @@ def _get_db_config() -> dict:
 # ============================================================================
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def db_manager(database_url, bot_sessions_schema):
     """Create and initialize database manager.
 
@@ -87,7 +87,7 @@ async def db_manager(database_url, bot_sessions_schema):
     await manager.close()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def pipeline(db_manager):
     """Create data pipeline instance."""
     pipeline = TranscriptionDataPipeline(
@@ -99,7 +99,7 @@ async def pipeline(db_manager):
     yield pipeline
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def test_session(db_manager):
     """Create a test session for each test."""
     session_id = f"test_session_{uuid.uuid4().hex[:8]}"

@@ -23,6 +23,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
+
+# These tests require a running PostgreSQL database (via testcontainers)
+pytestmark = pytest.mark.integration
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -76,10 +80,18 @@ AUDIO_STORAGE_PATH = os.getenv("TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/au
 # ============================================================================
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def db_manager(bot_sessions_schema):
-    """Create and initialize database manager."""
-    manager = create_bot_session_manager(_db_config_from_env(), AUDIO_STORAGE_PATH)
+    """Create and initialize database manager.
+
+    Uses loop_scope="function" to ensure the asyncpg pool is bound to the
+    same event loop as the test function (prevents "attached to a different loop").
+    """
+    config = _db_config_from_env()
+    # Reduce pool size for test environment to avoid overwhelming testcontainer
+    config["min_connections"] = 1
+    config["max_connections"] = 3
+    manager = create_bot_session_manager(config, AUDIO_STORAGE_PATH)
     success = await manager.initialize()
     assert success, "Failed to initialize database manager"
 
@@ -88,7 +100,7 @@ async def db_manager(bot_sessions_schema):
     await manager.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def pipeline(db_manager):
     """Create data pipeline instance."""
     pipeline = TranscriptionDataPipeline(
@@ -101,7 +113,7 @@ async def pipeline(db_manager):
     yield pipeline
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def test_session(db_manager):
     """Create test session for each test."""
     session_id = f"test_prod_{uuid.uuid4().hex[:8]}"

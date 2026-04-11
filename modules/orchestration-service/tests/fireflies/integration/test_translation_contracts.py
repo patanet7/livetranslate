@@ -425,26 +425,30 @@ class TestEndToEndContractFlow:
 class TestContractErrorHandling:
     """Test that contract violations are detected."""
 
-    @pytest.mark.asyncio
-    async def test_empty_text_fails_contract(self):
-        """Empty text should fail contract validation."""
-        with pytest.raises(AssertionError, match="cannot be empty"):
-            request = TranslationRequest(
+    def test_empty_text_fails_contract(self):
+        """Empty text should fail Pydantic validation (min_length=1)."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            TranslationRequest(
                 text="",
+                source_language="en",
                 target_language="es",
             )
-            validate_translation_request(request)
 
-    def test_invalid_confidence_fails_contract(self):
-        """Confidence outside 0-1 should fail."""
-        response = TranslationResponse(
-            translated_text="Hola",
-            target_language="es",
-            confidence=1.5,  # Invalid!
-        )
+    def test_invalid_quality_score_fails_contract(self):
+        """Quality score outside 0-1 should fail Pydantic validation."""
+        from pydantic import ValidationError
 
-        with pytest.raises(AssertionError, match="between 0 and 1"):
-            validate_translation_response(response)
+        with pytest.raises(ValidationError):
+            TranslationResponse(
+                translated_text="Hola",
+                source_language="en",
+                target_language="es",
+                model_used="test-model",
+                latency_ms=100.0,
+                quality_score=1.5,  # Invalid — must be 0.0-1.0
+            )
 
 
 if __name__ == "__main__":

@@ -34,8 +34,24 @@ def _generate_48khz_speech(duration_s: float = 5.0) -> np.ndarray:
     return signal.astype(np.float32)
 
 
+def _transcription_service_available() -> bool:
+    """Check if transcription service is reachable."""
+    import socket
+    host = os.environ.get("TRANSCRIPTION_HOST", "localhost")
+    port = int(os.environ.get("TRANSCRIPTION_PORT", "5001"))
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except (OSError, ConnectionRefusedError):
+        return False
+
+
 @pytest.mark.e2e
 @pytest.mark.gpu
+@pytest.mark.skipif(
+    not _transcription_service_available(),
+    reason="Transcription service not running (start with: just dev)",
+)
 class TestFullAudioPipeline:
     """End-to-end test: browser → orchestration → transcription → SegmentMessage."""
 

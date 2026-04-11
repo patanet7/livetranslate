@@ -305,6 +305,9 @@ class CaptionBuffer:
             - was_updated=False if new caption was created
         """
         with self._lock:
+            # Cleanup expired captions first — this triggers on_caption_expired callbacks
+            self._cleanup_expired_internal()
+
             now = datetime.now(UTC)
             actual_duration = duration if duration is not None else self.default_duration
             actual_duration += priority * 2.0
@@ -492,6 +495,48 @@ class CaptionBuffer:
             if caption and not caption.is_expired:
                 return caption
             return None
+
+    def update_translation(
+        self,
+        caption_id: str,
+        translated_text: str,
+        extend_duration: float = 2.0,
+    ) -> Caption | None:
+        """
+        Update the translated text of an existing caption.
+
+        Used for staged translation: caption is first added with original text,
+        then translation arrives after LLM processing and is injected here.
+
+        Args:
+            caption_id: Caption ID to update
+            translated_text: The translated text to set
+            extend_duration: Extend expiration by this many seconds (gives time to read)
+
+        Returns:
+            Updated Caption, or None if not found/expired
+        """
+        with self._lock:
+            caption = self._captions.get(caption_id)
+            if not caption or caption.is_expired:
+                return None
+
+            caption.translated_text = translated_text
+            # Extend expiry so the user can read the translation
+            caption.expires_at = max(
+                caption.expires_at,
+                datetime.now(UTC) + timedelta(seconds=extend_duration),
+            )
+
+            if self.on_caption_updated:
+                self._fire_callback(self.on_caption_updated, caption)
+            self._notify_subscribers("updated", caption)
+
+            logger.debug(
+                f"Caption translation updated: id={caption_id}, "
+                f"translated={translated_text[:50]}..."
+            )
+            return caption
 
     def remove_caption(self, caption_id: str) -> bool:
         """

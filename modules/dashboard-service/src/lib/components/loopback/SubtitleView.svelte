@@ -17,17 +17,21 @@
   // causing stale or duplicate captions.
   const recentCaptions = $derived(loopbackStore.captions.slice(-2));
 
-  /** Open subtitle view in a separate browser window for screen-sharing. */
+  /** Open captions overlay in a separate browser window for screen-sharing.
+   *  Uses the dedicated overlay page which connects via its own WebSocket. */
   function popOut() {
+    const sessionId = loopbackStore.meetingSessionId;
+    if (!sessionId) {
+      console.warn('No active meeting session — start a meeting first to use subtitle pop-out');
+      return;
+    }
     const popupWidth = 800;
     const popupHeight = 300;
-    // 3c: Use availWidth/availHeight to account for taskbars
     const left = (screen.availWidth - popupWidth) / 2;
     const top = screen.availHeight - popupHeight - 100;
 
-    // 3c: Handle popup blocker
     const popup = window.open(
-      '/loopback/subtitle-popout',
+      `/captions?session=${sessionId}&position=bottom&maxCaptions=2&showStatus=false`,
       'subtitle-popout',
       `width=${popupWidth},height=${popupHeight},left=${left},top=${top},toolbar=no,menubar=no,location=no`
     );

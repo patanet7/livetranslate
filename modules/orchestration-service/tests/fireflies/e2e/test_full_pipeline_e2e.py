@@ -21,6 +21,7 @@ from pathlib import Path
 
 import aiohttp
 import pytest
+import pytest_asyncio
 import websockets
 
 # Add parent paths for imports
@@ -47,7 +48,14 @@ logger = logging.getLogger(__name__)
 
 # Test configuration
 MOCK_SERVER_HOST = "localhost"
-MOCK_SERVER_PORT = 8090  # Avoid conflicts with real services
+
+
+def _find_free_port() -> int:
+    """Find a free TCP port using OS ephemeral port allocation."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
 ORCHESTRATION_URL = "http://localhost:3000"
 TRANSLATION_URL = "http://localhost:5003"
 TEST_API_KEY = "test-fireflies-e2e-key"
@@ -213,16 +221,17 @@ def create_scenario_from_transcript() -> MockTranscriptScenario:
 # =============================================================================
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def mock_server():
     """Start Fireflies mock server for the test.
 
     Note: Using function scope (not module) to avoid event loop issues
     with pytest-asyncio. Each test gets a fresh server instance.
     """
+    port = _find_free_port()
     server = FirefliesMockServer(
         host=MOCK_SERVER_HOST,
-        port=MOCK_SERVER_PORT,
+        port=port,
         valid_api_keys={TEST_API_KEY},
     )
 
@@ -280,14 +289,24 @@ class TestFirefliesPipelineE2E:
 
     async def test_mock_server_healthy(self, mock_server):
         """Verify mock server is running."""
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(f"http://{MOCK_SERVER_HOST}:{MOCK_SERVER_PORT}/health") as resp:
-                assert resp.status == 200
-                data = await resp.json()
-                assert data["status"] == "ok"
-                assert data["scenarios"] >= 1
-                logger.info(f"Mock server healthy: {data}")
+        import asyncio as _asyncio
+
+        timeout = aiohttp.ClientTimeout(total=5)
+        last_error = None
+        for attempt in range(3):
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(f"http://{MOCK_SERVER_HOST}:{mock_server.port}/health") as resp:
+                        assert resp.status == 200
+                        data = await resp.json()
+                        assert data["status"] == "ok"
+                        assert data["scenarios"] >= 1
+                        logger.info(f"Mock server healthy: {data}")
+                        return
+            except (aiohttp.ClientError, _asyncio.CancelledError, OSError) as e:
+                last_error = e
+                await _asyncio.sleep(0.5)
+        pytest.fail(f"Mock server health check failed after 3 attempts: {last_error}")
 
     async def test_context_window_building(self, mock_server, prompt_capture):
         """

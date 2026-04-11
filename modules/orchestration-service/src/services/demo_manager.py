@@ -142,12 +142,12 @@ class DemoManager:
                 "mode": mode,
             }
 
-    def start_pretranslated_injection(self, caption_buffer, ws_manager) -> None:
+    def start_pretranslated_injection(self, caption_buffer) -> None:
         """Start background task to inject pre-translated captions.
 
         Called by the router after session creation when mode == "pretranslated".
         Reads chunks from the scenario and injects captions directly into the
-        CaptionBuffer, bypassing the translation pipeline entirely.
+        CaptionBuffer. Broadcasting happens via CaptionBuffer's registered callbacks.
         """
         if not self._scenario or self.mode != "pretranslated":
             return
@@ -155,19 +155,18 @@ class DemoManager:
         async def _inject():
             try:
                 logger.info(
-                    f"Pre-translated injection starting: "
-                    f"session={self.session_id}, chunks={len(self._scenario.chunks)}, "
-                    f"delay={self._scenario.chunk_delay_ms}ms"
+                    "pretranslated_injection_starting",
+                    session=self.session_id,
+                    chunks=len(self._scenario.chunks),
+                    delay_ms=self._scenario.chunk_delay_ms,
                 )
                 for i, chunk in enumerate(self._scenario.chunks):
                     if not self.active:
-                        logger.info(
-                            f"Pre-translated injection stopped: demo no longer active (after {i} chunks)"
-                        )
+                        logger.info("pretranslated_injection_stopped", after_chunks=i)
                         break
 
                     if chunk.translated_text:
-                        caption, was_updated = caption_buffer.add_caption(
+                        caption_buffer.add_caption(
                             translated_text=chunk.translated_text,
                             speaker_name=chunk.speaker_name,
                             original_text=chunk.text,
@@ -175,28 +174,18 @@ class DemoManager:
                             confidence=0.95,
                         )
 
-                        # Broadcast to WebSocket clients (no language filter — send to all)
-                        event_type = "caption_updated" if was_updated else "caption_added"
-                        await ws_manager.broadcast_to_session(
-                            self.session_id,
-                            {
-                                "event": event_type,
-                                "caption": caption.to_dict(),
-                            },
-                        )
-
                         if i == 0:
-                            logger.info(f"First caption injected: {chunk.speaker_name}")
+                            logger.info("pretranslated_first_caption", speaker=chunk.speaker_name)
                         elif i % 10 == 0:
-                            logger.debug(f"Injected {i+1}/{len(self._scenario.chunks)} captions")
+                            logger.debug("pretranslated_progress", chunk=i + 1, total=len(self._scenario.chunks))
 
                     await asyncio.sleep(self._injection_delay_ms / 1000.0)
 
-                logger.info("Pre-translated caption injection complete")
+                logger.info("pretranslated_injection_complete")
             except asyncio.CancelledError:
-                logger.debug("Pre-translated injection cancelled")
+                logger.debug("pretranslated_injection_cancelled")
             except Exception as e:
-                logger.warning(f"Pre-translated injection error: {e}", exc_info=True)
+                logger.warning("pretranslated_injection_error", error=str(e), exc_info=True)
 
         self._pretranslated_task = asyncio.create_task(_inject())
 

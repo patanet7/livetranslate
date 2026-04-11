@@ -202,11 +202,10 @@ class FirefliesSessionManager:
         # Pipeline Setup (DRY - shared coordinator for all sources)
         # =====================================================================
 
-        # Create caption buffer for this session
-        caption_buffer = CaptionBuffer(
-            max_captions=5,
-            default_duration=4.0,
-        )
+        # Use the shared caption buffer (registers WebSocket broadcast callbacks)
+        from routers.captions import get_caption_buffer as _get_shared_buffer
+
+        caption_buffer = _get_shared_buffer(session_id)
         self._caption_buffers[session_id] = caption_buffer
 
         # Create pipeline config from Fireflies config
@@ -254,16 +253,18 @@ class FirefliesSessionManager:
         await coordinator.initialize()
         self._coordinators[session_id] = coordinator
 
-        # Bridge captions to WebSocket clients (captions.html)
+        # Bridge interim captions to WebSocket clients.
+        # Caption lifecycle events (added/updated/expired) are handled by
+        # the shared CaptionBuffer's registered callbacks — no need to
+        # register a separate on_caption_event handler (that would double-broadcast).
         ws_manager = get_ws_manager()
 
-        # LiveCaptionManager: config-driven display filtering
+        # LiveCaptionManager: grow-only filter for interim (word-by-word) updates
         live_caption_mgr = LiveCaptionManager(
             config=pipeline_config,
             broadcast=ws_manager.broadcast_to_session,
             session_id=session_id,
         )
-        coordinator.on_caption_event(live_caption_mgr.handle_caption_event)
 
         # Persist completed sentences to DB during live sessions
         if session.meeting_db_id:
@@ -448,9 +449,10 @@ class FirefliesSessionManager:
             except Exception as e:
                 logger.error("pipeline_flush_failed", session_id=session_id, error=str(e))
 
-        # Clean up caption buffer
-        if session_id in self._caption_buffers:
-            self._caption_buffers.pop(session_id)
+        # Clean up caption buffer (both local ref and shared registry)
+        self._caption_buffers.pop(session_id, None)
+        from routers.captions import remove_caption_buffer as _remove_shared_buffer
+        _remove_shared_buffer(session_id)
 
         # Disconnect client
         if session_id in self._clients:
@@ -533,11 +535,10 @@ class FirefliesSessionManager:
         """
         session_id = f"import_{uuid.uuid4().hex[:12]}"
 
-        # Create caption buffer (even for import, for consistency)
-        caption_buffer = CaptionBuffer(
-            max_captions=5,
-            default_duration=4.0,
-        )
+        # Use the shared caption buffer (registers WebSocket broadcast callbacks)
+        from routers.captions import get_caption_buffer as _get_shared_buffer
+
+        caption_buffer = _get_shared_buffer(session_id)
         self._caption_buffers[session_id] = caption_buffer
 
         # Create pipeline config
@@ -577,23 +578,9 @@ class FirefliesSessionManager:
         await coordinator.initialize()
         self._coordinators[session_id] = coordinator
 
-        # Bridge captions to WebSocket clients (captions.html)
-        ws_manager = get_ws_manager()
-
-        async def _broadcast_import_caption_to_ws(event_type: str, caption) -> None:
-            if event_type == "caption_expired":
-                await ws_manager.broadcast_to_session(
-                    session_id,
-                    {"event": "caption_expired", "caption_id": caption.id},
-                )
-            else:
-                await ws_manager.broadcast_to_session(
-                    session_id,
-                    {"event": event_type, "caption": caption.to_dict()},
-                    target_language=caption.target_language,
-                )
-
-        coordinator.on_caption_event(_broadcast_import_caption_to_ws)
+        # Caption broadcasting is handled by the shared CaptionBuffer's
+        # registered callbacks (via get_caption_buffer) — no separate
+        # on_caption_event handler needed.
 
         if meeting_db_id:
 
@@ -659,6 +646,8 @@ class FirefliesSessionManager:
         # Clean up
         self._coordinators.pop(session_id, None)
         self._caption_buffers.pop(session_id, None)
+        from routers.captions import remove_caption_buffer as _remove_shared_buffer
+        _remove_shared_buffer(session_id)
 
         logger.info("import_session_finalized", session_id=session_id, stats=stats)
 
@@ -3272,11 +3261,10 @@ async def start_demo(
 
         # For pretranslated mode, start background injection task
         if mode == "pretranslated":
-            from routers.captions import get_caption_buffer, get_connection_manager
+            from routers.captions import get_caption_buffer
 
             caption_buffer = get_caption_buffer(session.session_id)
-            ws_manager = get_connection_manager()
-            demo.start_pretranslated_injection(caption_buffer, ws_manager)
+            demo.start_pretranslated_injection(caption_buffer)
             logger.info(
                 "demo_pretranslated_injection_started",
                 session_id=session.session_id,

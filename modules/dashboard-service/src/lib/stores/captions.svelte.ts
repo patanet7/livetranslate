@@ -7,12 +7,13 @@ export class CaptionStore {
 	maxCaptions = $state(50);
 	/** Time window in ms for aggregating consecutive captions from the same speaker. 0 = disabled. */
 	aggregateWindowMs = $state(0);
+	/** Fallback expiry in ms when server doesn't provide expires_at. */
+	fallbackExpiryMs: number;
 
-	#expiryMs: number;
 	#cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
-	constructor(expiryMs = 10_000) {
-		this.#expiryMs = expiryMs;
+	constructor(fallbackExpiryMs = 8_000) {
+		this.fallbackExpiryMs = fallbackExpiryMs;
 	}
 
 	start() {
@@ -44,6 +45,7 @@ export class CaptionStore {
 								translated_text:
 									(c.translated_text || c.text) + ' ' + (caption.translated_text || caption.text),
 								original_text: c.original_text + ' ' + caption.original_text,
+								expires_at: caption.expires_at || c.expires_at,
 								receivedAt: now
 							}
 						: c
@@ -76,8 +78,14 @@ export class CaptionStore {
 	}
 
 	#expireOld() {
-		const cutoff = Date.now() - this.#expiryMs;
-		this.captions = this.captions.filter((c) => c.receivedAt > cutoff);
+		const now = Date.now();
+		this.captions = this.captions.filter((c) => {
+			// Use server-provided expires_at if available, otherwise fall back
+			if (c.expires_at) {
+				return new Date(c.expires_at).getTime() > now;
+			}
+			return now - c.receivedAt < this.fallbackExpiryMs;
+		});
 	}
 }
 

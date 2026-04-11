@@ -60,6 +60,8 @@ class SourceOrchestrator:
 
         if self.active_source:
             await self.active_source.stop()
+            # Brief drain to let in-flight caption callbacks complete
+            await asyncio.sleep(0.1)
 
         self.active_source = self._create_source(new_source_type)
         self.active_source.on_caption = self._on_caption

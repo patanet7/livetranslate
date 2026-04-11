@@ -168,6 +168,13 @@ function createLoopbackStore() {
       captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
     }
 
+    // Clear interim text when final segment arrives — the interim was
+    // a preview of this segment, now replaced by the definitive version.
+    if (msg.is_final) {
+      interimText = '';
+      interimConfidence = 0;
+    }
+
     // Update detected language from segment data (display only — does NOT
     // change the user's source language dropdown selection).
     if (msg.language) {

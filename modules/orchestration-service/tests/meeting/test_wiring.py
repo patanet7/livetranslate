@@ -133,11 +133,12 @@ class TestTranslateAndSendWiring:
         await pipeline.end()
         await svc.close()
 
-    async def test_final_translation_saved_without_chunk_id(
+    async def test_final_translation_without_chunk_id_sends_but_skips_persist(
         self, meeting_session_manager: MeetingSessionManager,
         db_session: AsyncSession, tmp_path: Path,
     ):
-        """When chunk_id is None (ephemeral mode), translation still saved."""
+        """When chunk_id is None, translation is sent to client but DB persist is skipped
+        (schema requires chunk_id or sentence_id)."""
         from routers.audio.websocket_audio import _translate_and_send
 
         pipeline = MeetingPipeline(
@@ -170,13 +171,12 @@ class TestTranslateAndSendWiring:
             chunk_id=None,  # ephemeral — no transcript chunk
         )
 
-        # Translation saved with chunk_id=None
-        result = await db_session.execute(
-            select(MeetingTranslation).where(MeetingTranslation.chunk_id == None)  # noqa: E711
-        )
-        translations = list(result.scalars().all())
-        assert len(translations) >= 1
-        assert any(t.translated_text == "Hello world" for t in translations)
+        # Translation message was sent to client even without chunk_id
+        import json
+        translation_msgs = [
+            json.loads(m) for m in sent_messages if "translation" in m.lower()
+        ]
+        assert len(translation_msgs) >= 1, f"Expected translation message, got: {sent_messages}"
 
         await pipeline.end()
         await svc.close()
