@@ -421,7 +421,8 @@ bot-build:
 bot-infra:
     just db-up
     @echo "Waiting for Postgres..."
-    @until docker exec livetranslate-postgres pg_isready -U livetranslate 2>/dev/null; do sleep 1; done
+    @for i in $$(seq 1 30); do docker exec livetranslate-postgres pg_isready -U postgres 2>/dev/null && break; sleep 1; done
+    @sleep 2
     just db-migrate
     @echo "✓ Infrastructure ready (Postgres + Redis + migrations)"
 
