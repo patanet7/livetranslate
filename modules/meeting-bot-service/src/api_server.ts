@@ -10,6 +10,7 @@ import { GoogleMeetBot } from './bots/GoogleMeetBot';
 import { loggerFactory } from './util/logger';
 import { v4 } from 'uuid';
 import DiskUploader from './middleware/disk-uploader';
+import { AuthManager } from './lib/auth_manager';
 
 const app = express();
 app.use(express.json());
@@ -18,6 +19,10 @@ const PORT = process.env.PORT || 5005;
 
 // Store active bot sessions
 const activeBots = new Map<string, GoogleMeetBot>();
+
+// Auth manager for persistent profile authentication
+const authLogger = loggerFactory('auth-manager', 'auth');
+const authManager = new AuthManager(authLogger);
 
 interface JoinRequest {
   meetingUrl: string;
@@ -180,6 +185,59 @@ app.post('/api/bot/leave/:botId', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       botId,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/auth/status
+ * Check if the bot has a valid authenticated Google profile
+ */
+app.get('/api/auth/status', async (req: Request, res: Response) => {
+  try {
+    const status = await authManager.checkStatus();
+    return res.status(200).json({
+      success: true,
+      ...status
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/auth/setup
+ * Launch headed browser for manual Google sign-in.
+ *
+ * IMPORTANT: This endpoint blocks until the user completes sign-in
+ * or closes the browser. It opens a visible browser window.
+ *
+ * @tag-user This step requires manual Google sign-in
+ */
+app.post('/api/auth/setup', async (req: Request, res: Response) => {
+  try {
+    console.log('🔐 Starting Google auth setup - a browser window will open...');
+    console.log('👤 @USER: Please sign in to your Google account in the browser window');
+
+    const status = await authManager.launchSetupFlow();
+
+    if (status.authenticated) {
+      console.log('✅ Google auth setup complete!');
+    } else {
+      console.log('⚠️ Google auth setup incomplete - browser was closed');
+    }
+
+    return res.status(200).json({
+      success: status.authenticated,
+      ...status
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
       error: error.message
     });
   }
