@@ -130,7 +130,7 @@ app.post('/api/bot/join', async (req: Request, res: Response) => {
  * Get status of a bot
  */
 app.get('/api/bot/status/:botId', (req: Request, res: Response) => {
-  const { botId } = req.params;
+  const botId = req.params.botId as string;
 
   const bot = activeBots.get(botId);
   if (!bot) {
@@ -155,7 +155,7 @@ app.get('/api/bot/status/:botId', (req: Request, res: Response) => {
  * Leave a meeting and cleanup
  */
 app.post('/api/bot/leave/:botId', async (req: Request, res: Response) => {
-  const { botId } = req.params;
+  const botId = req.params.botId as string;
 
   const bot = activeBots.get(botId);
   if (!bot) {
