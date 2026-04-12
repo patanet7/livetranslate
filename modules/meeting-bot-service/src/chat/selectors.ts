@@ -36,6 +36,10 @@ export const JOIN_BUTTON_SELECTORS = [
   'button:has-text("Join now")',
   'button:has-text("Ask to join")',
   'button:has-text("Join anyway")',
+  // Generic fallbacks for UI changes
+  '[role="button"]:has-text("Join")',
+  'button[data-idom-class*="join"]',
+  'button[jsname][data-mdc-dialog-action]', // Google Material button
 ];
 
 export const NAME_INPUT =

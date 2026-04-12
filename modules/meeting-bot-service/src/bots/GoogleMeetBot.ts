@@ -19,6 +19,7 @@ import { ChatPoller } from '../chat/chat_poller';
 import { ChatResponder } from '../chat/chat_responder';
 import {
   clickFirst,
+  findVisible,
   waitForAny,
   JOIN_BUTTON_SELECTORS,
   CONTINUE_WITHOUT_SELECTORS,
@@ -173,26 +174,32 @@ export class GoogleMeetBot extends MeetBotBase {
       this._logger.info('Google Meet bot is on the unsupported page...', { googleMeetPageStatus, userId, teamId });
     }
 
-    this._logger.info('Waiting for the input field to be visible...');
-    await retryActionWithWait(
-      'Waiting for the input field',
-      async () => await this.page.waitForSelector(NAME_INPUT, { timeout: 10000 }),
-      this._logger,
-      3,
-      15000,
-      async () => {
-        await uploadDebugImage(await this.page.screenshot({ type: 'png', fullPage: true }), 'text-input-field-wait', userId, this._logger, botId);
+    // Check if we're authenticated (Join button visible) or guest (name input visible)
+    this._logger.info('Checking for authenticated vs guest flow...');
+    const joinButton = await findVisible(this.page, JOIN_BUTTON_SELECTORS);
+    const nameInput = await this.page.$(NAME_INPUT);
+
+    if (nameInput && await nameInput.isVisible()) {
+      // Guest flow: fill in name first
+      this._logger.info('Guest flow detected - filling name input...');
+      await this.page.fill(NAME_INPUT, name ? name : 'LiveTranslate Bot');
+      await this.page.waitForTimeout(1000);
+    } else if (joinButton) {
+      // Authenticated flow: skip name input
+      this._logger.info('Authenticated flow detected - skipping name input');
+    } else {
+      // Neither visible yet, wait for either
+      this._logger.info('Waiting for join button or name input...');
+      await waitForAny(this.page, [...JOIN_BUTTON_SELECTORS, NAME_INPUT], 15000);
+
+      // Re-check what appeared
+      const nameInputNow = await this.page.$(NAME_INPUT);
+      if (nameInputNow && await nameInputNow.isVisible()) {
+        this._logger.info('Name input appeared - filling...');
+        await this.page.fill(NAME_INPUT, name ? name : 'LiveTranslate Bot');
+        await this.page.waitForTimeout(1000);
       }
-    );
-
-    this._logger.info('Waiting for 1 second...');
-    await this.page.waitForTimeout(1000);
-
-    this._logger.info('Filling the input field with the name...');
-    await this.page.fill(NAME_INPUT, name ? name : 'ScreenApp Notetaker');
-
-    this._logger.info('Waiting for 1 second...');
-    await this.page.waitForTimeout(1000);
+    }
 
     await retryActionWithWait(
       'Clicking the "Ask to join" button',
