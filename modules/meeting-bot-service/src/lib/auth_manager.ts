@@ -101,9 +101,18 @@ export class AuthManager {
       });
 
       // Launch persistent context (headed) for manual authentication
+      // Use stealth args to avoid Google's bot detection
       const context = await chromium.launchPersistentContext(profileDir, {
         headless: false,
         channel: 'chrome',
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-infobars',
+          '--no-sandbox',
+          '--window-size=1280,800',
+        ],
+        ignoreDefaultArgs: ['--enable-automation'],
       });
 
       browser = context.browser();
