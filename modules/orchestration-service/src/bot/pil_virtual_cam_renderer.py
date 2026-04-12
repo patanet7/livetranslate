@@ -83,21 +83,34 @@ class PILVirtualCamRenderer:
         self._dirty = True
 
     def _on_caption_event(self, event_type: str, caption: Any) -> None:
-        """Mark dirty when captions change. Also sync new captions to VirtualWebcamManager."""
+        """Mark dirty when captions change. Also sync captions to VirtualWebcamManager."""
         self._dirty = True
+
+        translation_data = {
+            "translation_id": caption.id,
+            "translated_text": caption.translated_text or caption.original_text or "",
+            "source_language": "",
+            "target_language": caption.target_language,
+            "speaker_name": caption.speaker_name,
+            "speaker_id": None,
+            "translation_confidence": caption.confidence,
+        }
+
         if event_type == "added":
-            # VirtualWebcamManager.add_translation() expects a dict
-            self._webcam_manager.add_translation(
-                {
-                    "translation_id": caption.id,
-                    "translated_text": caption.translated_text or caption.original_text or "",
-                    "source_language": "",
-                    "target_language": caption.target_language,
-                    "speaker_name": caption.speaker_name,
-                    "speaker_id": None,
-                    "translation_confidence": caption.confidence,
-                }
-            )
+            self._webcam_manager.add_translation(translation_data)
+        elif event_type == "updated":
+            # Find and update existing translation with same ID
+            for t in self._webcam_manager.current_translations:
+                if t.translation_id == caption.id:
+                    t.text = translation_data["translated_text"]
+                    break
+        elif event_type == "expired":
+            # Remove expired translation from deque
+            translations = self._webcam_manager.current_translations
+            for i, t in enumerate(list(translations)):
+                if t.translation_id == caption.id:
+                    del translations[i]
+                    break
 
     def start_rendering(self) -> None:
         """Start the render loop in a background thread."""

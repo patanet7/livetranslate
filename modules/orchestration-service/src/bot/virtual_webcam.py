@@ -147,19 +147,26 @@ class VirtualWebcamManager:
             # Container (Dockerfile): fonts-unifont covers CJK.
             # macOS: STHeiti, Hiragino, PingFang cover CJK.
             font_paths = [
-                # Container (Linux) — CJK capable
-                "/usr/share/fonts/truetype/unifont/unifont.ttf",
+                # Container (Linux) — Pan-CJK + Latin capable
                 "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                # macOS — CJK capable
-                "/System/Library/Fonts/STHeiti Medium.ttc",
-                "/System/Library/Fonts/Hiragino Sans GB.ttc",
-                "/Library/Fonts/Arial Unicode.ttf",
+                "/usr/share/fonts/truetype/unifont/unifont.ttf",
+                # macOS — Pan-Unicode (CJK + Latin + accented chars)
+                "/Library/Fonts/Arial Unicode.ttf",  # Full Unicode coverage (best)
+                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",  # macOS 10.15+
+                "/System/Library/Fonts/PingFang.ttc",  # CJK + some Latin
+                "/System/Library/Fonts/AppleSDGothicNeo.ttc",  # Korean + CJK (limited Latin)
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # Chinese + Japanese
+                "/System/Library/Fonts/STHeiti Medium.ttc",  # Chinese only (fallback)
+                # Windows — Pan-CJK
+                "C:/Windows/Fonts/arial.ttf",  # Good Latin support
+                "C:/Windows/Fonts/malgun.ttf",  # Korean
+                "C:/Windows/Fonts/msyh.ttc",  # Chinese
+                "C:/Windows/Fonts/meiryo.ttc",  # Japanese
                 # Latin fallbacks (no CJK)
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                 "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
                 "/System/Library/Fonts/Arial.ttf",
-                "C:/Windows/Fonts/arial.ttf",
             ]
 
             font_loaded = False
@@ -690,18 +697,28 @@ class VirtualWebcamManager:
         y: int,
         colors: dict[str, tuple[int, int, int]],
     ):
-        """Draw translation in banner format."""
+        """Draw translation in banner format with text wrapping."""
         text = translation.text
-        if translation.speaker_name:
-            text = f"{translation.speaker_name}: {text}"
-
-        # Center text in banner
         font = self.fonts.get("regular", ImageFont.load_default())
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        x = (self.config.width - text_width) // 2
 
-        draw.text((x, y + 30), text, fill=colors["text_primary"], font=font)
+        # Draw speaker name on first line if present
+        line_y = y + 10
+        if translation.speaker_name:
+            speaker_text = f"{translation.speaker_name}:"
+            bbox = draw.textbbox((0, 0), speaker_text, font=font)
+            text_width = bbox[2] - bbox[0]
+            x = (self.config.width - text_width) // 2
+            draw.text((x, line_y), speaker_text, fill=colors["accent"], font=font)
+            line_y += 30
+
+        # Wrap main text to fit banner width (max ~80 chars for 1280px at default font)
+        lines = wrap_text(text, max_chars=80, max_lines=2)
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            text_width = bbox[2] - bbox[0]
+            x = (self.config.width - text_width) // 2
+            draw.text((x, line_y), line, fill=colors["text_primary"], font=font)
+            line_y += 28
 
     def _draw_centered_translation(
         self,
