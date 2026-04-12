@@ -197,6 +197,7 @@ def get_caption_buffer(session_id: str) -> CaptionBuffer:
         buffer.on_caption_added = on_caption_added
         buffer.on_caption_updated = on_caption_updated
         buffer.on_caption_expired = on_caption_expired
+        buffer.start_cleanup_timer(interval=1.0)
 
         # Store for session
         _caption_buffers[session_id] = buffer
@@ -209,7 +210,8 @@ def get_caption_buffer(session_id: str) -> CaptionBuffer:
 def remove_caption_buffer(session_id: str) -> bool:
     """Remove a caption buffer for a session."""
     if session_id in _caption_buffers:
-        del _caption_buffers[session_id]
+        buffer = _caption_buffers.pop(session_id)
+        buffer.stop_cleanup_timer()
         logger.info(f"Removed caption buffer for session: {session_id}")
         return True
     return False

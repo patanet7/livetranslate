@@ -490,6 +490,10 @@ bot-demo:
     echo "Starting demo replay..."
     uv run python tools/bot_demo.py
 
+# Adversarial QA for caption pipeline (needs just bot-full running)
+caption-qa test="all":
+    uv run python tools/caption_qa.py --test {{test}}
+
 # Full bot pipeline: start infra + orchestration + dashboard + demo
 bot-full:
     #!/usr/bin/env bash

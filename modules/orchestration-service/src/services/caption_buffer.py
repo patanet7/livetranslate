@@ -211,6 +211,9 @@ class CaptionBuffer:
         # Background task tracking for async callbacks
         self._bg_tasks: set[asyncio.Task] = set()
 
+        # Periodic cleanup task (fires on_caption_expired even when no new captions arrive)
+        self._cleanup_task: asyncio.Task | None = None
+
         # Multi-subscriber support
         self._subscribers: list[Callable] = []
 
@@ -238,6 +241,36 @@ class CaptionBuffer:
         """Notify all subscribers of a caption event."""
         for sub in self._subscribers:
             self._fire_callback(sub, event_type, caption)
+
+    # =========================================================================
+    # Periodic Cleanup
+    # =========================================================================
+
+    def start_cleanup_timer(self, interval: float = 1.0) -> None:
+        """Start periodic cleanup that fires on_caption_expired for expired captions.
+
+        Without this, expired captions only get cleaned up when add_caption() is called.
+        The timer ensures expiry events fire even when no new captions arrive.
+        """
+        if self._cleanup_task and not self._cleanup_task.done():
+            return  # Already running
+
+        async def _periodic_cleanup():
+            while True:
+                await asyncio.sleep(interval)
+                with self._lock:
+                    self._cleanup_expired_internal()
+
+        try:
+            self._cleanup_task = asyncio.get_running_loop().create_task(_periodic_cleanup())
+        except RuntimeError:
+            logger.debug("No running event loop — cleanup timer not started")
+
+    def stop_cleanup_timer(self) -> None:
+        """Stop the periodic cleanup timer."""
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            self._cleanup_task = None
 
     # =========================================================================
     # Callback Helpers
