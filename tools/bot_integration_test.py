@@ -154,7 +154,7 @@ class BotIntegrationTest:
             return False
 
     async def start_session(self) -> bool:
-        """Send start_session message to begin audio processing."""
+        """Send start_session and config messages to begin audio processing."""
         print("\n[3/6] Starting Session...")
 
         try:
@@ -173,16 +173,27 @@ class BotIntegrationTest:
                 source_lang = "en"
                 target_lang = "zh"
 
+            # Step 1: Send start_session with audio parameters only
+            # (StartSessionMessage schema: sample_rate, channels, encoding, device_id)
             start_msg = {
                 "type": "start_session",
-                "source_language": source_lang,
+                "sample_rate": 48000,
+                "channels": 1,
+                "encoding": "float32",
+            }
+            await self.ws.send(json.dumps(start_msg))
+            self.log("Sent start_session", "pass", "48kHz mono float32")
+
+            # Step 2: Send config with language settings
+            # (ConfigMessage schema: language, target_language, model, etc.)
+            config_msg = {
+                "type": "config",
+                "language": source_lang,
                 "target_language": target_lang,
                 "model": "large-v3-turbo",
-                "sample_rate": 48000,
             }
-
-            await self.ws.send(json.dumps(start_msg))
-            self.log("Sent start_session", "pass", f"{source_lang}→{target_lang}")
+            await self.ws.send(json.dumps(config_msg))
+            self.log("Sent config", "pass", f"{source_lang}→{target_lang}")
 
             # Wait for acknowledgment or service status
             try:
@@ -229,9 +240,9 @@ class BotIntegrationTest:
             for i in range(0, len(audio_data), chunk_samples):
                 chunk = audio_data[i : i + chunk_samples]
 
-                # Convert to int16 bytes (what browser sends)
-                chunk_int16 = (chunk * 32767).astype(np.int16)
-                chunk_bytes = chunk_int16.tobytes()
+                # Send as float32 bytes (what browser sends via AudioWorklet)
+                # Orchestration expects 48kHz float32, downsamples to 16kHz for transcription
+                chunk_bytes = chunk.astype(np.float32).tobytes()
 
                 # Send binary frame
                 await self.ws.send(chunk_bytes)
