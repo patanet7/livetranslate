@@ -73,6 +73,14 @@
 	let selectedSession = $state('');
 	let selectedMeeting = $state('');
 
+	// Filter to only truly active sessions (not completed/disconnected/error)
+	const INACTIVE_STATUSES = ['COMPLETED', 'DISCONNECTED', 'ERROR', 'completed', 'disconnected', 'error'];
+	let activeSessions = $derived(
+		data.sessions.filter((s: { connection_status: string }) =>
+			!INACTIVE_STATUSES.includes(s.connection_status)
+		)
+	);
+
 	// Sync initial selections from server load data
 	$effect(() => {
 		dataSource = data.meetings.length > 0 ? 'meetings' : 'sessions';
@@ -348,8 +356,9 @@
 				variant={dataSource === 'sessions' ? 'default' : 'outline'}
 				size="sm"
 				onclick={() => { dataSource = 'sessions'; clearData(); }}
+				disabled={activeSessions.length === 0}
 			>
-				Fireflies Sessions ({data.sessions.length})
+				Live Sessions ({activeSessions.length})
 			</Button>
 		</div>
 
@@ -385,33 +394,34 @@
 				</p>
 			{/if}
 		{:else}
-			<!-- Session selector -->
-			<div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-				<div class="space-y-2 flex-1 w-full">
-					<Label for="session-select">Session</Label>
-					<select
-						id="session-select"
-						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
-						bind:value={selectedSession}
+			<!-- Live session selector -->
+			{#if activeSessions.length > 0}
+				<div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+					<div class="space-y-2 flex-1 w-full">
+						<Label for="session-select">Live Session</Label>
+						<select
+							id="session-select"
+							class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+							bind:value={selectedSession}
+						>
+							<option value="">-- Select a live session --</option>
+							{#each activeSessions as session (session.session_id)}
+								<option value={session.session_id}>
+									{truncateId(session.session_id)} ({session.connection_status}) - {session.chunks_received} chunks
+								</option>
+							{/each}
+						</select>
+					</div>
+					<Button
+						onclick={loadData}
+						disabled={!selectedSession || loading}
 					>
-						<option value="">-- Select a session --</option>
-						{#each data.sessions as session (session.session_id)}
-							<option value={session.session_id}>
-								{truncateId(session.session_id)} ({session.connection_status}) - {session.chunks_received} chunks
-							</option>
-						{/each}
-					</select>
+						{#if loading}Loading...{:else}Load Data{/if}
+					</Button>
 				</div>
-				<Button
-					onclick={loadData}
-					disabled={!selectedSession || loading}
-				>
-					{#if loading}Loading...{:else}Load Data{/if}
-				</Button>
-			</div>
-			{#if data.sessions.length === 0}
+			{:else}
 				<p class="text-sm text-muted-foreground mt-3">
-					No active sessions. Connect to Fireflies first to create sessions.
+					No live sessions. Start a Fireflies connection or loopback capture to see live data here.
 				</p>
 			{/if}
 		{/if}
