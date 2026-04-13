@@ -1761,12 +1761,9 @@ async def get_active_meetings(
             detail="Fireflies API key required. Provide in request or set FIREFLIES_API_KEY in .env",
         )
 
+    client = FirefliesClient(api_key=api_key)
     try:
-        client = FirefliesClient(api_key=api_key)
-
         meetings = await client.get_active_meetings(email=request.email)
-
-        await client.close()
 
         return ActiveMeetingsResponse(
             success=True,
@@ -1788,6 +1785,8 @@ async def get_active_meetings(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get meetings: {e!s}",
         ) from e
+    finally:
+        await client.close()
 
 
 @router.get(
