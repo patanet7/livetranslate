@@ -55,6 +55,17 @@
 		time: string;
 	}
 
+	interface ServiceLogEntry {
+		timestamp: string;
+		level: string;
+		event: string;
+		service: string;
+		filename: string | null;
+		func_name: string | null;
+		lineno: number | null;
+		extra: Record<string, unknown>;
+	}
+
 	let { data } = $props();
 
 	// Data source: 'sessions' (active Fireflies) or 'meetings' (DB past meetings)
@@ -84,6 +95,13 @@
 
 	let apiLog = $state<ApiLogEntry[]>([]);
 	let loadError = $state('');
+
+	// Service logs (from ring buffer)
+	let serviceLogs = $state<ServiceLogEntry[]>([]);
+	let serviceLogsLoading = $state(false);
+	let logLevelFilter = $state<string>('');
+	let logsAutoRefresh = $state(true);
+	let logsRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
 	let hasData = $derived(
 		transcripts.length > 0 || translations.length > 0 || timeline.length > 0 || sentences.length > 0
@@ -226,6 +244,74 @@
 		sentences = [];
 		apiLog = [];
 		loadError = '';
+	}
+
+	async function loadServiceLogs() {
+		if (!browser) return;
+		serviceLogsLoading = true;
+		try {
+			const params = new URLSearchParams({ limit: '200' });
+			if (logLevelFilter) params.set('level', logLevelFilter);
+			const res = await fetch(`/api/system/logs?${params}`);
+			if (res.ok) {
+				const data = await res.json();
+				serviceLogs = data.entries ?? [];
+			}
+		} catch (e) {
+			console.error('Failed to load service logs:', e);
+		} finally {
+			serviceLogsLoading = false;
+		}
+	}
+
+	function startLogsAutoRefresh() {
+		if (logsRefreshInterval) clearInterval(logsRefreshInterval);
+		if (logsAutoRefresh && browser) {
+			loadServiceLogs();
+			logsRefreshInterval = setInterval(loadServiceLogs, 3000);
+		}
+	}
+
+	function stopLogsAutoRefresh() {
+		if (logsRefreshInterval) {
+			clearInterval(logsRefreshInterval);
+			logsRefreshInterval = null;
+		}
+	}
+
+	// Auto-refresh logs when enabled
+	$effect(() => {
+		if (logsAutoRefresh) {
+			startLogsAutoRefresh();
+		} else {
+			stopLogsAutoRefresh();
+		}
+		return () => stopLogsAutoRefresh();
+	});
+
+	// Reload when filter changes
+	$effect(() => {
+		if (logLevelFilter !== undefined && browser) {
+			loadServiceLogs();
+		}
+	});
+
+	function getLevelBadgeVariant(level: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+		switch (level.toLowerCase()) {
+			case 'error': return 'destructive';
+			case 'warning': return 'secondary';
+			case 'info': return 'default';
+			default: return 'outline';
+		}
+	}
+
+	function formatLogTimestamp(iso: string): string {
+		try {
+			const d = new Date(iso);
+			return d.toLocaleTimeString('en-US', { hour12: false, fractionalSecondDigits: 3 });
+		} catch {
+			return iso;
+		}
 	}
 </script>
 
@@ -506,7 +592,7 @@
 
 <!-- API Call Log -->
 {#if apiLog.length > 0}
-	<Card.Root>
+	<Card.Root class="mb-6">
 		<Card.Header>
 			<div class="flex items-center justify-between">
 				<Card.Title>API Call Log</Card.Title>
@@ -533,6 +619,71 @@
 		</Card.Content>
 	</Card.Root>
 {/if}
+
+<!-- Service Logs (Real-time) -->
+<Card.Root class="mb-6">
+	<Card.Header>
+		<div class="flex items-center justify-between">
+			<div>
+				<Card.Title>Service Logs</Card.Title>
+				<Card.Description>Real-time logs from all backend services</Card.Description>
+			</div>
+			<div class="flex items-center gap-2">
+				<select
+					class="rounded-md border bg-background px-2 py-1 text-xs"
+					bind:value={logLevelFilter}
+				>
+					<option value="">All levels</option>
+					<option value="debug">Debug</option>
+					<option value="info">Info</option>
+					<option value="warning">Warning</option>
+					<option value="error">Error</option>
+				</select>
+				<Button
+					variant={logsAutoRefresh ? 'default' : 'outline'}
+					size="sm"
+					onclick={() => logsAutoRefresh = !logsAutoRefresh}
+				>
+					{logsAutoRefresh ? 'Live' : 'Paused'}
+				</Button>
+				<Badge variant="secondary">{serviceLogs.length} entries</Badge>
+			</div>
+		</div>
+	</Card.Header>
+	<Card.Content>
+		{#if serviceLogs.length === 0}
+			<p class="text-sm text-muted-foreground text-center py-6">
+				{serviceLogsLoading ? 'Loading logs...' : 'No logs yet. Logs will appear as services emit events.'}
+			</p>
+		{:else}
+			<div class="max-h-96 overflow-y-auto space-y-1 font-mono text-xs">
+				{#each serviceLogs as log, i (i)}
+					<div class="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-accent/50 border-l-2 {log.level === 'error' ? 'border-l-red-500 bg-red-500/5' : log.level === 'warning' ? 'border-l-yellow-500 bg-yellow-500/5' : 'border-l-transparent'}">
+						<span class="text-muted-foreground whitespace-nowrap shrink-0">{formatLogTimestamp(log.timestamp)}</span>
+						<Badge variant={getLevelBadgeVariant(log.level)} class="text-xs shrink-0 w-14 justify-center">{log.level}</Badge>
+						<Badge variant="outline" class="text-xs shrink-0">{log.service}</Badge>
+						<span class="flex-1 break-all">
+							<span class="font-semibold text-primary">{log.event}</span>
+							{#if Object.keys(log.extra).length > 0}
+								<span class="text-muted-foreground ml-1">
+									{#each Object.entries(log.extra).slice(0, 4) as [k, v]}
+										<span class="ml-1">{k}=<span class="text-foreground">{typeof v === 'string' ? v : JSON.stringify(v)}</span></span>
+									{/each}
+									{#if Object.keys(log.extra).length > 4}
+										<span class="ml-1">+{Object.keys(log.extra).length - 4} more</span>
+									{/if}
+								</span>
+							{/if}
+						</span>
+						{#if log.filename}
+							<span class="text-muted-foreground shrink-0 text-[10px]">{log.filename}:{log.lineno}</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</Card.Content>
+</Card.Root>
 
 {#if !hasData && apiLog.length === 0}
 	<Card.Root>

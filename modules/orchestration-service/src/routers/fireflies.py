@@ -2000,8 +2000,9 @@ async def _store_transcript_to_db(
             },
         })
 
-    sentences = transcript.get("sentences", [])
-    summary = transcript.get("summary", {})
+    # Fireflies sometimes returns null for sentences field instead of empty array
+    sentences = transcript.get("sentences") or []
+    summary = transcript.get("summary") or {}
     target_languages = [os.environ.get("DEFAULT_TARGET_LANGUAGE", "zh")]
 
     # --- Find or create meeting record ---

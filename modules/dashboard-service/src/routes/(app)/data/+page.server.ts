@@ -8,6 +8,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 
 	const [sessions, meetingsRes] = await Promise.all([
 		ff.listSessions().catch(() => []),
+		// Request up to 250 meetings (max allowed by API)
 		api.get<{ meetings: Array<{
 			id: string;
 			title: string | null;
@@ -17,7 +18,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 			sentence_count: number;
 			chunk_count: number;
 			duration: number;
-		}> }>('/api/meetings/').catch(() => ({ meetings: [] }))
+		}>, total: number }>('/api/meetings/?limit=250').catch(() => ({ meetings: [], total: 0 }))
 	]);
 
 	const preSelectedSession = url.searchParams.get('session') ?? '';

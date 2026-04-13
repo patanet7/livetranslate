@@ -1186,3 +1186,60 @@ async def _get_service_health(health_monitor) -> list[ServiceStatus]:
         )
 
     return services
+
+
+# --- Service Logs Endpoint ---
+
+
+class LogEntryResponse(BaseModel):
+    """A log entry for the dashboard."""
+
+    timestamp: str
+    level: str
+    event: str
+    service: str
+    filename: str | None = None
+    func_name: str | None = None
+    lineno: int | None = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class LogsResponse(BaseModel):
+    """Response containing recent log entries."""
+
+    entries: list[LogEntryResponse]
+    total_buffered: int
+
+
+@router.get("/logs", response_model=LogsResponse)
+async def get_service_logs(
+    limit: int = Query(default=100, ge=1, le=500),
+    level: str | None = Query(default=None, description="Filter by log level (debug, info, warning, error)"),
+) -> LogsResponse:
+    """
+    Get recent service log entries from the ring buffer.
+
+    Returns structured log events for display in the dashboard.
+    Logs are captured from all services using structlog.
+    """
+    from livetranslate_common.logging import get_log_buffer
+
+    buf = get_log_buffer()
+    entries = buf.get_recent(limit=limit, level=level)
+
+    return LogsResponse(
+        entries=[
+            LogEntryResponse(
+                timestamp=e.timestamp,
+                level=e.level,
+                event=e.event,
+                service=e.service,
+                filename=e.filename,
+                func_name=e.func_name,
+                lineno=e.lineno,
+                extra=e.extra,
+            )
+            for e in entries
+        ],
+        total_buffered=len(buf),
+    )

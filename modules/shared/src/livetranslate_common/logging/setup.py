@@ -6,6 +6,7 @@ import sys
 
 import structlog
 
+from livetranslate_common.logging.buffer import buffer_processor
 from livetranslate_common.logging.processors import add_service_name, censor_sensitive_data
 
 
@@ -28,6 +29,7 @@ def setup_logging(service_name: str, log_level: str = "INFO", log_format: str = 
                 structlog.processors.CallsiteParameter.LINENO,
             }
         ),
+        buffer_processor,  # Capture to ring buffer for dashboard
     ]
     if log_format == "dev":
         # Force colors via env var (for piped-but-displayed-in-terminal scenarios like just dev),
