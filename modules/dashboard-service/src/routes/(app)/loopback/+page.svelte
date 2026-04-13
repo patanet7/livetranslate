@@ -129,6 +129,9 @@
           deviceId: selectedDeviceId || undefined,
           sampleRate: capture.sampleRate ?? 48000,
           channels: 1,
+          onMeetingStarted: (sessionId, startedAt) => {
+            startElapsedTimer(startedAt);
+          },
         });
       } catch {
         captureError = 'Could not connect to orchestration service. Is it running?';
@@ -149,6 +152,12 @@
             : undefined,
           onLevel: (rms) => {
             audioLevel = rms;
+          },
+          onMeetingStarted: (sessionId, startedAt) => {
+            startElapsedTimer(startedAt);
+          },
+          onChunkCount: (count) => {
+            captionStore.chunksSent = count;
           },
         });
       } catch {

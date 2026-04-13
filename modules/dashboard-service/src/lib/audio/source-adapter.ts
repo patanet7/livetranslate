@@ -13,6 +13,10 @@ export interface SourceConfig {
   firefliesSessionId?: string;
   /** Callback for audio level updates (0-1 range) from server-side capture */
   onLevel?: (rms: number) => void;
+  /** Callback when meeting starts (for elapsed timer) */
+  onMeetingStarted?: (sessionId: string, startedAt: string) => void;
+  /** Callback for chunk count updates (server-side capture) */
+  onChunkCount?: (count: number) => void;
 }
 
 export interface SourceAdapter {
@@ -29,6 +33,8 @@ export class LoopbackAdapter implements SourceAdapter {
   private ws: WebSocket | null = null;
   private source: 'mic' | 'screencapture';
   private onLevel?: (rms: number) => void;
+  private onMeetingStarted?: (sessionId: string, startedAt: string) => void;
+  private onChunkCount?: (count: number) => void;
 
   constructor(source: 'mic' | 'screencapture' = 'mic') {
     this.source = source;
@@ -36,6 +42,8 @@ export class LoopbackAdapter implements SourceAdapter {
 
   async connect(config: SourceConfig): Promise<void> {
     this.onLevel = config.onLevel;
+    this.onMeetingStarted = config.onMeetingStarted;
+    this.onChunkCount = config.onChunkCount;
     return new Promise((resolve, reject) => {
       const url = `${WS_BASE}/ws/loopback`;
       this.ws = new WebSocket(url);
@@ -114,6 +122,7 @@ export class LoopbackAdapter implements SourceAdapter {
       case 'meeting_started':
         if (typeof msg.session_id === 'string' && typeof msg.started_at === 'string') {
           captionStore.startMeeting(msg.session_id, msg.started_at);
+          this.onMeetingStarted?.(msg.session_id, msg.started_at);
         }
         break;
       case 'recording_status':
@@ -131,6 +140,9 @@ export class LoopbackAdapter implements SourceAdapter {
         // Server-side audio level (screencapture mode)
         if (typeof msg.rms === 'number') {
           this.onLevel?.(msg.rms);
+        }
+        if (typeof msg.chunks === 'number') {
+          this.onChunkCount?.(msg.chunks);
         }
         break;
       case 'error':

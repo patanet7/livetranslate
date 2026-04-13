@@ -804,6 +804,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     # The callback pushes audio to the queue; a consumer task processes sequentially.
                     _sc_audio_queue: asyncio.Queue[np.ndarray | None] = asyncio.Queue(maxsize=50)
                     _sc_level_counter = [0]
+                    _sc_chunk_counter = [0]  # Total chunks processed (for UI display)
                     _sc_level_interval = 4  # Send level every N chunks (~340ms at 4096 samples)
 
                     async def _sc_consumer() -> None:
@@ -813,6 +814,8 @@ async def websocket_audio_stream(websocket: WebSocket):
                             if audio is None:  # Sentinel to stop
                                 break
                             try:
+                                _sc_chunk_counter[0] += 1
+
                                 # Record 48kHz audio before downsampling (same as mic path)
                                 if fixture_recorder:
                                     fixture_recorder.write_audio(audio)
@@ -826,7 +829,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                                 if len(downsampled) > 0 and transcription_client and transcription_client.connected:
                                     await transcription_client.send_audio(downsampled.tobytes())
 
-                                # Send audio level to client periodically
+                                # Send audio level + chunk count to client periodically
                                 _sc_level_counter[0] += 1
                                 if _sc_level_counter[0] >= _sc_level_interval:
                                     _sc_level_counter[0] = 0
@@ -834,6 +837,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                                     await safe_send(json.dumps({
                                         "type": "audio_level",
                                         "rms": rms,
+                                        "chunks": _sc_chunk_counter[0],
                                         "source": "screencapture",
                                     }))
                             except Exception as exc:
