@@ -1148,6 +1148,55 @@ class StartSessionPayload:
 
 ---
 
+## Review Findings & Mitigations
+
+This section addresses issues identified by specialist reviewers (WebSocket, Audio, Streaming, ML/Transcription engineers).
+
+### Critical Issues
+
+| Issue | Domain | Mitigation |
+|-------|--------|------------|
+| **CHUNK_SIZE mismatch** | Audio | Change ScreenCaptureKit read size from 4096 bytes to 16384 bytes (4096 samples) to match browser worklet granularity |
+| **No latency budget** | Streaming | Define target: 200ms capture, 300ms transcription, 500ms draft translation, 1500ms final. Add metrics collection per stage |
+| **VAD state contamination** | ML | Reset `VACOnlineProcessor` buffer on source switch. Add `reset_vac()` call in source adapter transition |
+| **Downsampler gap** | ML | Explicitly instantiate `Downsampler` in `MeetingPipeline.__init__` and document the 48kHz→16kHz path |
+
+### High Priority Issues
+
+| Issue | Domain | Mitigation |
+|-------|--------|------------|
+| **No backpressure (subprocess)** | Audio/Streaming | Implement bounded buffer (1MB max) with drop-oldest policy. Log dropped chunks for debugging |
+| **No backpressure (captions.py)** | WebSocket | Check `websocket.client_state` before `send_json`. Skip slow clients with warning log |
+| **Reconnection state loss** | Streaming | Add explicit "segment_counter_reset" message on reconnect. Frontend clears pending translations |
+| **No heartbeat (ScreenCapture)** | WebSocket | Add watchdog timer (5s) in `_read_loop`. If no data, check process health and emit error |
+| **Segment accumulation race** | Streaming | Track `bundled_segment_ids` in `SegmentStore` for accumulated sentences. Draft targets correct text |
+| **Context isolation** | ML | Add `source` dimension to `DirectionalContextStore` key: `(source, source_lang, target_lang)` |
+| **Language detector state** | ML | Reset `WhisperLanguageDetector._dwell_frames` on source change |
+
+### Medium Priority Issues
+
+| Issue | Domain | Mitigation |
+|-------|--------|------------|
+| **Missing protocol_version** | WebSocket | Add `protocol_version: 1` to `captions.py` connected event |
+| **Channel inconsistency** | Audio | Document: ScreenCaptureKit outputs mono; `normalize_audio_shape` converts to stereo for recorder |
+| **Binary frame ambiguity** | WebSocket | Clarify: ScreenCapture uses subprocess→callback injection, not WebSocket binary frames |
+| **Reconnect duplicates** | WebSocket | Frontend tracks `caption_id` set; skips already-seen captions on reconnect |
+| **Chunk ordering** | Streaming | Add `chunk_seq` field to `TranslationChunkMessage`; buffer and reorder on frontend |
+| **Timing mismatch** | Streaming | Display components check `source` and apply appropriate animation (instant vs streaming) |
+| **Fireflies no eviction** | ML | Add `evict_old(keep_last=100)` call in Fireflies caption handler |
+| **Segment ID collision** | ML | Prefix IDs: `lb_{counter}` for loopback, `ff_{chunk_id}` for Fireflies |
+
+### Low Priority Issues
+
+| Issue | Domain | Mitigation |
+|-------|--------|------------|
+| **Resampling latency** | Audio | Consider `soxr` library in future optimization pass |
+| **FLAC crash recovery** | Audio | Document: up to 30s audio may be lost on crash. Acceptable for current use case |
+| **Missing buffer flush** | Audio | Add final `stdout.read()` drain in `stop()` before `terminate()` |
+| **Chunk latency docs** | ML | Document: ScreenCaptureKit 21ms chunks vs browser 85ms; lower latency is acceptable |
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests
