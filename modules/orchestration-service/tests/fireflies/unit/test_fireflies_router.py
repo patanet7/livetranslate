@@ -166,6 +166,62 @@ class TestGetMeetingsRequest:
         assert request.email == "user@example.com"
 
 
+class TestActiveMeetingsResponseAutoSelect:
+    """Test auto-select logic in ActiveMeetingsResponse."""
+
+    def test_active_meetings_auto_select_single(self):
+        """When exactly one meeting is active, auto_select=True and auto_select_id is set."""
+        from models.fireflies import ActiveMeetingsResponse, FirefliesMeeting
+
+        meeting = FirefliesMeeting(id="meeting-001", title="Standup")
+        response = ActiveMeetingsResponse(
+            success=True,
+            meetings=[meeting],
+            count=1,
+            auto_select=True,
+            auto_select_id="meeting-001",
+        )
+
+        assert response.auto_select is True
+        assert response.auto_select_id == "meeting-001"
+        assert response.count == 1
+
+    def test_active_meetings_no_auto_select_multiple(self):
+        """When 2+ meetings are active, auto_select=False and auto_select_id is None."""
+        from models.fireflies import ActiveMeetingsResponse, FirefliesMeeting
+
+        meetings = [
+            FirefliesMeeting(id="meeting-001", title="Standup"),
+            FirefliesMeeting(id="meeting-002", title="Planning"),
+        ]
+        response = ActiveMeetingsResponse(
+            success=True,
+            meetings=meetings,
+            count=2,
+            auto_select=False,
+            auto_select_id=None,
+        )
+
+        assert response.auto_select is False
+        assert response.auto_select_id is None
+        assert response.count == 2
+
+    def test_active_meetings_no_auto_select_empty(self):
+        """When no meetings are active, auto_select=False and auto_select_id is None."""
+        from models.fireflies import ActiveMeetingsResponse
+
+        response = ActiveMeetingsResponse(
+            success=True,
+            meetings=[],
+            count=0,
+            auto_select=False,
+            auto_select_id=None,
+        )
+
+        assert response.auto_select is False
+        assert response.auto_select_id is None
+
+
 class TestSessionManagerWithSessions:
     """Test session manager with actual session data."""
 

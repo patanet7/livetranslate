@@ -656,21 +656,26 @@ class ActiveMeetingsResponse(ResponseMixin):
         default_factory=list, description="List of active meetings"
     )
     count: int = Field(default=0, description="Number of meetings")
+    auto_select: bool = Field(
+        default=False,
+        description="True when exactly one meeting is active and can be auto-selected",
+    )
+    auto_select_id: str | None = Field(
+        default=None,
+        description="Meeting ID to auto-connect to when auto_select is True",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "success": True,
-                "count": 2,
+                "count": 1,
+                "auto_select": True,
+                "auto_select_id": "meeting-001",
                 "meetings": [
                     {
                         "id": "meeting-001",
                         "title": "Team Standup",
-                        "state": "active",
-                    },
-                    {
-                        "id": "meeting-002",
-                        "title": "Planning Session",
                         "state": "active",
                     },
                 ],

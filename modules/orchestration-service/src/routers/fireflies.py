@@ -1772,6 +1772,8 @@ async def get_active_meetings(
             success=True,
             meetings=meetings,
             count=len(meetings),
+            auto_select=len(meetings) == 1,
+            auto_select_id=meetings[0].id if len(meetings) == 1 else None,
         )
 
     except FirefliesAPIError as e:
