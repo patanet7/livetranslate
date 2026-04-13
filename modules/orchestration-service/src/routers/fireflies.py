@@ -2750,15 +2750,12 @@ async def get_past_transcripts(
             detail="Fireflies API key required. Provide in request or set FIREFLIES_API_KEY in .env",
         )
 
+    client = FirefliesClient(api_key=api_key)
     try:
-        client = FirefliesClient(api_key=api_key)
-
         transcripts = await client.get_transcripts(
             limit=request.limit,
             skip=request.skip,
         )
-
-        await client.close()
 
         return TranscriptsResponse(
             success=True,
@@ -2778,6 +2775,8 @@ async def get_past_transcripts(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get transcripts: {e!s}",
         ) from e
+    finally:
+        await client.close()
 
 
 class GetTranscriptDetailRequest(BaseModel):
@@ -2808,12 +2807,9 @@ async def get_transcript_detail(
             detail="Fireflies API key required. Provide in request or set FIREFLIES_API_KEY in .env",
         )
 
+    client = FirefliesClient(api_key=api_key)
     try:
-        client = FirefliesClient(api_key=api_key)
-
         transcript = await client.get_transcript_detail(transcript_id)
-
-        await client.close()
 
         if not transcript:
             raise HTTPException(
@@ -2840,6 +2836,8 @@ async def get_transcript_detail(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get transcript: {e!s}",
         ) from e
+    finally:
+        await client.close()
 
 
 # =============================================================================
@@ -2898,11 +2896,14 @@ async def import_transcript_to_db(
             detail="Fireflies API key required",
         )
 
+    # Step 1: Fetch FULL transcript from Fireflies (with ai_filters, analytics, etc.)
+    client = FirefliesClient(api_key=api_key)
     try:
-        # Step 1: Fetch FULL transcript from Fireflies (with ai_filters, analytics, etc.)
-        client = FirefliesClient(api_key=api_key)
         full_result = await client.download_full_transcript(transcript_id)
+    finally:
         await client.close()
+
+    try:
 
         if not full_result:
             raise HTTPException(
