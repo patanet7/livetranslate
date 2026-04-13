@@ -23,9 +23,27 @@ import numpy as np
 # Constants
 # ---------------------------------------------------------------------------
 
-CAPTURE_BINARY = "livetranslate-capture"
+CAPTURE_BINARY_NAME_NAME = "livetranslate-capture"
 CHUNK_SIZE = 16384          # 4096 samples × 4 bytes (f32le)
 WATCHDOG_TIMEOUT = 5.0      # seconds before a silent process is considered hung
+
+
+def _find_capture_binary() -> str | None:
+    """Find capture binary - check project bin/ first, then PATH."""
+    from pathlib import Path
+
+    # Check project-local bin/ (relative to this file's location)
+    # This file: modules/orchestration-service/src/audio/screencapture_source.py
+    # Project root: 4 levels up
+    this_file = Path(__file__).resolve()
+    project_root = this_file.parents[4]
+    local_binary = project_root / "bin" / CAPTURE_BINARY_NAME_NAME
+
+    if local_binary.exists() and local_binary.is_file():
+        return str(local_binary)
+
+    # Fall back to PATH
+    return shutil.which(CAPTURE_BINARY_NAME_NAME)
 
 
 class ScreenCaptureAudioSource:
@@ -66,8 +84,8 @@ class ScreenCaptureAudioSource:
 
     @staticmethod
     def is_available() -> bool:
-        """Return ``True`` if ``livetranslate-capture`` is found in PATH."""
-        return shutil.which(CAPTURE_BINARY) is not None
+        """Return ``True`` if ``livetranslate-capture`` is found."""
+        return _find_capture_binary() is not None
 
     async def start(self) -> None:
         """Spawn the capture process and begin reading audio.
@@ -75,19 +93,20 @@ class ScreenCaptureAudioSource:
         Raises
         ------
         RuntimeError
-            If the binary is not found in PATH or the process fails to start.
+            If the binary is not found or the process fails to start.
         """
-        if not self.is_available():
+        binary_path = _find_capture_binary()
+        if binary_path is None:
             exc = RuntimeError(
-                f"'{CAPTURE_BINARY}' binary not found in PATH. "
-                "Install livetranslate-capture and ensure it is on PATH."
+                f"'{CAPTURE_BINARY_NAME_NAME}' binary not found. "
+                "Run 'just build-screencapture' to build and install it."
             )
             if self._on_error:
                 self._on_error(exc)
             raise exc
 
         self._process = await asyncio.create_subprocess_exec(
-            CAPTURE_BINARY,
+            binary_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -158,7 +177,7 @@ class ScreenCaptureAudioSource:
                     # EOF — process exited.
                     if self._running:
                         exc = RuntimeError(
-                            f"'{CAPTURE_BINARY}' exited unexpectedly (EOF on stdout)."
+                            f"'{CAPTURE_BINARY_NAME}' exited unexpectedly (EOF on stdout)."
                         )
                         if self._on_error:
                             self._on_error(exc)
@@ -189,7 +208,7 @@ class ScreenCaptureAudioSource:
             elapsed = time.monotonic() - self._last_read_time
             if elapsed > WATCHDOG_TIMEOUT:
                 exc = RuntimeError(
-                    f"'{CAPTURE_BINARY}' watchdog timeout: no audio received for "
+                    f"'{CAPTURE_BINARY_NAME}' watchdog timeout: no audio received for "
                     f"{elapsed:.1f}s (threshold: {WATCHDOG_TIMEOUT}s)."
                 )
                 if self._on_error:

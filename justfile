@@ -34,11 +34,26 @@ help:
 # Setup
 # ==============================================================================
 
-# Install all dependencies (Python + Node)
+# Install all dependencies (Python + Node + Swift CLI)
 install:
     uv sync --all-packages --group dev
     cd {{dashboard_dir}} && npm install
     cd {{meeting_bot_dir}} && npm install
+    @just build-screencapture
+
+# Build ScreenCaptureKit CLI (macOS only)
+build-screencapture:
+    #!/usr/bin/env bash
+    set -eu
+    if [[ "$(uname)" != "Darwin" ]]; then
+        echo "Skipping screencapture build (macOS only)"
+        exit 0
+    fi
+    echo "Building livetranslate-capture..."
+    cd {{project_root}}/tools/screencapture && swift build -c release
+    mkdir -p {{project_root}}/bin
+    cp .build/release/livetranslate-capture {{project_root}}/bin/
+    echo "Installed to bin/livetranslate-capture"
 
 # ==============================================================================
 # Development — Start Services
