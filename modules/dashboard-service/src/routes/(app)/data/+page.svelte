@@ -342,14 +342,14 @@
 				size="sm"
 				onclick={() => { dataSource = 'meetings'; clearData(); }}
 			>
-				Past Meetings ({data.meetings.length})
+				Meetings ({data.meetingsTotal})
 			</Button>
 			<Button
 				variant={dataSource === 'sessions' ? 'default' : 'outline'}
 				size="sm"
 				onclick={() => { dataSource = 'sessions'; clearData(); }}
 			>
-				Active Sessions ({data.sessions.length})
+				Fireflies Sessions ({data.sessions.length})
 			</Button>
 		</div>
 

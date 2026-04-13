@@ -27,6 +27,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 	return {
 		sessions,
 		meetings: meetingsRes.meetings ?? [],
+		meetingsTotal: meetingsRes.total ?? 0,
 		preSelectedSession,
 		preSelectedMeeting
 	};
