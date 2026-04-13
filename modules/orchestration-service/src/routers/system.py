@@ -13,11 +13,14 @@ import os
 import platform
 import re
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+from sqlalchemy import func, select
 
 import psutil
 from dependencies import (
+    get_database_manager,
     get_health_monitor,
     get_websocket_manager,
 )
@@ -821,3 +824,365 @@ async def get_system_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="System status check failed",
         ) from e
+
+
+# =============================================================================
+# Dashboard Statistics (real database metrics)
+# =============================================================================
+
+
+class MeetingsBySource(BaseModel):
+    """Meeting counts broken down by source."""
+    fireflies: int = 0
+    loopback: int = 0
+    gmeet: int = 0
+    other: int = 0
+
+
+class MeetingsByStatus(BaseModel):
+    """Meeting counts broken down by status."""
+    ephemeral: int = 0
+    active: int = 0
+    completed: int = 0
+    interrupted: int = 0
+
+
+class ActiveMeeting(BaseModel):
+    """Info about an active/in-progress meeting."""
+    id: str
+    source: str
+    status: str
+    title: str | None = None
+    started_at: str | None = None
+    duration_seconds: int | None = None
+    chunks_count: int = 0
+    translations_count: int = 0
+
+
+class DailyActivity(BaseModel):
+    """Activity counts for a single day."""
+    date: str
+    meetings: int = 0
+    chunks: int = 0
+    translations: int = 0
+    audio_minutes: float = 0.0
+
+
+class ServiceStatus(BaseModel):
+    """Status of a backend service."""
+    name: str
+    healthy: bool
+    latency_ms: float | None = None
+    last_check: str | None = None
+    error: str | None = None
+
+
+class DashboardStats(BaseModel):
+    """Comprehensive dashboard statistics from real database."""
+    # Summary counts
+    total_meetings: int = 0
+    active_meetings: int = 0
+    total_chunks: int = 0
+    total_translations: int = 0
+    total_audio_minutes: float = 0.0
+
+    # Breakdowns
+    by_source: MeetingsBySource = Field(default_factory=MeetingsBySource)
+    by_status: MeetingsByStatus = Field(default_factory=MeetingsByStatus)
+
+    # Active/in-progress meetings
+    active_meeting_list: list[ActiveMeeting] = Field(default_factory=list)
+
+    # Time series for charts (last 7 days)
+    daily_activity: list[DailyActivity] = Field(default_factory=list)
+
+    # Service health
+    services: list[ServiceStatus] = Field(default_factory=list)
+
+    # Metadata
+    generated_at: str = ""
+    database_connected: bool = False
+
+
+@router.get("/dashboard/stats", response_model=DashboardStats)
+async def get_dashboard_stats(
+    health_monitor=Depends(get_health_monitor),
+) -> DashboardStats:
+    """
+    Get real dashboard statistics from the database.
+
+    Returns comprehensive metrics including:
+    - Meeting counts by source and status
+    - Total transcription chunks and translations
+    - Active/in-progress meetings
+    - 7-day activity chart data
+    - Service health status
+    """
+    stats = DashboardStats(generated_at=datetime.now(UTC).isoformat())
+
+    try:
+        db_manager = get_database_manager()
+        stats.database_connected = True
+    except Exception as e:
+        logger.warning(f"Database not available for dashboard stats: {e}")
+        # Return partial stats with service health only
+        stats.services = await _get_service_health(health_monitor)
+        return stats
+
+    try:
+        async with db_manager.get_session() as session:
+            from database.models import Meeting, MeetingChunk, MeetingTranslation
+
+            # Total meetings count
+            result = await session.execute(select(func.count(Meeting.id)))
+            stats.total_meetings = result.scalar() or 0
+
+            # Meetings by status
+            status_result = await session.execute(
+                select(Meeting.status, func.count(Meeting.id)).group_by(Meeting.status)
+            )
+            for status_name, count in status_result:
+                if status_name == "ephemeral":
+                    stats.by_status.ephemeral = count
+                elif status_name == "active":
+                    stats.by_status.active = count
+                elif status_name == "completed":
+                    stats.by_status.completed = count
+                elif status_name == "interrupted":
+                    stats.by_status.interrupted = count
+
+            stats.active_meetings = stats.by_status.ephemeral + stats.by_status.active
+
+            # Meetings by source
+            source_result = await session.execute(
+                select(Meeting.source, func.count(Meeting.id)).group_by(Meeting.source)
+            )
+            for source_name, count in source_result:
+                if source_name == "fireflies":
+                    stats.by_source.fireflies = count
+                elif source_name == "loopback":
+                    stats.by_source.loopback = count
+                elif source_name in ("gmeet", "google_meet"):
+                    stats.by_source.gmeet = count
+                else:
+                    stats.by_source.other += count
+
+            # Total chunks
+            chunk_result = await session.execute(select(func.count(MeetingChunk.id)))
+            stats.total_chunks = chunk_result.scalar() or 0
+
+            # Total translations
+            translation_result = await session.execute(
+                select(func.count(MeetingTranslation.id))
+            )
+            stats.total_translations = translation_result.scalar() or 0
+
+            # Total audio minutes (from meeting durations)
+            duration_result = await session.execute(
+                select(func.sum(Meeting.duration)).where(Meeting.duration.isnot(None))
+            )
+            total_seconds = duration_result.scalar() or 0
+            stats.total_audio_minutes = round(total_seconds / 60.0, 1)
+
+            # Active meetings list (ephemeral + active status)
+            active_result = await session.execute(
+                select(Meeting)
+                .where(Meeting.status.in_(["ephemeral", "active"]))
+                .order_by(Meeting.started_at.desc())
+                .limit(10)
+            )
+            active_meetings = active_result.scalars().all()
+
+            for m in active_meetings:
+                # Get chunk count for this meeting
+                chunk_count_result = await session.execute(
+                    select(func.count(MeetingChunk.id)).where(
+                        MeetingChunk.meeting_id == m.id
+                    )
+                )
+                chunk_count = chunk_count_result.scalar() or 0
+
+                # Get translation count
+                trans_count_result = await session.execute(
+                    select(func.count(MeetingTranslation.id)).where(
+                        MeetingTranslation.meeting_id == m.id
+                    )
+                )
+                trans_count = trans_count_result.scalar() or 0
+
+                # Calculate duration if started
+                duration = None
+                if m.started_at:
+                    duration = int((datetime.now(UTC) - m.started_at).total_seconds())
+
+                stats.active_meeting_list.append(
+                    ActiveMeeting(
+                        id=str(m.id),
+                        source=m.source or "unknown",
+                        status=m.status or "unknown",
+                        title=m.title,
+                        started_at=m.started_at.isoformat() if m.started_at else None,
+                        duration_seconds=duration,
+                        chunks_count=chunk_count,
+                        translations_count=trans_count,
+                    )
+                )
+
+            # Daily activity for last 7 days
+            today = datetime.now(UTC).date()
+            for i in range(7):
+                day = today - timedelta(days=i)
+                day_start = datetime.combine(day, datetime.min.time()).replace(tzinfo=UTC)
+                day_end = day_start + timedelta(days=1)
+
+                # Meetings created this day
+                day_meetings = await session.execute(
+                    select(func.count(Meeting.id)).where(
+                        Meeting.created_at >= day_start,
+                        Meeting.created_at < day_end,
+                    )
+                )
+                meetings_count = day_meetings.scalar() or 0
+
+                # Chunks created this day
+                day_chunks = await session.execute(
+                    select(func.count(MeetingChunk.id)).where(
+                        MeetingChunk.created_at >= day_start,
+                        MeetingChunk.created_at < day_end,
+                    )
+                )
+                chunks_count = day_chunks.scalar() or 0
+
+                # Translations created this day
+                day_trans = await session.execute(
+                    select(func.count(MeetingTranslation.id)).where(
+                        MeetingTranslation.created_at >= day_start,
+                        MeetingTranslation.created_at < day_end,
+                    )
+                )
+                trans_count = day_trans.scalar() or 0
+
+                # Audio minutes from meetings ending this day
+                day_duration = await session.execute(
+                    select(func.sum(Meeting.duration)).where(
+                        Meeting.ended_at >= day_start,
+                        Meeting.ended_at < day_end,
+                        Meeting.duration.isnot(None),
+                    )
+                )
+                day_seconds = day_duration.scalar() or 0
+
+                stats.daily_activity.append(
+                    DailyActivity(
+                        date=day.isoformat(),
+                        meetings=meetings_count,
+                        chunks=chunks_count,
+                        translations=trans_count,
+                        audio_minutes=round(day_seconds / 60.0, 1),
+                    )
+                )
+
+            # Reverse to show oldest first (for charts)
+            stats.daily_activity.reverse()
+
+    except Exception as e:
+        logger.error(f"Failed to query dashboard stats: {e}")
+        # Continue with partial data
+
+    # Service health (always try to get this)
+    stats.services = await _get_service_health(health_monitor)
+
+    return stats
+
+
+async def _get_service_health(health_monitor) -> list[ServiceStatus]:
+    """Check health of all backend services."""
+    services = []
+    now = datetime.now(UTC).isoformat()
+
+    # Orchestration (self)
+    services.append(
+        ServiceStatus(name="orchestration", healthy=True, last_check=now)
+    )
+
+    # Transcription service
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            start = time.monotonic()
+            resp = await client.get("http://localhost:5001/health")
+            latency = (time.monotonic() - start) * 1000
+            services.append(
+                ServiceStatus(
+                    name="transcription",
+                    healthy=resp.status_code == 200,
+                    latency_ms=round(latency, 1),
+                    last_check=now,
+                )
+            )
+    except Exception as e:
+        services.append(
+            ServiceStatus(name="transcription", healthy=False, error=str(e), last_check=now)
+        )
+
+    # vLLM-MLX STT (Whisper)
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            start = time.monotonic()
+            resp = await client.get("http://localhost:8005/health")
+            latency = (time.monotonic() - start) * 1000
+            services.append(
+                ServiceStatus(
+                    name="vllm-stt",
+                    healthy=resp.status_code == 200,
+                    latency_ms=round(latency, 1),
+                    last_check=now,
+                )
+            )
+    except Exception as e:
+        services.append(
+            ServiceStatus(name="vllm-stt", healthy=False, error=str(e), last_check=now)
+        )
+
+    # vLLM-MLX LLM (Translation)
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            start = time.monotonic()
+            resp = await client.get("http://localhost:8006/health")
+            latency = (time.monotonic() - start) * 1000
+            services.append(
+                ServiceStatus(
+                    name="vllm-llm",
+                    healthy=resp.status_code == 200,
+                    latency_ms=round(latency, 1),
+                    last_check=now,
+                )
+            )
+    except Exception as e:
+        services.append(
+            ServiceStatus(name="vllm-llm", healthy=False, error=str(e), last_check=now)
+        )
+
+    # Database
+    try:
+        db_manager = get_database_manager()
+        async with db_manager.get_session() as session:
+            start = time.monotonic()
+            await session.execute(select(1))
+            latency = (time.monotonic() - start) * 1000
+            services.append(
+                ServiceStatus(
+                    name="database",
+                    healthy=True,
+                    latency_ms=round(latency, 1),
+                    last_check=now,
+                )
+            )
+    except Exception as e:
+        services.append(
+            ServiceStatus(name="database", healthy=False, error=str(e), last_check=now)
+        )
+
+    return services
