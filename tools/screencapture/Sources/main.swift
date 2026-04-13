@@ -66,24 +66,20 @@ func printUsage() {
     """, stderr)
 }
 
-@main
-struct LiveTranslateCapture {
-    static func main() async {
-        let config = parseArgs()
-
-        if config.listSources {
-            await listAudioSources()
-            return
-        }
-
-        do {
-            try await startCapture(config: config)
-        } catch {
-            fputs("Error: \(error.localizedDescription)\n", stderr)
-            exit(1)
-        }
+// Entry point: top-level async execution via main.swift
+let _entryConfig = parseArgs()
+if _entryConfig.listSources {
+    await LiveTranslateCapture.listAudioSources()
+} else {
+    do {
+        try await LiveTranslateCapture.startCapture(config: _entryConfig)
+    } catch {
+        fputs("Error: \(error.localizedDescription)\n", stderr)
+        exit(1)
     }
+}
 
+struct LiveTranslateCapture {
     static func listAudioSources() async {
         do {
             let content = try await SCShareableContent.current
@@ -98,8 +94,21 @@ struct LiveTranslateCapture {
     }
 
     static func startCapture(config: Config) async throws {
-        // AudioCapture will be implemented in Task 12
-        fputs("AudioCapture not yet implemented\n", stderr)
-        exit(1)
+        let capture = try await AudioCapture(config: config)
+
+        signal(SIGTERM) { _ in
+            Task { await AudioCapture.shared?.stop() }
+        }
+        signal(SIGINT) { _ in
+            Task { await AudioCapture.shared?.stop() }
+        }
+
+        try await capture.start()
+
+        await withCheckedContinuation { continuation in
+            Task {
+                await capture.setOnStop { continuation.resume() }
+            }
+        }
     }
 }
