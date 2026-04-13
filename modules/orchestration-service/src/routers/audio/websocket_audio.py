@@ -49,6 +49,7 @@ from livetranslate_common.models.ws_messages import (
     TranslationMessage,
     parse_ws_message,
 )
+from audio.screencapture_source import ScreenCaptureAudioSource
 from meeting.downsampler import downsample_to_16k
 from services.command_dispatcher import CommandDispatcher
 from services.meeting_session_config import MeetingSessionConfig
@@ -273,6 +274,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     source_orchestrator: SourceOrchestrator | None = None
     demo_manager: Any = None
     caption_buffer = None
+    screencapture: ScreenCaptureAudioSource | None = None
     session_tasks: set[asyncio.Task] = set()
     _ws_send_lock = asyncio.Lock()
     _disconnected = False
@@ -692,6 +694,12 @@ async def websocket_audio_stream(websocket: WebSocket):
             # --- start_session ---
             if isinstance(msg, StartSessionMessage):
                 # Tear down previous session if start_session sent twice (reconnect)
+                if screencapture:
+                    try:
+                        await screencapture.stop()
+                    except Exception:
+                        pass
+                    screencapture = None
                 if transcription_client:
                     try:
                         await transcription_client.send_end()
@@ -786,6 +794,52 @@ async def websocket_audio_stream(websocket: WebSocket):
                             translation="down",
                         ).model_dump_json()
                     )
+
+                # --- screencapture source ---
+                source_type = msg.source
+                if source_type == "screencapture" and transcription_client and transcription_client.connected:
+                    loop = asyncio.get_event_loop()
+
+                    def _on_screencapture_audio(audio: np.ndarray) -> None:
+                        """Inject screencapture audio into pipeline (called from asyncio loop)."""
+                        async def _forward() -> None:
+                            if pipeline:
+                                downsampled = await pipeline.process_audio(audio)
+                            else:
+                                downsampled = downsample_to_16k(
+                                    audio, source_rate=sample_rate, channels=channels
+                                )
+                            if len(downsampled) > 0 and transcription_client and transcription_client.connected:
+                                try:
+                                    await transcription_client.send_audio(downsampled.tobytes())
+                                except Exception as exc:
+                                    logger.warning("screencapture_audio_forward_failed", error=str(exc))
+
+                        loop.call_soon_threadsafe(lambda: asyncio.ensure_future(_forward()))
+
+                    def _on_screencapture_error(exc: Exception) -> None:
+                        """Forward screencapture errors to the client."""
+                        async def _send() -> None:
+                            await safe_send(json.dumps({
+                                "type": "error",
+                                "message": str(exc),
+                                "recoverable": False,
+                            }))
+
+                        loop.call_soon_threadsafe(lambda: asyncio.ensure_future(_send()))
+
+                    screencapture = ScreenCaptureAudioSource(
+                        on_audio=_on_screencapture_audio,
+                        on_error=_on_screencapture_error,
+                        sample_rate=sample_rate,
+                    )
+                    try:
+                        await screencapture.start()
+                        logger.info("screencapture_source_started", session_id=session_id)
+                    except Exception as exc:
+                        logger.error("screencapture_start_failed", error=str(exc))
+                        screencapture = None
+                        # Error already sent via on_error callback; continue without screencapture
 
                 meeting_config = MeetingSessionConfig(session_id=session_id)
                 try:
@@ -1037,7 +1091,13 @@ async def websocket_audio_stream(websocket: WebSocket):
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
 
-        # Cleanup: end pipeline and close transcription client
+        # Cleanup: stop screencapture source, end pipeline and close transcription client
+        if screencapture:
+            try:
+                await screencapture.stop()
+            except Exception:
+                pass
+
         if transcription_client:
             try:
                 await transcription_client.send_end()

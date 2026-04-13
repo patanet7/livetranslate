@@ -27,6 +27,8 @@ class StartSessionMessage(BaseModel):
         channels: Number of audio channels.
         encoding: PCM encoding format (default "float32" for browser Float32Array).
         device_id: Optional source device identifier.
+        source: Audio source type — "mic" (browser WebSocket frames, default) or
+            "screencapture" (native screen-capture subprocess via livetranslate-capture).
     """
 
     type: Literal["start_session"] = "start_session"
@@ -34,6 +36,7 @@ class StartSessionMessage(BaseModel):
     channels: int
     encoding: str = "float32"
     device_id: str | None = None
+    source: str = "mic"
 
 
 class EndSessionMessage(BaseModel):
