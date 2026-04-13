@@ -23,7 +23,7 @@ dependencies = [
     # WebSocket and networking
     "websockets>=12.0",
     "requests>=2.31.0",
-    "python-socketio[client]>=5.11.0",
+    "python-socketio[client]>=5.16.1",
     # Async and utilities
     "asyncio-mqtt>=0.16.2",
     "python-dotenv>=1.0.0",
