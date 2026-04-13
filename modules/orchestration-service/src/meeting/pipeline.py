@@ -36,12 +36,14 @@ class MeetingPipeline:
         source_type: str = "loopback",
         sample_rate: int = 48000,
         channels: int = 1,
+        auto_record: bool = True,
     ):
         self.session_manager = session_manager
         self.recording_base_path = recording_base_path
         self.source_type = source_type
         self.sample_rate = sample_rate
         self.channels = channels
+        self.auto_record = auto_record
 
         self._session_id: uuid.UUID | None = None
         self._recorder: FlacChunkRecorder | None = None
@@ -67,7 +69,22 @@ class MeetingPipeline:
         )
         self._session_id = session.id
         self._running = True
-        logger.info("pipeline_started", session_id=str(session.id), mode="ephemeral")
+
+        if self.auto_record:
+            self._recorder = FlacChunkRecorder(
+                session_id=str(self._session_id),
+                base_path=self.recording_base_path,
+                sample_rate=self.sample_rate,
+                channels=self.channels,
+            )
+            self._recorder.start()
+            self._is_meeting = True
+
+        logger.info(
+            "pipeline_started",
+            session_id=str(session.id),
+            mode="meeting" if self.auto_record else "ephemeral",
+        )
         return session.id
 
     async def promote_to_meeting(self) -> None:
