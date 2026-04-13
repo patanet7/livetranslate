@@ -11,6 +11,8 @@ export interface SourceConfig {
   sampleRate?: number;
   channels?: number;
   firefliesSessionId?: string;
+  /** Callback for audio level updates (0-1 range) from server-side capture */
+  onLevel?: (rms: number) => void;
 }
 
 export interface SourceAdapter {
@@ -26,12 +28,14 @@ export interface SourceAdapter {
 export class LoopbackAdapter implements SourceAdapter {
   private ws: WebSocket | null = null;
   private source: 'mic' | 'screencapture';
+  private onLevel?: (rms: number) => void;
 
   constructor(source: 'mic' | 'screencapture' = 'mic') {
     this.source = source;
   }
 
   async connect(config: SourceConfig): Promise<void> {
+    this.onLevel = config.onLevel;
     return new Promise((resolve, reject) => {
       const url = `${WS_BASE}/ws/loopback`;
       this.ws = new WebSocket(url);
@@ -122,6 +126,12 @@ export class LoopbackAdapter implements SourceAdapter {
         break;
       case 'language_detected':
         captionStore.detectedLanguage = msg.language;
+        break;
+      case 'audio_level':
+        // Server-side audio level (screencapture mode)
+        if (typeof msg.rms === 'number') {
+          this.onLevel?.(msg.rms);
+        }
         break;
       case 'error':
         captionStore.lastError = msg.message;

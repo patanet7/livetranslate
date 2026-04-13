@@ -147,6 +147,9 @@
           interpreterLanguages: captionStore.displayMode === 'interpreter'
             ? [captionStore.interpreterLangA, captionStore.interpreterLangB]
             : undefined,
+          onLevel: (rms) => {
+            audioLevel = rms;
+          },
         });
       } catch {
         captureError = 'Could not start system audio capture. Is the orchestration service running?';

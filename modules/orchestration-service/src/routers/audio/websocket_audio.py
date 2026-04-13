@@ -800,6 +800,10 @@ async def websocket_audio_stream(websocket: WebSocket):
                 if source_type == "screencapture" and transcription_client and transcription_client.connected:
                     loop = asyncio.get_event_loop()
 
+                    # Track screencapture audio levels for client feedback
+                    _sc_level_counter = [0]  # Mutable container for closure
+                    _sc_level_interval = 4   # Send level every N chunks (~340ms at 4096 samples)
+
                     def _on_screencapture_audio(audio: np.ndarray) -> None:
                         """Inject screencapture audio into pipeline (called from asyncio loop)."""
                         async def _forward() -> None:
@@ -814,6 +818,18 @@ async def websocket_audio_stream(websocket: WebSocket):
                                     await transcription_client.send_audio(downsampled.tobytes())
                                 except Exception as exc:
                                     logger.warning("screencapture_audio_forward_failed", error=str(exc))
+
+                            # Send audio level to client periodically
+                            _sc_level_counter[0] += 1
+                            if _sc_level_counter[0] >= _sc_level_interval:
+                                _sc_level_counter[0] = 0
+                                # Calculate RMS level (0-1 range)
+                                rms = float(np.sqrt(np.mean(audio ** 2)))
+                                await safe_send(json.dumps({
+                                    "type": "audio_level",
+                                    "rms": rms,
+                                    "source": "screencapture",
+                                }))
 
                         loop.call_soon_threadsafe(lambda: asyncio.ensure_future(_forward()))
 

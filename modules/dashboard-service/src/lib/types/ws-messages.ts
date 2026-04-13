@@ -163,6 +163,12 @@ export interface ConfigChangedMessage {
   changes: Record<string, unknown>;
 }
 
+export interface AudioLevelMessage {
+  type: 'audio_level';
+  rms: number;
+  source?: 'screencapture' | 'mic';
+}
+
 export type ServerMessage =
   | ConnectedMessage
   | SegmentMessage
@@ -176,7 +182,8 @@ export type ServerMessage =
   | BackendSwitchedMessage
   | ErrorMessage
   | ChatResponseMessage
-  | ConfigChangedMessage;
+  | ConfigChangedMessage
+  | AudioLevelMessage;
 
 export function parseServerMessage(raw: string): ServerMessage | null {
   try {
