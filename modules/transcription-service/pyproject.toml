@@ -32,7 +32,7 @@ dependencies = [
     "hiredis>=2.0.0",
     # Whisper and speech processing - Phase 2: PyTorch-based
     "openai-whisper>=20231117",
-    "torch>=2.2.0",
+    "torch>=2.11.0",
     "torchaudio>=2.2.0",
     "tiktoken>=0.5.0",
     "faster-whisper>=0.9.0",
