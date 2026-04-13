@@ -4,8 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { loopbackStore, type DisplayMode } from '$lib/stores/loopback.svelte';
-	import { captionStore } from '$lib/stores/caption.svelte';
+	import { captionStore, type DisplayMode } from '$lib/stores/caption.svelte';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 
@@ -144,14 +143,14 @@
 	});
 
 	// Local select values bound to store
-	let sourceLanguageValue = $state(loopbackStore.sourceLanguage ?? 'auto');
-	let targetLanguageValue = $state(loopbackStore.targetLanguage);
+	let sourceLanguageValue = $state(captionStore.sourceLanguage ?? 'auto');
+	let targetLanguageValue = $state(captionStore.targetLanguage);
 	let modelOverride = $state('auto');
-	let interpreterLangAValue = $state(loopbackStore.interpreterLangA);
-	let interpreterLangBValue = $state(loopbackStore.interpreterLangB);
+	let interpreterLangAValue = $state(captionStore.interpreterLangA);
+	let interpreterLangBValue = $state(captionStore.interpreterLangB);
 
 	// Whether interpreter mode is active (derived for template conditionals)
-	let isInterpreterMode = $derived(loopbackStore.displayMode === 'interpreter');
+	let isInterpreterMode = $derived(captionStore.displayMode === 'interpreter');
 
 	// Track previous values to avoid writing to the store on initial render.
 	// Effects run immediately during component initialization and writing to
@@ -166,10 +165,10 @@
 		if (val === prevSourceLang) return;
 		prevSourceLang = val;
 		const lang = val === 'auto' ? null : val;
-		loopbackStore.sourceLanguage = lang;
+		captionStore.sourceLanguage = lang;
 		// I2: Send config change to server if capturing.
 		// Send null too — resets server to auto-detect when switching back from explicit language.
-		if (loopbackStore.isCapturing) {
+		if (captionStore.isCapturing) {
 			onConfigChange?.({ language: lang });
 		}
 	});
@@ -179,8 +178,8 @@
 		const val = targetLanguageValue;
 		if (val === prevTargetLang) return;
 		prevTargetLang = val;
-		loopbackStore.targetLanguage = val;
-		if (loopbackStore.isCapturing) {
+		captionStore.targetLanguage = val;
+		if (captionStore.isCapturing) {
 			onConfigChange?.({ target_language: val });
 		}
 	});
@@ -190,7 +189,7 @@
 		const val = modelOverride;
 		if (val === prevModel) return;
 		prevModel = val;
-		if (loopbackStore.isCapturing && val !== 'auto') {
+		if (captionStore.isCapturing && val !== 'auto') {
 			onConfigChange?.({ model: val });
 		}
 	});
@@ -216,27 +215,27 @@
 		}
 		prevInterpA = a;
 		prevInterpB = b;
-		loopbackStore.interpreterLangA = a;
-		loopbackStore.interpreterLangB = b;
-		if (isInterpreterMode && loopbackStore.isCapturing) {
+		captionStore.interpreterLangA = a;
+		captionStore.interpreterLangB = b;
+		if (isInterpreterMode && captionStore.isCapturing) {
 			onConfigChange?.({ language: undefined, interpreter_languages: [a, b] });
 		}
 	});
 
 	// When entering/leaving interpreter mode, send appropriate config
-	let prevDisplayMode = $state(untrack(() => loopbackStore.displayMode));
+	let prevDisplayMode = $state(untrack(() => captionStore.displayMode));
 	$effect(() => {
-		const mode = loopbackStore.displayMode;
+		const mode = captionStore.displayMode;
 		if (mode === prevDisplayMode) return;
 		const wasInterpreter = prevDisplayMode === 'interpreter';
 		prevDisplayMode = mode;
-		if (!loopbackStore.isCapturing) return;
+		if (!captionStore.isCapturing) return;
 		if (mode === 'interpreter') {
 			// Entering interpreter mode — send interpreter_languages, force auto-detect
 			onConfigChange?.({ language: undefined, interpreter_languages: [interpreterLangAValue, interpreterLangBValue] });
 		} else if (wasInterpreter) {
 			// Leaving interpreter mode — clear interpreter state, restore target language
-			onConfigChange?.({ interpreter_languages: null, target_language: loopbackStore.targetLanguage });
+			onConfigChange?.({ interpreter_languages: null, target_language: captionStore.targetLanguage });
 		}
 	});
 
@@ -276,7 +275,7 @@
 					value="local"
 					checked={captionStore.captionSource === 'local'}
 					onchange={() => { captionStore.captionSource = 'local'; }}
-					disabled={loopbackStore.isCapturing}
+					disabled={captionStore.isCapturing}
 				/>
 				<span>Mic</span>
 			</label>
@@ -287,7 +286,7 @@
 					value="screencapture"
 					checked={captionStore.captionSource === 'screencapture'}
 					onchange={() => { captionStore.captionSource = 'screencapture'; }}
-					disabled={loopbackStore.isCapturing || !screenCaptureAvailable}
+					disabled={captionStore.isCapturing || !screenCaptureAvailable}
 				/>
 				<span>System Audio</span>
 				{#if !screenCaptureAvailable}<span class="source-badge">Install</span>{/if}
@@ -299,7 +298,7 @@
 					value="fireflies"
 					checked={captionStore.captionSource === 'fireflies'}
 					onchange={() => { captionStore.captionSource = 'fireflies'; }}
-					disabled={loopbackStore.isCapturing}
+					disabled={captionStore.isCapturing}
 				/>
 				<span>Fireflies</span>
 			</label>
@@ -452,10 +451,10 @@
 			{#each DISPLAY_MODES as mode (mode.value)}
 				<button
 					class="display-mode-btn"
-					class:active={loopbackStore.displayMode === mode.value}
+					class:active={captionStore.displayMode === mode.value}
 					role="radio"
-					aria-checked={loopbackStore.displayMode === mode.value}
-					onclick={() => { loopbackStore.displayMode = mode.value; }}
+					aria-checked={captionStore.displayMode === mode.value}
+					onclick={() => { captionStore.displayMode = mode.value; }}
 				>{mode.label}</button>
 			{/each}
 		</div>
@@ -465,15 +464,15 @@
 	<div class="toolbar-group">
 		<span class="toolbar-label">Status</span>
 		<div class="status-dots">
-			<span class="status-dot" role="status" aria-label="Speech-to-text: {loopbackStore.transcriptionStatus}" style="background-color: {statusColor(loopbackStore.transcriptionStatus)};"></span>
+			<span class="status-dot" role="status" aria-label="Speech-to-text: {captionStore.transcriptionStatus}" style="background-color: {statusColor(captionStore.transcriptionStatus)};"></span>
 			<span class="status-label">STT</span>
-			<span class="status-dot" role="status" aria-label="Machine translation: {loopbackStore.translationStatus}" style="background-color: {statusColor(loopbackStore.translationStatus)};"></span>
+			<span class="status-dot" role="status" aria-label="Machine translation: {captionStore.translationStatus}" style="background-color: {statusColor(captionStore.translationStatus)};"></span>
 			<span class="status-label">MT</span>
 		</div>
 	</div>
 
 	<!-- Audio Level + Pipeline Counters -->
-	{#if loopbackStore.isCapturing}
+	{#if captionStore.isCapturing}
 		<div class="toolbar-group">
 			<span class="toolbar-label">Level</span>
 			<div class="vu-meter" role="meter" aria-label="Audio input level" aria-valuenow={levelPercent} aria-valuemin={0} aria-valuemax={100}>
@@ -483,11 +482,11 @@
 		<div class="toolbar-group">
 			<span class="toolbar-label">Pipeline</span>
 			<div class="pipeline-counters">
-				<span class="counter" title="Audio chunks sent to server">{loopbackStore.chunksSent} <span class="counter-label">chunks</span></span>
+				<span class="counter" title="Audio chunks sent to server">{captionStore.chunksSent} <span class="counter-label">chunks</span></span>
 				<span class="counter-sep">&rarr;</span>
-				<span class="counter" title="Transcription segments received">{loopbackStore.segmentsReceived} <span class="counter-label">segs</span></span>
+				<span class="counter" title="Transcription segments received">{captionStore.segmentsReceived} <span class="counter-label">segs</span></span>
 				<span class="counter-sep">&rarr;</span>
-				<span class="counter" title="Translations received">{loopbackStore.translationsReceived} <span class="counter-label">xlat</span></span>
+				<span class="counter" title="Translations received">{captionStore.translationsReceived} <span class="counter-label">xlat</span></span>
 			</div>
 		</div>
 	{/if}
@@ -502,7 +501,7 @@
 			<Button variant="ghost" size="sm" disabled>
 				<span class="drain-spinner"></span> Finishing...
 			</Button>
-		{:else if loopbackStore.isCapturing}
+		{:else if captionStore.isCapturing}
 			<Button variant="destructive" size="sm" onclick={onStopCapture}>
 				Stop Capture
 			</Button>
@@ -516,7 +515,7 @@
 		{/if}
 
 		{#if !isDemoRunning}
-			{#if loopbackStore.isMeetingActive}
+			{#if captionStore.isMeetingActive}
 				<Button
 					variant="destructive"
 					size="sm"

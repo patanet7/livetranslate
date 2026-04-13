@@ -1790,6 +1790,55 @@ async def get_active_meetings(
 
 
 @router.get(
+    "/sessions/active",
+    response_model=ActiveMeetingsResponse,
+    summary="Get active Fireflies meetings (GET convenience endpoint)",
+    description="Frontend-friendly GET endpoint that returns active meetings from Fireflies",
+)
+async def get_active_sessions(
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+):
+    """
+    GET endpoint for active Fireflies sessions.
+
+    Returns active meetings from the Fireflies API using credentials from config.
+    Unlike the POST /meetings endpoint, no request body is required — API key is
+    read from server-side environment configuration.
+    """
+    api_key = ff_config.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Fireflies API key not configured. Set FIREFLIES_API_KEY in .env",
+        )
+
+    client = FirefliesClient(api_key=api_key)
+    try:
+        meetings = await client.get_active_meetings()
+        return ActiveMeetingsResponse(
+            success=True,
+            meetings=meetings,
+            count=len(meetings),
+            auto_select=len(meetings) == 1,
+            auto_select_id=meetings[0].id if len(meetings) == 1 else None,
+        )
+    except FirefliesAPIError as e:
+        logger.error("fireflies_api_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Fireflies API error: {e!s}",
+        ) from e
+    except Exception as e:
+        logger.exception("get_active_sessions_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get active sessions: {e!s}",
+        ) from e
+    finally:
+        await client.close()
+
+
+@router.get(
     "/health",
     summary="Check Fireflies integration health",
 )

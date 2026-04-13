@@ -2,7 +2,7 @@
  * Shared helpers for paragraph-level translation state.
  * Used by SplitView, TranscriptView, and SubtitleView.
  */
-import type { TranslationState } from '$lib/stores/loopback.svelte';
+import type { TranslationState } from '$lib/stores/caption.svelte';
 
 interface CaptionLike {
   translation: string | null;
