@@ -175,8 +175,31 @@ export class AudioCapture {
     this._isCapturing = false;
   }
 
+  /**
+   * Enumerate audio input devices.
+   *
+   * Note: Browsers require microphone permission before returning device labels.
+   * If permission hasn't been granted, this returns devices with empty labels.
+   * Call requestPermission() first if you need labels.
+   */
   static async getDevices(): Promise<MediaDeviceInfo[]> {
     const devices = await navigator.mediaDevices.enumerateDevices();
     return devices.filter((d) => d.kind === 'audioinput');
+  }
+
+  /**
+   * Request microphone permission and return devices with labels.
+   * This triggers the browser permission prompt if not already granted.
+   */
+  static async requestPermissionAndGetDevices(): Promise<MediaDeviceInfo[]> {
+    try {
+      // Request a temporary stream to trigger permission prompt
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop the stream immediately — we just needed permission
+      stream.getTracks().forEach((t) => t.stop());
+    } catch {
+      // Permission denied or no devices — getDevices will return what it can
+    }
+    return this.getDevices();
   }
 }

@@ -347,9 +347,10 @@
 	</div>
 	{/if}
 
-	<!-- Audio Source -->
+	<!-- Audio Source (only for local mic mode) -->
+	{#if captionStore.captionSource === 'local'}
 	<div class="toolbar-group">
-		<span class="toolbar-label">Audio Source</span>
+		<span class="toolbar-label">Audio Device</span>
 		<Select.Root type="single" value={selectedDeviceId} onValueChange={(v) => { if (v) { selectedDeviceId = v; onDeviceChange?.(v); } }}>
 			<Select.Trigger class="toolbar-select">
 				{devices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Select device'}
@@ -363,6 +364,7 @@
 			</Select.Content>
 		</Select.Root>
 	</div>
+	{/if}
 
 	{#if isInterpreterMode}
 		<!-- Interpreter: Language A -->

@@ -85,13 +85,13 @@
     const source = captionStore.captionSource;
     adapter = createSourceAdapter(source);
 
-    if (source === 'local' || source === 'screencapture') {
-      // For local/screencapture: start AudioCapture first, then connect adapter
+    if (source === 'local') {
+      // Local mic: start AudioCapture, then connect adapter
       capture = new AudioCapture();
       try {
         await capture.start({
           deviceId: selectedDeviceId || undefined,
-          sourceType: source === 'screencapture' ? 'system' : 'mic',
+          sourceType: 'mic',
           onChunk: (data) => {
             adapter?.sendAudio?.(data);
             captionStore.chunksSent++;
@@ -135,6 +135,22 @@
         captionStore.connectionState = 'error';
         await capture.stop();
         capture = null;
+        adapter = null;
+        return;
+      }
+    } else if (source === 'screencapture') {
+      // ScreenCaptureKit: server captures audio via Swift binary, no browser AudioCapture needed
+      try {
+        await adapter.connect({
+          sourceLanguage: captionStore.sourceLanguage,
+          targetLanguage: captionStore.targetLanguage,
+          interpreterLanguages: captionStore.displayMode === 'interpreter'
+            ? [captionStore.interpreterLangA, captionStore.interpreterLangB]
+            : undefined,
+        });
+      } catch {
+        captureError = 'Could not start system audio capture. Is the orchestration service running?';
+        captionStore.connectionState = 'error';
         adapter = null;
         return;
       }
@@ -263,7 +279,8 @@
     captionStore.connectionState = 'disconnected';
 
     try {
-      devices = await AudioCapture.getDevices();
+      // Request permission first to get device labels (browsers hide labels without permission)
+      devices = await AudioCapture.requestPermissionAndGetDevices();
       if (devices.length > 0 && !selectedDeviceId) {
         selectedDeviceId = devices[0].deviceId;
       }
