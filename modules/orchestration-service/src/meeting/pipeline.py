@@ -92,6 +92,10 @@ class MeetingPipeline:
         if self._session_id is None:
             raise RuntimeError("Cannot promote: no active session")
 
+        if self._recorder is not None:
+            # Already recording (either via auto_record or previous promote)
+            return
+
         await self.session_manager.promote_to_meeting(self._session_id)
 
         self._recorder = FlacChunkRecorder(
@@ -156,3 +160,4 @@ class MeetingPipeline:
         self._running = False
         self._is_meeting = False
         logger.info("pipeline_ended", session_id=str(self._session_id))
+        self._session_id = None
