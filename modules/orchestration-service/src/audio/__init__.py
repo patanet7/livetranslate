@@ -38,6 +38,8 @@ from .models import (
 #     create_audio_coordinator,
 # )
 
+from .screencapture_source import ScreenCaptureAudioSource
+
 __all__ = [
     # Models
     "AudioChunkMetadata",
@@ -53,6 +55,8 @@ __all__ = [
     "create_audio_config_manager",
     "get_default_audio_processing_config",
     "get_default_chunking_config",
+    # Screen capture
+    "ScreenCaptureAudioSource",
     # Database (commented out until implemented)
     # "AudioDatabaseAdapter",
     # "create_audio_database_adapter",
