@@ -96,10 +96,11 @@
 	let apiLog = $state<ApiLogEntry[]>([]);
 	let loadError = $state('');
 
-	// Service logs (from ring buffer)
+	// Service logs (from persistent files)
 	let serviceLogs = $state<ServiceLogEntry[]>([]);
 	let serviceLogsLoading = $state(false);
 	let logLevelFilter = $state<string>('');
+	let logServiceFilter = $state<string>('');
 	let logsAutoRefresh = $state(true);
 	let logsRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -250,8 +251,9 @@
 		if (!browser) return;
 		serviceLogsLoading = true;
 		try {
-			const params = new URLSearchParams({ limit: '200' });
+			const params = new URLSearchParams({ limit: '500' });
 			if (logLevelFilter) params.set('level', logLevelFilter);
+			if (logServiceFilter) params.set('service', logServiceFilter);
 			const res = await fetch(`/api/system/logs?${params}`);
 			if (res.ok) {
 				const data = await res.json();
@@ -289,9 +291,12 @@
 		return () => stopLogsAutoRefresh();
 	});
 
-	// Reload when filter changes
+	// Reload when filters change
 	$effect(() => {
-		if (logLevelFilter !== undefined && browser) {
+		// Track both filters to trigger reload
+		const _level = logLevelFilter;
+		const _service = logServiceFilter;
+		if (browser) {
 			loadServiceLogs();
 		}
 	});
@@ -620,15 +625,24 @@
 	</Card.Root>
 {/if}
 
-<!-- Service Logs (Real-time) -->
+<!-- Service Logs (Persistent) -->
 <Card.Root class="mb-6">
 	<Card.Header>
 		<div class="flex items-center justify-between">
 			<div>
 				<Card.Title>Service Logs</Card.Title>
-				<Card.Description>Real-time logs from all backend services</Card.Description>
+				<Card.Description>Persistent logs from /tmp/livetranslate/logs/</Card.Description>
 			</div>
 			<div class="flex items-center gap-2">
+				<select
+					class="rounded-md border bg-background px-2 py-1 text-xs"
+					bind:value={logServiceFilter}
+				>
+					<option value="">All services</option>
+					<option value="orchestration">orchestration</option>
+					<option value="transcription">transcription</option>
+					<option value="dashboard">dashboard</option>
+				</select>
 				<select
 					class="rounded-md border bg-background px-2 py-1 text-xs"
 					bind:value={logLevelFilter}

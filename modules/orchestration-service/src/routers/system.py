@@ -1213,33 +1213,84 @@ class LogsResponse(BaseModel):
 
 @router.get("/logs", response_model=LogsResponse)
 async def get_service_logs(
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=200, ge=1, le=1000),
     level: str | None = Query(default=None, description="Filter by log level (debug, info, warning, error)"),
+    service: str | None = Query(default=None, description="Filter by service name"),
 ) -> LogsResponse:
     """
-    Get recent service log entries from the ring buffer.
+    Get recent service log entries from persistent log files.
 
-    Returns structured log events for display in the dashboard.
-    Logs are captured from all services using structlog.
+    Reads JSONL log files from /tmp/livetranslate/logs/ for all services.
+    Falls back to in-memory buffer if files not available.
     """
-    from livetranslate_common.logging import get_log_buffer
+    import json
+    from pathlib import Path
 
-    buf = get_log_buffer()
-    entries = buf.get_recent(limit=limit, level=level)
+    log_dir = Path(os.environ.get("LIVETRANSLATE_LOG_DIR", "/tmp/livetranslate/logs"))
+    entries: list[LogEntryResponse] = []
+
+    # Read from all service log files
+    if log_dir.exists():
+        log_files = list(log_dir.glob("*.jsonl"))
+        for log_file in log_files:
+            service_name = log_file.stem
+            if service and service != service_name:
+                continue
+            try:
+                # Read last N lines efficiently (tail)
+                with open(log_file, "rb") as f:
+                    # Seek to end and read backwards
+                    f.seek(0, 2)
+                    file_size = f.tell()
+                    # Read last 500KB max
+                    read_size = min(file_size, 500 * 1024)
+                    f.seek(max(0, file_size - read_size))
+                    content = f.read().decode("utf-8", errors="replace")
+
+                for line in content.strip().split("\n"):
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        entry_level = data.get("level", "info")
+                        if level and entry_level.lower() != level.lower():
+                            continue
+                        entries.append(
+                            LogEntryResponse(
+                                timestamp=data.get("timestamp", ""),
+                                level=entry_level,
+                                event=data.get("event", ""),
+                                service=data.get("service", service_name),
+                                filename=data.get("filename"),
+                                func_name=data.get("func_name"),
+                                lineno=data.get("lineno"),
+                                extra={
+                                    k: v
+                                    for k, v in data.items()
+                                    if k
+                                    not in {
+                                        "timestamp",
+                                        "level",
+                                        "event",
+                                        "service",
+                                        "filename",
+                                        "func_name",
+                                        "lineno",
+                                    }
+                                },
+                            )
+                        )
+                    except json.JSONDecodeError:
+                        # Skip malformed lines silently (common in log files)
+                        continue
+            except OSError as e:
+                logger.warning("log_file_read_failed", file=str(log_file), error=str(e))
+
+    # Sort by timestamp descending and limit
+    entries.sort(key=lambda e: e.timestamp, reverse=True)
+    entries = entries[:limit]
 
     return LogsResponse(
-        entries=[
-            LogEntryResponse(
-                timestamp=e.timestamp,
-                level=e.level,
-                event=e.event,
-                service=e.service,
-                filename=e.filename,
-                func_name=e.func_name,
-                lineno=e.lineno,
-                extra=e.extra,
-            )
-            for e in entries
-        ],
-        total_buffered=len(buf),
+        entries=entries,
+        total_buffered=len(entries),
     )

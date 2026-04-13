@@ -3,11 +3,15 @@
 import logging
 import os
 import sys
+from pathlib import Path
 
 import structlog
 
 from livetranslate_common.logging.buffer import buffer_processor
 from livetranslate_common.logging.processors import add_service_name, censor_sensitive_data
+
+# Persistent log directory
+LOG_DIR = Path(os.environ.get("LIVETRANSLATE_LOG_DIR", "/tmp/livetranslate/logs"))
 
 
 def setup_logging(service_name: str, log_level: str = "INFO", log_format: str = "json") -> None:
@@ -72,6 +76,31 @@ def setup_logging(service_name: str, log_level: str = "INFO", log_format: str = 
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
     root_logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+    # Also write JSON logs to persistent file for dashboard viewing
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = LOG_DIR / f"{service_name}.jsonl"
+        # Use RotatingFileHandler to prevent unbounded growth
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10MB per file
+            backupCount=3,
+        )
+        # Always use JSON for file logs (machine-readable)
+        json_formatter = structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=shared_processors,
+            processors=[
+                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                structlog.processors.JSONRenderer(),
+            ],
+        )
+        file_handler.setFormatter(json_formatter)
+        root_logger.addHandler(file_handler)
+    except OSError as e:
+        # Log to stderr if file handler setup fails (don't fail startup)
+        sys.stderr.write(f"[{service_name}] Failed to setup file logging: {e}\n")
 
 
 def get_logger(**initial_bindings: object) -> structlog.stdlib.BoundLogger:

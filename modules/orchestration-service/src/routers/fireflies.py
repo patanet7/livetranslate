@@ -1424,7 +1424,7 @@ async def get_sessions(
             rows = await db.execute(
                 select(Meeting, chunk_count, sentence_count, translation_count)
                 .order_by(Meeting.created_at.desc())
-                .limit(50)
+                .limit(250)  # Show more historical meetings
             )
 
             for meeting, chunks, sentences, translations in rows.all():
