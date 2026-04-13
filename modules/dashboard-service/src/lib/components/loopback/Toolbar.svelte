@@ -1,13 +1,29 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { loopbackStore, type DisplayMode } from '$lib/stores/loopback.svelte';
+	import { captionStore } from '$lib/stores/caption.svelte';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 
 	let toolbarExpanded = $state(true);
+	let screenCaptureAvailable = $state(false);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/system/screencapture-available');
+			if (res.ok) {
+				const data = await res.json() as { available?: boolean };
+				screenCaptureAvailable = data.available ?? false;
+			}
+		} catch {
+			// Endpoint not yet available — treat as not installed
+			screenCaptureAvailable = false;
+		}
+	});
 
 	interface Props {
 		devices: MediaDeviceInfo[];
@@ -209,6 +225,47 @@
 	</button>
 
 	{#if toolbarExpanded}
+	<!-- Caption Source Selector -->
+	<div class="toolbar-group">
+		<span class="toolbar-label">Source</span>
+		<div class="source-options" role="radiogroup" aria-label="Caption source">
+			<label class="source-option">
+				<input
+					type="radio"
+					name="caption-source"
+					value="local"
+					checked={captionStore.captionSource === 'local'}
+					onchange={() => { captionStore.captionSource = 'local'; }}
+					disabled={loopbackStore.isCapturing}
+				/>
+				<span>Mic</span>
+			</label>
+			<label class="source-option" class:source-option-disabled={!screenCaptureAvailable}>
+				<input
+					type="radio"
+					name="caption-source"
+					value="screencapture"
+					checked={captionStore.captionSource === 'screencapture'}
+					onchange={() => { captionStore.captionSource = 'screencapture'; }}
+					disabled={loopbackStore.isCapturing || !screenCaptureAvailable}
+				/>
+				<span>System Audio</span>
+				{#if !screenCaptureAvailable}<span class="source-badge">Install</span>{/if}
+			</label>
+			<label class="source-option">
+				<input
+					type="radio"
+					name="caption-source"
+					value="fireflies"
+					checked={captionStore.captionSource === 'fireflies'}
+					onchange={() => { captionStore.captionSource = 'fireflies'; }}
+					disabled={loopbackStore.isCapturing}
+				/>
+				<span>Fireflies</span>
+			</label>
+		</div>
+	</div>
+
 	<!-- Audio Source -->
 	<div class="toolbar-group">
 		<span class="toolbar-label">Audio Source</span>
@@ -576,5 +633,55 @@
 
 	@keyframes spin {
 		to { transform: rotate(360deg); }
+	}
+
+	.source-options {
+		display: flex;
+		gap: 0.25rem;
+		flex-wrap: wrap;
+	}
+
+	.source-option {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.8125rem;
+		border: 1px solid var(--border, #333);
+		border-radius: 0.375rem;
+		cursor: pointer;
+		color: var(--text, #e2e8f0);
+		background: transparent;
+		transition: background-color 0.15s, border-color 0.15s;
+		user-select: none;
+		white-space: nowrap;
+	}
+
+	.source-option:hover:not(.source-option-disabled) {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.source-option input[type="radio"] {
+		accent-color: var(--primary, #3b82f6);
+		width: 0.75rem;
+		height: 0.75rem;
+		flex-shrink: 0;
+	}
+
+	.source-option-disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+	.source-badge {
+		font-size: 0.625rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 0.0625rem 0.3125rem;
+		border-radius: 0.25rem;
+		background: var(--warning, #f59e0b);
+		color: #000;
+		margin-left: 0.125rem;
 	}
 </style>
