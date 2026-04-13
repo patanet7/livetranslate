@@ -288,6 +288,7 @@ async def caption_stream(
         await websocket.send_json(
             {
                 "event": "connected",
+                "protocol_version": 1,
                 "session_id": session_id,
                 "current_captions": [c.to_dict() for c in current_captions],
                 "timestamp": datetime.now(UTC).isoformat(),
