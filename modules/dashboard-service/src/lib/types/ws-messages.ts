@@ -7,6 +7,7 @@ export interface StartSessionMessage {
   channels: number;
   encoding?: string; // default "float32" for browser Float32Array
   device_id?: string;
+  source?: 'mic' | 'screencapture'; // Audio source type
 }
 
 export interface EndSessionMessage {
