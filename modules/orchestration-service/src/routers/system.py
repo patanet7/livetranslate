@@ -6,9 +6,11 @@ FastAPI router for system-wide management endpoints including:
 - Service status and coordination
 - Performance metrics
 - System configuration
+- Capability detection (ScreenCaptureKit availability)
 """
 
 import os
+import platform
 import re
 import time
 from datetime import UTC, datetime
@@ -732,6 +734,68 @@ async def _get_system_stats() -> dict:
             "uptime": 0.0,
             "timestamp": time.time(),
         }
+
+
+# ============================================================================
+# Capability Detection Endpoints
+# ============================================================================
+
+
+class ScreenCaptureAvailability(BaseModel):
+    available: bool
+    reason: str | None = None
+    platform: str
+    version: str | None = None
+
+
+@router.get("/screencapture-available", response_model=ScreenCaptureAvailability)
+async def check_screencapture_available() -> ScreenCaptureAvailability:
+    """Check if ScreenCaptureKit audio capture is available on this host."""
+    system = platform.system()
+
+    if system != "Darwin":
+        return ScreenCaptureAvailability(
+            available=False,
+            reason="ScreenCaptureKit requires macOS",
+            platform=system,
+        )
+
+    # Check macOS version (need 13.0+)
+    version = platform.mac_ver()[0]
+    major = int(version.split(".")[0]) if version else 0
+
+    if major < 13:
+        return ScreenCaptureAvailability(
+            available=False,
+            reason=f"ScreenCaptureKit requires macOS 13+, found {version}",
+            platform=system,
+            version=version,
+        )
+
+    # Check if capture binary is installed
+    try:
+        from audio.screencapture_source import ScreenCaptureAudioSource
+
+        if not ScreenCaptureAudioSource.is_available():
+            return ScreenCaptureAvailability(
+                available=False,
+                reason="livetranslate-capture binary not installed",
+                platform=system,
+                version=version,
+            )
+    except ImportError:
+        return ScreenCaptureAvailability(
+            available=False,
+            reason="ScreenCaptureKit audio source module not installed",
+            platform=system,
+            version=version,
+        )
+
+    return ScreenCaptureAvailability(
+        available=True,
+        platform=system,
+        version=version,
+    )
 
 
 @router.get("/status")
