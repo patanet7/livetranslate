@@ -18,6 +18,9 @@ from collections.abc import Callable
 from typing import Optional
 
 import numpy as np
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -40,10 +43,27 @@ def _find_capture_binary() -> str | None:
     local_binary = project_root / "bin" / CAPTURE_BINARY_NAME_NAME
 
     if local_binary.exists() and local_binary.is_file():
+        logger.debug(
+            "screencapture_binary_found",
+            path=str(local_binary),
+            source="project_bin",
+        )
         return str(local_binary)
 
     # Fall back to PATH
-    return shutil.which(CAPTURE_BINARY_NAME_NAME)
+    path_binary = shutil.which(CAPTURE_BINARY_NAME_NAME)
+    if path_binary:
+        logger.debug(
+            "screencapture_binary_found",
+            path=path_binary,
+            source="system_path",
+        )
+    else:
+        logger.warning(
+            "screencapture_binary_not_found",
+            checked_local=str(local_binary),
+        )
+    return path_binary
 
 
 class ScreenCaptureAudioSource:
@@ -97,6 +117,11 @@ class ScreenCaptureAudioSource:
         """
         binary_path = _find_capture_binary()
         if binary_path is None:
+            logger.error(
+                "screencapture_start_failed",
+                reason="binary_not_found",
+                binary_name=CAPTURE_BINARY_NAME_NAME,
+            )
             exc = RuntimeError(
                 f"'{CAPTURE_BINARY_NAME_NAME}' binary not found. "
                 "Run 'just build-screencapture' to build and install it."
@@ -104,6 +129,12 @@ class ScreenCaptureAudioSource:
             if self._on_error:
                 self._on_error(exc)
             raise exc
+
+        logger.info(
+            "screencapture_starting",
+            binary_path=binary_path,
+            sample_rate=self.sample_rate,
+        )
 
         self._process = await asyncio.create_subprocess_exec(
             binary_path,
@@ -113,6 +144,12 @@ class ScreenCaptureAudioSource:
         self._running = True
         self._last_read_time = time.monotonic()
         self._stop_event.clear()
+
+        logger.info(
+            "screencapture_started",
+            pid=self._process.pid,
+            watchdog_timeout_s=WATCHDOG_TIMEOUT,
+        )
 
         # Start watchdog on a daemon thread so it doesn't block shutdown.
         self._watchdog_thread = threading.Thread(
@@ -131,7 +168,11 @@ class ScreenCaptureAudioSource:
         Idempotent — safe to call multiple times.
         """
         if not self._running:
+            logger.debug("screencapture_stop_skipped", reason="not_running")
             return
+
+        pid = self._process.pid if self._process else None
+        logger.info("screencapture_stopping", pid=pid)
 
         self._running = False
         self._stop_event.set()
@@ -142,14 +183,16 @@ class ScreenCaptureAudioSource:
             try:
                 await asyncio.wait_for(asyncio.shield(self._read_task), timeout=2.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+                logger.debug("screencapture_read_task_cancelled")
 
         # Terminate the subprocess.
         if self._process and self._process.returncode is None:
             try:
                 self._process.terminate()
                 await asyncio.wait_for(self._process.wait(), timeout=3.0)
+                logger.debug("screencapture_process_terminated", pid=pid)
             except (ProcessLookupError, asyncio.TimeoutError):
+                logger.warning("screencapture_process_kill_required", pid=pid)
                 with contextlib.suppress(ProcessLookupError):
                     self._process.kill()
 
@@ -161,6 +204,8 @@ class ScreenCaptureAudioSource:
         self._read_task = None
         self._watchdog_thread = None
 
+        logger.info("screencapture_stopped", pid=pid)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -170,14 +215,20 @@ class ScreenCaptureAudioSource:
         assert self._process is not None
         assert self._process.stdout is not None
 
+        chunks_read = 0
         try:
             while self._running:
                 raw = await self._process.stdout.read(CHUNK_SIZE)
                 if not raw:
                     # EOF — process exited.
                     if self._running:
+                        logger.error(
+                            "screencapture_unexpected_eof",
+                            chunks_read=chunks_read,
+                            pid=self._process.pid,
+                        )
                         exc = RuntimeError(
-                            f"'{CAPTURE_BINARY_NAME}' exited unexpectedly (EOF on stdout)."
+                            f"'{CAPTURE_BINARY_NAME_NAME}' exited unexpectedly (EOF on stdout)."
                         )
                         if self._on_error:
                             self._on_error(exc)
@@ -190,13 +241,19 @@ class ScreenCaptureAudioSource:
                 if n_samples == 0:
                     continue
 
+                chunks_read += 1
                 samples = struct.unpack_from(f"{n_samples}f", raw, 0)
                 chunk = np.array(samples, dtype=np.float32)
                 self._on_audio(chunk)
 
         except asyncio.CancelledError:
-            pass  # Normal shutdown path.
+            logger.debug("screencapture_read_loop_cancelled", chunks_read=chunks_read)
         except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "screencapture_read_loop_error",
+                chunks_read=chunks_read,
+                error=str(exc),
+            )
             if self._running and self._on_error:
                 self._on_error(exc)
 
@@ -207,8 +264,13 @@ class ScreenCaptureAudioSource:
                 break
             elapsed = time.monotonic() - self._last_read_time
             if elapsed > WATCHDOG_TIMEOUT:
+                logger.error(
+                    "screencapture_watchdog_timeout",
+                    elapsed_s=round(elapsed, 1),
+                    threshold_s=WATCHDOG_TIMEOUT,
+                )
                 exc = RuntimeError(
-                    f"'{CAPTURE_BINARY_NAME}' watchdog timeout: no audio received for "
+                    f"'{CAPTURE_BINARY_NAME_NAME}' watchdog timeout: no audio received for "
                     f"{elapsed:.1f}s (threshold: {WATCHDOG_TIMEOUT}s)."
                 )
                 if self._on_error:
