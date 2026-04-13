@@ -103,6 +103,46 @@
 
 	let showEndMeetingDialog = $state(false);
 
+	// Fireflies meeting picker
+	interface FirefliesMeeting {
+		id: string;
+		title: string;
+		started_at: string | null;
+		organizer: string;
+		state: string;
+	}
+
+	let meetings = $state<FirefliesMeeting[]>([]);
+	let loadingMeetings = $state(false);
+	let selectedMeetingId = $state<string | null>(null);
+
+	function formatTimeAgo(dateStr: string | null): string {
+		if (!dateStr) return '';
+		const diff = Date.now() - new Date(dateStr).getTime();
+		const mins = Math.floor(diff / 60000);
+		if (mins < 1) return 'just now';
+		if (mins < 60) return `${mins}m ago`;
+		const hours = Math.floor(mins / 60);
+		if (hours < 24) return `${hours}h ago`;
+		return `${Math.floor(hours / 24)}d ago`;
+	}
+
+	$effect(() => {
+		if (captionStore.captionSource !== 'fireflies') return;
+		loadingMeetings = true;
+		fetch('/api/fireflies/sessions/active')
+			.then(r => r.ok ? r.json() as Promise<{ meetings?: FirefliesMeeting[]; auto_select_id?: string }> : Promise.reject(r.status))
+			.then(data => {
+				meetings = data.meetings ?? [];
+				if (meetings.length === 1 && data.auto_select_id) {
+					selectedMeetingId = data.auto_select_id;
+					captionStore.firefliesSessionId = data.auto_select_id;
+				}
+			})
+			.catch(() => { meetings = []; })
+			.finally(() => { loadingMeetings = false; });
+	});
+
 	// Local select values bound to store
 	let sourceLanguageValue = $state(loopbackStore.sourceLanguage ?? 'auto');
 	let targetLanguageValue = $state(loopbackStore.targetLanguage);
@@ -265,6 +305,48 @@
 			</label>
 		</div>
 	</div>
+
+	<!-- Fireflies Meeting Picker -->
+	{#if captionStore.captionSource === 'fireflies'}
+	<div class="toolbar-group">
+		<span class="toolbar-label">Meeting</span>
+		{#if loadingMeetings}
+			<span class="fireflies-status">Loading...</span>
+		{:else if meetings.length === 0}
+			<span class="fireflies-status fireflies-status-empty">No active meetings</span>
+		{:else if meetings.length === 1}
+			<span class="fireflies-auto-selected" title={meetings[0].title}>
+				{meetings[0].title}
+				{#if meetings[0].started_at}<span class="fireflies-time">{formatTimeAgo(meetings[0].started_at)}</span>{/if}
+			</span>
+		{:else}
+			<Select.Root
+				type="single"
+				value={selectedMeetingId ?? ''}
+				onValueChange={(v) => {
+					if (v) {
+						selectedMeetingId = v;
+						captionStore.firefliesSessionId = v;
+					}
+				}}
+			>
+				<Select.Trigger class="toolbar-select">
+					{meetings.find(m => m.id === selectedMeetingId)?.title ?? 'Select meeting'}
+				</Select.Trigger>
+				<Select.Content>
+					{#each meetings as meeting (meeting.id)}
+						<Select.Item value={meeting.id} label={meeting.title}>
+							<span class="meeting-option-title">{meeting.title}</span>
+							{#if meeting.started_at}
+								<span class="meeting-option-time">{formatTimeAgo(meeting.started_at)}</span>
+							{/if}
+						</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		{/if}
+	</div>
+	{/if}
 
 	<!-- Audio Source -->
 	<div class="toolbar-group">
@@ -683,5 +765,46 @@
 		background: var(--warning, #f59e0b);
 		color: #000;
 		margin-left: 0.125rem;
+	}
+
+	.fireflies-status {
+		font-size: 0.8125rem;
+		color: var(--text-muted, #94a3b8);
+		padding: 0.25rem 0;
+	}
+
+	.fireflies-status-empty {
+		font-style: italic;
+	}
+
+	.fireflies-auto-selected {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		font-size: 0.8125rem;
+		color: var(--text, #e2e8f0);
+		padding: 0.25rem 0.5rem;
+		border: 1px solid var(--primary, #3b82f6);
+		border-radius: 0.375rem;
+		max-width: 14rem;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.fireflies-time {
+		font-size: 0.6875rem;
+		color: var(--text-muted, #94a3b8);
+		flex-shrink: 0;
+	}
+
+	.meeting-option-title {
+		font-size: 0.8125rem;
+	}
+
+	.meeting-option-time {
+		font-size: 0.6875rem;
+		color: var(--text-muted, #94a3b8);
+		margin-left: 0.375rem;
 	}
 </style>
