@@ -172,28 +172,24 @@ function createCaptionStore() {
     translationsReceived++;
 
     const id = `lb_${msg.transcript_id}`;
-    const caption = captions.find(c => c.id === id);
-    if (!caption) return;
+    const idx = captions.findIndex(c => c.id === id);
+    if (idx < 0) return;
 
     const isDraft = msg.is_draft ?? false;
-    if (caption.translationState === 'complete') return;
-    if (isDraft && caption.translationState !== 'pending' && caption.translationState !== 'draft') return;
+    if (captions[idx].translationState === 'complete') return;
+    if (isDraft && captions[idx].translationState !== 'pending' && captions[idx].translationState !== 'draft') return;
 
-    caption.translation = msg.text;
-    caption.translationState = isDraft ? 'draft' : 'complete';
+    captions = captions.map((c, i) => i === idx ? { ...c, translation: msg.text, translationState: isDraft ? 'draft' : 'complete' } : c);
   }
 
   function ingestTranslationChunk(msg: TranslationChunkMessage): void {
     const id = `lb_${msg.transcript_id}`;
-    const caption = captions.find(c => c.id === id);
-    if (!caption) return;
-    if (caption.translationState === 'complete') return;
+    const idx = captions.findIndex(c => c.id === id);
+    if (idx < 0) return;
+    if (captions[idx].translationState === 'complete') return;
 
-    if (caption.translationState === 'draft') {
-      caption.translation = '';
-    }
-    caption.translationState = 'streaming';
-    caption.translation = (caption.translation ?? '') + msg.delta;
+    const base = captions[idx].translationState === 'draft' ? '' : (captions[idx].translation ?? '');
+    captions = captions.map((c, i) => i === idx ? { ...c, translation: base + msg.delta, translationState: 'streaming' } : c);
   }
 
   function ingestCaptionEvent(event: CaptionEvent): void {
