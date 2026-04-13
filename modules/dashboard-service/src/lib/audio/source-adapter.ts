@@ -26,9 +26,6 @@ export interface SourceAdapter {
 export class LoopbackAdapter implements SourceAdapter {
   private ws: WebSocket | null = null;
   private source: 'mic' | 'screencapture';
-  private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 5;
-  private readonly reconnectDelay = 1000;
 
   constructor(source: 'mic' | 'screencapture' = 'mic') {
     this.source = source;
@@ -42,7 +39,6 @@ export class LoopbackAdapter implements SourceAdapter {
 
       this.ws.onopen = () => {
         captionStore.connectionState = 'connecting';
-        this.reconnectAttempts = 0;
         this.ws?.send(JSON.stringify({
           type: 'start_session',
           sample_rate: config.sampleRate ?? 48000,
@@ -53,22 +49,26 @@ export class LoopbackAdapter implements SourceAdapter {
       };
 
       this.ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data as string) as ServerMessage;
-        this.handleMessage(
-          msg,
-          () => {
-            if (!settled) {
-              settled = true;
-              resolve();
+        try {
+          const msg = JSON.parse(event.data as string) as ServerMessage;
+          this.handleMessage(
+            msg,
+            () => {
+              if (!settled) {
+                settled = true;
+                resolve();
+              }
+            },
+            (err) => {
+              if (!settled) {
+                settled = true;
+                reject(err);
+              }
             }
-          },
-          (err) => {
-            if (!settled) {
-              settled = true;
-              reject(err);
-            }
-          }
-        );
+          );
+        } catch (e) {
+          captionStore.lastError = `Invalid JSON from server: ${e}`;
+        }
       };
 
       this.ws.onerror = () => {
@@ -117,8 +117,8 @@ export class LoopbackAdapter implements SourceAdapter {
         captionStore.recordingChunks = msg.chunks_written;
         break;
       case 'service_status':
-        captionStore.transcriptionStatus = msg.transcription as 'up' | 'down';
-        captionStore.translationStatus = msg.translation as 'up' | 'down';
+        captionStore.transcriptionStatus = msg.transcription === 'up' ? 'up' : 'down';
+        captionStore.translationStatus = msg.translation === 'up' ? 'up' : 'down';
         break;
       case 'language_detected':
         captionStore.detectedLanguage = msg.language;
@@ -134,7 +134,9 @@ export class LoopbackAdapter implements SourceAdapter {
 
   disconnect(): void {
     if (this.ws) {
-      this.ws.send(JSON.stringify({ type: 'end_session' }));
+      if (this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'end_session' }));
+      }
       this.ws.close();
       this.ws = null;
     }
@@ -171,19 +173,31 @@ export class FirefliesAdapter implements SourceAdapter {
         : '';
       const url = `${WS_BASE}/api/captions/stream/${sessionId}${langParam}`;
       this.ws = new WebSocket(url);
+      let settled = false;
 
       this.ws.onopen = () => {
         captionStore.connectionState = 'connecting';
       };
 
       this.ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data as string) as Record<string, unknown>;
-        this.handleMessage(msg, resolve);
+        try {
+          const msg = JSON.parse(event.data as string) as Record<string, unknown>;
+          this.handleMessage(
+            msg,
+            () => { if (!settled) { settled = true; resolve(); } },
+            (err) => { if (!settled) { settled = true; reject(err); } }
+          );
+        } catch (e) {
+          captionStore.lastError = `Invalid JSON from server: ${e}`;
+        }
       };
 
       this.ws.onerror = () => {
         captionStore.connectionState = 'error';
-        reject(new Error('Fireflies WebSocket connection failed'));
+        if (!settled) {
+          settled = true;
+          reject(new Error('Fireflies WebSocket connection failed'));
+        }
       };
 
       this.ws.onclose = () => {
@@ -194,7 +208,8 @@ export class FirefliesAdapter implements SourceAdapter {
 
   private handleMessage(
     msg: Record<string, unknown>,
-    resolve?: () => void
+    resolve?: () => void,
+    _reject?: (err: Error) => void
   ): void {
     if (msg.event === 'connected') {
       captionStore.connectionState = 'connected';
