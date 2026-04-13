@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { loopbackStore, type CaptionEntry } from '$lib/stores/loopback.svelte';
+  import { captionStore, type UnifiedCaption as CaptionEntry } from '$lib/stores/caption.svelte';
   import { paragraphTranslation, translationPhase } from './paragraph-helpers';
   import TranslationText from './TranslationText.svelte';
 
@@ -8,9 +8,9 @@
   const PARAGRAPH_GAP_MS = 10000;
 
   interface Paragraph {
-    id: number;
+    id: string;
     captions: CaptionEntry[];
-    speakerId: string | null;
+    speaker: string | null;
     timestamp: number;  // first caption's timestamp
   }
 
@@ -18,18 +18,18 @@
     const result: Paragraph[] = [];
     let current: Paragraph | null = null;
 
-    for (const cap of loopbackStore.captions) {
+    for (const cap of captionStore.captions) {
       if (current === null) {
-        current = { id: cap.id, captions: [cap], speakerId: cap.speakerId, timestamp: cap.timestamp };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker, timestamp: cap.timestamp };
         result.push(current);
         continue;
       }
       const lastTs = current.captions[current.captions.length - 1].timestamp;
-      const shouldBreak = cap.speakerId !== current.speakerId
+      const shouldBreak = cap.speaker !== current.speaker
         || (cap.timestamp - lastTs > PARAGRAPH_GAP_MS);
 
       if (shouldBreak) {
-        current = { id: cap.id, captions: [cap], speakerId: cap.speakerId, timestamp: cap.timestamp };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker, timestamp: cap.timestamp };
         result.push(current);
       } else {
         current.captions.push(cap);
@@ -40,7 +40,7 @@
 
   let prevLength = 0;
   $effect(() => {
-    const len = loopbackStore.captions.length;
+    const len = captionStore.captions.length;
     if (len > prevLength) {
       prevLength = len;
       endRef?.scrollIntoView({ behavior: 'smooth' });
@@ -67,12 +67,12 @@
       data-testid="transcript-entry"
       data-entry-id={para.id}
       data-translation-state={phase}
-      style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
+      style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
     >
       <div class="entry-header">
-        {#if para.speakerId}
-          <span class="speaker" data-testid="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
-            {para.speakerId}
+        {#if para.speaker}
+          <span class="speaker" data-testid="speaker" style="color: {captionStore.getSpeakerColor(para.speaker)}">
+            {para.speaker}
           </span>
         {/if}
         <span class="timestamp" data-testid="entry-timestamp">{formatTime(para.timestamp)}</span>
@@ -80,7 +80,7 @@
       <div class="original" data-testid="original-text">
         {#each para.captions as cap, i}
           {#if i > 0 && cap.stableText && !isCjk(cap.language)}{' '}{/if}
-          <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.segmentId}>{cap.stableText}</span>
+          <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.id}>{cap.stableText}</span>
           {#if cap.unstableText}<span class="unstable">{#if !isCjk(cap.language)}{' '}{/if}{cap.unstableText}</span>{/if}
         {/each}
       </div>
@@ -89,9 +89,9 @@
       </div>
     </div>
   {/each}
-  {#if loopbackStore.interimText}
+  {#if captionStore.interimText}
     <div class="transcript-entry interim">
-      <div class="original">{loopbackStore.interimText}</div>
+      <div class="original">{captionStore.interimText}</div>
     </div>
   {/if}
   <div bind:this={endRef}></div>

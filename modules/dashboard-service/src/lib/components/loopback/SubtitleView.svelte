@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { loopbackStore } from '$lib/stores/loopback.svelte';
+  import { captionStore } from '$lib/stores/caption.svelte';
   import TranslationText from './TranslationText.svelte';
 
   interface Props {
@@ -15,12 +15,12 @@
   // Show last 2 captions as subtitles. No filter — the store manages draft→final
   // lifecycle via segment_id matching. Filtering dropped intermediate refinements,
   // causing stale or duplicate captions.
-  const recentCaptions = $derived(loopbackStore.captions.slice(-2));
+  const recentCaptions = $derived(captionStore.captions.slice(-2));
 
   /** Open captions overlay in a separate browser window for screen-sharing.
    *  Uses the dedicated overlay page which connects via its own WebSocket. */
   function popOut() {
-    const sessionId = loopbackStore.meetingSessionId;
+    const sessionId = captionStore.meetingSessionId;
     if (!sessionId) {
       console.warn('No active meeting session — start a meeting first to use subtitle pop-out');
       return;
@@ -65,9 +65,9 @@
         </div>
       </div>
     {/each}
-    {#if loopbackStore.interimText}
+    {#if captionStore.interimText}
       <div class="subtitle-line interim" style="background: rgba(0, 0, 0, {clampedOpacity})">
-        <div class="original" style="font-size: {fontSize}px">{loopbackStore.interimText}</div>
+        <div class="original" style="font-size: {fontSize}px">{captionStore.interimText}</div>
       </div>
     {/if}
   </div>

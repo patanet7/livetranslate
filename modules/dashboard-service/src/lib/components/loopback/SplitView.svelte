@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { loopbackStore, type CaptionEntry } from '$lib/stores/loopback.svelte';
+  import { captionStore, type UnifiedCaption as CaptionEntry } from '$lib/stores/caption.svelte';
   import { paragraphTranslation, translationPhase } from './paragraph-helpers';
   import TranslationText from './TranslationText.svelte';
 
@@ -12,9 +12,9 @@
   const PARAGRAPH_GAP_MS = 10000;
 
   interface Paragraph {
-    id: number;             // First caption's id (stable key)
+    id: string;             // First caption's id (stable key)
     captions: CaptionEntry[];
-    speakerId: string | null;
+    speaker: string | null;
   }
 
   /**
@@ -26,18 +26,18 @@
     const result: Paragraph[] = [];
     let current: Paragraph | null = null;
 
-    for (const cap of loopbackStore.captions) {
+    for (const cap of captionStore.captions) {
       if (current === null) {
-        current = { id: cap.id, captions: [cap], speakerId: cap.speakerId };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker };
         result.push(current);
         continue;
       }
       const lastTs = current.captions[current.captions.length - 1].timestamp;
-      const shouldBreak = cap.speakerId !== current.speakerId
+      const shouldBreak = cap.speaker !== current.speaker
         || (cap.timestamp - lastTs > PARAGRAPH_GAP_MS);
 
       if (shouldBreak) {
-        current = { id: cap.id, captions: [cap], speakerId: cap.speakerId };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker };
         result.push(current);
       } else {
         current.captions.push(cap);
@@ -49,7 +49,7 @@
   // Scroll on new paragraphs or when the last paragraph grows
   let prevCaptionCount = 0;
   $effect(() => {
-    const count = loopbackStore.captions.length;
+    const count = captionStore.captions.length;
     if (count > prevCaptionCount) {
       prevCaptionCount = count;
       captionsEndOriginal?.scrollIntoView({ behavior: 'smooth' });
@@ -67,7 +67,7 @@
   <!-- Original language panel -->
   <div class="panel panel-original" data-testid="panel-original">
     <div class="panel-header">
-      Original ({loopbackStore.detectedLanguage ?? loopbackStore.sourceLanguage ?? 'detecting...'})
+      Original ({captionStore.detectedLanguage ?? captionStore.sourceLanguage ?? 'detecting...'})
     </div>
     <div class="panel-content" role="log" aria-live="polite" aria-label="Original captions">
       {#each paragraphs as para (para.id)}
@@ -75,25 +75,25 @@
           class="paragraph"
           data-testid="paragraph"
           data-para-id={para.id}
-          style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
+          style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
         >
-          {#if para.speakerId}
-            <span class="speaker" data-testid="speaker-label" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
-              {para.speakerId}:
+          {#if para.speaker}
+            <span class="speaker" data-testid="speaker-label" style="color: {captionStore.getSpeakerColor(para.speaker)}">
+              {para.speaker}:
             </span>
           {/if}
           <span class="para-text">
             {#each para.captions as cap, i}
               {#if i > 0 && cap.stableText && !isCjk(cap.language)}{' '}{/if}
-              <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.segmentId}>{cap.stableText}</span>
+              <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.id}>{cap.stableText}</span>
               {#if cap.unstableText}<span class="unstable">{#if !isCjk(cap.language)}{' '}{/if}{cap.unstableText}</span>{/if}
             {/each}
           </span>
         </div>
       {/each}
-      {#if loopbackStore.interimText}
+      {#if captionStore.interimText}
         <div class="paragraph interim">
-          <span class="para-text">{loopbackStore.interimText}</span>
+          <span class="para-text">{captionStore.interimText}</span>
         </div>
       {/if}
       <div bind:this={captionsEndOriginal}></div>
@@ -103,7 +103,7 @@
   <!-- Translation panel -->
   <div class="panel panel-translation" data-testid="panel-translation">
     <div class="panel-header">
-      Translation ({loopbackStore.targetLanguage})
+      Translation ({captionStore.targetLanguage})
     </div>
     <div class="panel-content" role="log" aria-live="polite" aria-label="Translations">
       {#each paragraphs as para (para.id)}
@@ -114,11 +114,11 @@
           data-testid="paragraph"
           data-para-id={para.id}
           data-translation-state={phase}
-          style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
+          style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
         >
-          {#if para.speakerId}
-            <span class="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
-              {para.speakerId}:
+          {#if para.speaker}
+            <span class="speaker" style="color: {captionStore.getSpeakerColor(para.speaker)}">
+              {para.speaker}:
             </span>
           {/if}
           <span class="para-text">

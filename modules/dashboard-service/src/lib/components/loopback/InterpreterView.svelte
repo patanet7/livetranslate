@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { loopbackStore, type CaptionEntry } from '$lib/stores/loopback.svelte';
+  import { captionStore, type UnifiedCaption as CaptionEntry } from '$lib/stores/caption.svelte';
   import { paragraphTranslation, translationPhase } from './paragraph-helpers';
   import TranslationText from './TranslationText.svelte';
 
@@ -20,9 +20,9 @@
   }
 
   interface Paragraph {
-    id: number;
+    id: string;
     captions: CaptionEntry[];
-    speakerId: string | null;
+    speaker: string | null;
     language: string;
   }
 
@@ -36,19 +36,19 @@
     const result: Paragraph[] = [];
     let current: Paragraph | null = null;
 
-    for (const cap of loopbackStore.captions) {
+    for (const cap of captionStore.captions) {
       if (current === null) {
-        current = { id: cap.id, captions: [cap], speakerId: cap.speakerId, language: cap.language };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker, language: cap.language };
         result.push(current);
         continue;
       }
       const lastTs = current.captions[current.captions.length - 1].timestamp;
-      const shouldBreak = cap.speakerId !== current.speakerId
+      const shouldBreak = cap.speaker !== current.speaker
         || (cap.timestamp - lastTs > PARAGRAPH_GAP_MS)
         || cap.language !== current.language;
 
       if (shouldBreak) {
-        current = { id: cap.id, captions: [cap], speakerId: cap.speakerId, language: cap.language };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker, language: cap.language };
         result.push(current);
       } else {
         current.captions.push(cap);
@@ -60,7 +60,7 @@
   // Scroll on new captions
   let prevCaptionCount = 0;
   $effect(() => {
-    const count = loopbackStore.captions.length;
+    const count = captionStore.captions.length;
     if (count > prevCaptionCount) {
       prevCaptionCount = count;
       captionsEndA?.scrollIntoView({ behavior: 'smooth' });
@@ -87,11 +87,11 @@
   <!-- Language A panel: shows text that IS in Language A -->
   <div class="panel panel-a" data-testid="panel-lang-a">
     <div class="panel-header panel-header-a">
-      {langLabel(loopbackStore.interpreterLangA)} ({loopbackStore.interpreterLangA})
+      {langLabel(captionStore.interpreterLangA)} ({captionStore.interpreterLangA})
     </div>
-    <div class="panel-content" role="log" aria-live="polite" aria-label="{langLabel(loopbackStore.interpreterLangA)} content">
+    <div class="panel-content" role="log" aria-live="polite" aria-label="{langLabel(captionStore.interpreterLangA)} content">
       {#each paragraphs as para (para.id)}
-        {@const native = isNative(para, loopbackStore.interpreterLangA)}
+        {@const native = isNative(para, captionStore.interpreterLangA)}
         {@const trans = paragraphTranslation(para.captions)}
         {@const phase = translationPhase(para.captions)}
         <div
@@ -100,11 +100,11 @@
           data-para-id={para.id}
           data-translation-state={native ? 'native' : phase}
           class:is-translation={!native}
-          style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
+          style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
         >
-          {#if para.speakerId}
-            <span class="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
-              {para.speakerId}:
+          {#if para.speaker}
+            <span class="speaker" style="color: {captionStore.getSpeakerColor(para.speaker)}">
+              {para.speaker}:
             </span>
           {/if}
           {#if native}
@@ -131,11 +131,11 @@
   <!-- Language B panel: shows text that IS in Language B -->
   <div class="panel panel-b" data-testid="panel-lang-b">
     <div class="panel-header panel-header-b">
-      {langLabel(loopbackStore.interpreterLangB)} ({loopbackStore.interpreterLangB})
+      {langLabel(captionStore.interpreterLangB)} ({captionStore.interpreterLangB})
     </div>
-    <div class="panel-content" role="log" aria-live="polite" aria-label="{langLabel(loopbackStore.interpreterLangB)} content">
+    <div class="panel-content" role="log" aria-live="polite" aria-label="{langLabel(captionStore.interpreterLangB)} content">
       {#each paragraphs as para (para.id)}
-        {@const native = isNative(para, loopbackStore.interpreterLangB)}
+        {@const native = isNative(para, captionStore.interpreterLangB)}
         {@const trans = paragraphTranslation(para.captions)}
         {@const phase = translationPhase(para.captions)}
         <div
@@ -144,11 +144,11 @@
           data-para-id={para.id}
           data-translation-state={native ? 'native' : phase}
           class:is-translation={!native}
-          style="border-left-color: {loopbackStore.getSpeakerColor(para.speakerId)}"
+          style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
         >
-          {#if para.speakerId}
-            <span class="speaker" style="color: {loopbackStore.getSpeakerColor(para.speakerId)}">
-              {para.speakerId}:
+          {#if para.speaker}
+            <span class="speaker" style="color: {captionStore.getSpeakerColor(para.speaker)}">
+              {para.speaker}:
             </span>
           {/if}
           {#if native}

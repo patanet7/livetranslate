@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { beforeNavigate } from '$app/navigation';
-  import { loopbackStore } from '$lib/stores/loopback.svelte';
+  import { captionStore } from '$lib/stores/caption.svelte';
   import { AudioCapture } from '$lib/audio/capture';
-  import { LoopbackWebSocket } from '$lib/audio/websocket';
+  import { createSourceAdapter, type SourceAdapter } from '$lib/audio/source-adapter';
   import type { ServerMessage } from '$lib/types/ws-messages';
-  import { WS_BASE } from '$lib/config';
   import { runDemo, type DemoHandle } from '$lib/loopback/demo-script';
   import { startHealthPoller, type HealthPollerHandle } from '$lib/loopback/health-poller';
   import Toolbar from '$lib/components/loopback/Toolbar.svelte';
@@ -25,180 +24,137 @@
   let isDraining = $state(false);
 
   let capture: AudioCapture | null = null;
-  let ws: LoopbackWebSocket | null = null;
+  let adapter: SourceAdapter | null = null;
   let healthPoller: HealthPollerHandle | null = null;
   let stopping = false;  // C3: Re-entrancy guard for stopCapture
 
+  // handleMessage is used only by the demo script, which routes through onMessage
   function handleMessage(msg: ServerMessage) {
     switch (msg.type) {
       case 'segment':
-        loopbackStore.addSegment(msg);
+        captionStore.ingestSegment(msg);
         break;
       case 'interim':
-        loopbackStore.updateInterim(msg);
+        captionStore.ingestInterim(msg.text, msg.confidence);
         break;
       case 'translation_chunk':
-        loopbackStore.appendTranslationChunk(msg);
+        captionStore.ingestTranslationChunk(msg);
         break;
       case 'translation':
-        loopbackStore.addTranslation(msg);
+        captionStore.ingestTranslation(msg);
         break;
       case 'meeting_started':
-        // C3: Guard against malformed message
         if (typeof msg.session_id === 'string' && typeof msg.started_at === 'string') {
-          loopbackStore.startMeeting(msg.session_id, msg.started_at);
+          captionStore.startMeeting(msg.session_id, msg.started_at);
           startElapsedTimer(msg.started_at);
         }
         break;
       case 'service_status':
-        // C3: Guard field types
         if (typeof msg.transcription === 'string' && typeof msg.translation === 'string') {
-          loopbackStore.transcriptionStatus = msg.transcription as 'up' | 'down';
-          loopbackStore.translationStatus = msg.translation as 'up' | 'down';
+          captionStore.transcriptionStatus = msg.transcription as 'up' | 'down';
+          captionStore.translationStatus = msg.translation as 'up' | 'down';
         }
         break;
       case 'recording_status':
         if (typeof msg.recording === 'boolean' && typeof msg.chunks_written === 'number') {
-          loopbackStore.isRecording = msg.recording;
-          loopbackStore.recordingChunks = msg.chunks_written;
+          captionStore.isRecording = msg.recording;
+          captionStore.recordingChunks = msg.chunks_written;
         }
         break;
-      // M6: Handle language_detected and backend_switched messages
       // Note: language_detected is informational — it must NOT overwrite
       // sourceLanguage (the user's dropdown selection). Otherwise auto-detect
       // gets locked to the first detected language on the next session start.
       case 'language_detected':
         if (typeof msg.language === 'string') {
-          loopbackStore.detectedLanguage = msg.language;
+          captionStore.detectedLanguage = msg.language;
         }
         break;
       case 'backend_switched':
         break;
       case 'error':
-        loopbackStore.lastError = msg.message;
+        captionStore.lastError = msg.message;
         captureError = msg.message;
         break;
     }
   }
 
   async function startCapture() {
-    if (loopbackStore.isCapturing) return;
+    if (captionStore.isCapturing) return;
     captureError = null;
 
-    // S2: Use WS_BASE from config instead of hardcoded port
-    const wsUrl = `${WS_BASE}/ws/loopback`;
+    const source = captionStore.captionSource;
+    adapter = createSourceAdapter(source);
 
-    // C2 fix: Use a settled flag to prevent calling resolve/reject multiple times.
-    // Both onError and onStateChange('error') can fire, and reject after resolve is benign
-    // but masks the actual failure sequence.
-    let settled = false;
-    let resolveConnected: () => void;
-    let rejectConnected: (reason: Error) => void;
-    const connectedPromise = new Promise<void>((resolve, reject) => {
-      resolveConnected = resolve;
-      rejectConnected = reject;
-    });
-
-    ws = new LoopbackWebSocket({
-      url: wsUrl,
-      onMessage: (msg) => {
-        if (msg.type === 'connected' && !settled) {
-          settled = true;
-          resolveConnected();
+    if (source === 'local' || source === 'screencapture') {
+      // For local/screencapture: start AudioCapture first, then connect adapter
+      capture = new AudioCapture();
+      try {
+        await capture.start({
+          deviceId: selectedDeviceId || undefined,
+          sourceType: source === 'screencapture' ? 'system' : 'mic',
+          onChunk: (data) => {
+            adapter?.sendAudio?.(data);
+            captionStore.chunksSent++;
+          },
+          onError: (error) => {
+            console.error('Audio capture error:', error);
+            stopCapture();
+          },
+          onLevel: (rms) => {
+            audioLevel = rms;
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Permission') || msg.includes('NotAllowed')) {
+          captureError = `Microphone access denied. Please allow microphone access in your browser.`;
+        } else if (msg.includes('loopback') || msg.includes('BlackHole') || msg.includes('device')) {
+          captureError = msg;
+        } else {
+          captureError = `Audio capture failed: ${msg}`;
         }
-        handleMessage(msg);
-      },
-      onStateChange: (state) => {
-        loopbackStore.connectionState = state;
-        if (state === 'error' && !settled) {
-          settled = true;
-          rejectConnected(new Error('WebSocket connection failed'));
-        }
-      },
-      onError: () => {
-        if (!settled) {
-          settled = true;
-          rejectConnected(new Error('WebSocket error'));
-        }
-      },
-      // C1 fix: Re-send start_session after auto-reconnect so the server
-      // has session context for incoming audio frames.
-      onReconnect: () => {
-        if (capture) {
-          ws?.startSession(capture.sampleRate ?? 48000, 1, selectedDeviceId || undefined);
-        }
-      },
-    });
-
-    loopbackStore.connectionState = 'connecting';
-    ws.connect();
-
-    try {
-      await connectedPromise;
-    } catch {
-      captureError = 'Could not connect to orchestration service. Is it running?';
-      loopbackStore.connectionState = 'error';
-      ws.disconnect();
-      ws = null;
-      return;
-    }
-
-    // Start audio capture with selected source type
-    capture = new AudioCapture();
-    try {
-      await capture.start({
-        deviceId: selectedDeviceId || undefined,
-        sourceType: 'mic',
-        onChunk: (data) => {
-          ws?.sendAudio(data);
-          loopbackStore.chunksSent++;
-        },
-        onError: (error) => {
-          console.error('Audio capture error:', error);
-          stopCapture();
-        },
-        onLevel: (rms) => {
-          audioLevel = rms;
-        },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Categorize error: permission vs device config vs generic
-      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
-        captureError = `Microphone access denied. Please allow microphone access in your browser.`;
-      } else if (msg.includes('loopback') || msg.includes('BlackHole') || msg.includes('device')) {
-        captureError = msg;
-      } else {
-        captureError = `Audio capture failed: ${msg}`;
+        captionStore.connectionState = 'error';
+        adapter = null;
+        capture = null;
+        return;
       }
-      loopbackStore.connectionState = 'error';
-      ws?.disconnect();
-      ws = null;
-      capture = null;
-      return;
-    }
 
-    // Send start_session with sample rate (null-safe fallback to 48000)
-    ws.startSession(capture.sampleRate ?? 48000, 1, selectedDeviceId);
-
-    // Send initial config so server knows target language, source language,
-    // and model from the toolbar state at capture start (not just on change).
-    // Always send `language` (even null for auto-detect) so the server has
-    // the complete state after a page refresh.
-    if (loopbackStore.displayMode === 'interpreter') {
-      ws.sendMessage({
-        type: 'config',
-        interpreter_languages: [loopbackStore.interpreterLangA, loopbackStore.interpreterLangB],
-      });
+      try {
+        await adapter.connect({
+          sourceLanguage: captionStore.sourceLanguage,
+          targetLanguage: captionStore.targetLanguage,
+          interpreterLanguages: captionStore.displayMode === 'interpreter'
+            ? [captionStore.interpreterLangA, captionStore.interpreterLangB]
+            : undefined,
+          deviceId: selectedDeviceId || undefined,
+          sampleRate: capture.sampleRate ?? 48000,
+          channels: 1,
+        });
+      } catch {
+        captureError = 'Could not connect to orchestration service. Is it running?';
+        captionStore.connectionState = 'error';
+        await capture.stop();
+        capture = null;
+        adapter = null;
+        return;
+      }
     } else {
-      ws.sendMessage({
-        type: 'config',
-        target_language: loopbackStore.targetLanguage,
-        language: loopbackStore.sourceLanguage,
-      });
+      // Fireflies: just connect adapter, no AudioCapture needed
+      try {
+        await adapter.connect({
+          sourceLanguage: captionStore.sourceLanguage,
+          targetLanguage: captionStore.targetLanguage,
+          firefliesSessionId: captionStore.firefliesSessionId ?? undefined,
+        });
+      } catch {
+        captureError = 'Could not connect to Fireflies stream. Check the session ID.';
+        captionStore.connectionState = 'error';
+        adapter = null;
+        return;
+      }
     }
 
-    loopbackStore.isCapturing = true;
+    captionStore.isCapturing = true;
   }
 
   async function stopCapture() {
@@ -212,20 +168,15 @@
         capture = null;
       }
 
-      if (ws && loopbackStore.isCapturing) {
-        // Drain: send end_session and wait for server to finish sending
-        // pending translations before closing the WebSocket.
+      if (adapter) {
         isDraining = true;
-        await ws.drainAndDisconnect(5000);
+        adapter.disconnect();
         isDraining = false;
-        ws = null;
-      } else if (ws) {
-        ws.disconnect();
-        ws = null;
+        adapter = null;
       }
 
-      loopbackStore.isCapturing = false;
-      loopbackStore.connectionState = 'disconnected';
+      captionStore.isCapturing = false;
+      captionStore.connectionState = 'disconnected';
       audioLevel = 0;
       stopElapsedTimer();
     } finally {
@@ -235,20 +186,36 @@
   }
 
   function startMeeting() {
-    ws?.sendMessage({ type: 'promote_to_meeting' });
+    adapter?.sendConfig({ type: 'promote_to_meeting' });
   }
 
   function endMeeting() {
-    ws?.sendMessage({ type: 'end_meeting' });
-    loopbackStore.endMeeting();
+    adapter?.sendConfig({ type: 'end_meeting' });
+    captionStore.endMeeting();
     stopElapsedTimer();
   }
 
   function startDemo() {
-    if (loopbackStore.isCapturing || isDemoRunning) return;
-    loopbackStore.clear();
+    if (captionStore.isCapturing || isDemoRunning) return;
+    captionStore.clear();
     captureError = null;
-    demoHandle = runDemo(loopbackStore, {
+    // Shim: demo script uses addSegment/addTranslation but we always pass onMessage,
+    // so those fallback paths are never hit. Status and connection fields are wired
+    // directly to captionStore.
+    const demoStoreShim = {
+      addSegment: () => {},
+      addTranslation: () => {},
+      clear: () => captionStore.clear(),
+      get transcriptionStatus() { return captionStore.transcriptionStatus; },
+      set transcriptionStatus(v: 'up' | 'down') { captionStore.transcriptionStatus = v; },
+      get translationStatus() { return captionStore.translationStatus; },
+      set translationStatus(v: 'up' | 'down') { captionStore.translationStatus = v; },
+      get connectionState() { return captionStore.connectionState; },
+      set connectionState(v: 'disconnected' | 'connecting' | 'connected' | 'error') { captionStore.connectionState = v; },
+      get isCapturing() { return captionStore.isCapturing; },
+      set isCapturing(v: boolean) { captionStore.isCapturing = v; },
+    };
+    demoHandle = runDemo(demoStoreShim, {
       onComplete: () => { demoHandle = null; },
       onMessage: handleMessage,
     });
@@ -259,10 +226,9 @@
     demoHandle = null;
   }
 
-  /** I1/I2: Send config changes (model, language, target_language, interpreter_languages) to server via WebSocket */
+  /** Send config changes (model, language, target_language, interpreter_languages) to server via adapter */
   function handleConfigChange(config: { model?: string; language?: string | null; target_language?: string; interpreter_languages?: [string, string] | null }) {
-    ws?.sendMessage({
-      type: 'config',
+    adapter?.sendConfig({
       ...(config.language !== undefined ? { language: config.language } : {}),
       ...(config.model !== undefined ? { model: config.model } : {}),
       ...(config.target_language !== undefined ? { target_language: config.target_language } : {}),
@@ -291,10 +257,10 @@
   }
 
   onMount(async () => {
-    // I4: Reset transient state on mount — the singleton store persists
-    // across SvelteKit navigations but AudioCapture/WS are recreated.
-    loopbackStore.isCapturing = false;
-    loopbackStore.connectionState = 'disconnected';
+    // Reset transient state on mount — the singleton store persists
+    // across SvelteKit navigations but AudioCapture/adapter are recreated.
+    captionStore.isCapturing = false;
+    captionStore.connectionState = 'disconnected';
 
     try {
       devices = await AudioCapture.getDevices();
@@ -309,8 +275,8 @@
     healthPoller = startHealthPoller((health) => {
       // Don't overwrite demo-driven status
       if (!isDemoRunning) {
-        loopbackStore.transcriptionStatus = health.transcription;
-        loopbackStore.translationStatus = health.translation;
+        captionStore.transcriptionStatus = health.transcription;
+        captionStore.translationStatus = health.translation;
       }
     });
   });
@@ -357,35 +323,35 @@
     </div>
   {/if}
 
-  {#if loopbackStore.isMeetingActive}
+  {#if captionStore.isMeetingActive}
     <div class="meeting-bar">
       <div class="meeting-bar-left">
         <span class="recording-dot"></span>
         <span class="meeting-label">Meeting</span>
-        {#if loopbackStore.meetingSessionId}
-          <span class="session-id">{loopbackStore.meetingSessionId}</span>
+        {#if captionStore.meetingSessionId}
+          <span class="session-id">{captionStore.meetingSessionId}</span>
         {/if}
       </div>
       <div class="meeting-bar-center">
         <span class="elapsed">{elapsedTime}</span>
       </div>
       <div class="meeting-bar-right">
-        {#if loopbackStore.detectedLanguage}
-          <span class="lang-badge">{loopbackStore.detectedLanguage}</span>
+        {#if captionStore.detectedLanguage}
+          <span class="lang-badge">{captionStore.detectedLanguage}</span>
         {/if}
-        {#if loopbackStore.isRecording}
-          <span class="chunks-badge">{loopbackStore.recordingChunks} chunks</span>
+        {#if captionStore.isRecording}
+          <span class="chunks-badge">{captionStore.recordingChunks} chunks</span>
         {/if}
       </div>
     </div>
   {/if}
 
   <div class="display-area">
-    {#if loopbackStore.displayMode === 'split'}
+    {#if captionStore.displayMode === 'split'}
       <SplitView />
-    {:else if loopbackStore.displayMode === 'subtitle'}
+    {:else if captionStore.displayMode === 'subtitle'}
       <SubtitleView />
-    {:else if loopbackStore.displayMode === 'interpreter'}
+    {:else if captionStore.displayMode === 'interpreter'}
       <InterpreterView />
     {:else}
       <TranscriptView />
