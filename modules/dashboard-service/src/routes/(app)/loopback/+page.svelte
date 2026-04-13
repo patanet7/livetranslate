@@ -174,6 +174,9 @@
     }
 
     captionStore.isCapturing = true;
+
+    // Auto-start meeting when capture starts (simplifies UX — no separate button needed)
+    startMeeting();
   }
 
   async function stopCapture() {
