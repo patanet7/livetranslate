@@ -238,10 +238,11 @@ export class FirefliesAdapter implements SourceAdapter {
       const currentCaptions = msg.current_captions as Array<Record<string, unknown>> | undefined;
       if (currentCaptions) {
         for (const cap of currentCaptions) {
+          // Server sends raw caption objects; wrap as CaptionEvent for store ingestion
           captionStore.ingestCaptionEvent({
             event: 'caption_added',
             caption: cap,
-          } as CaptionEvent);
+          } as unknown as CaptionEvent);
         }
       }
       resolve?.();

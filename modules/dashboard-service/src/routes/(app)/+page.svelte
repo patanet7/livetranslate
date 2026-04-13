@@ -132,10 +132,12 @@
 </script>
 
 <PageHeader title="Dashboard" description="LiveTranslate system overview">
-	<Button variant="ghost" size="sm" onclick={loadStats} disabled={loading}>
-		<RefreshCwIcon class="size-4 mr-1 {loading ? 'animate-spin' : ''}" />
-		Refresh
-	</Button>
+	{#snippet actions()}
+		<Button variant="ghost" size="sm" onclick={loadStats} disabled={loading}>
+			<RefreshCwIcon class="size-4 mr-1 {loading ? 'animate-spin' : ''}" />
+			Refresh
+		</Button>
+	{/snippet}
 </PageHeader>
 
 {#if error}

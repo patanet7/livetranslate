@@ -167,6 +167,7 @@ export interface AudioLevelMessage {
   type: 'audio_level';
   rms: number;
   source?: 'screencapture' | 'mic';
+  chunks?: number;
 }
 
 export type ServerMessage =
@@ -193,7 +194,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       'connected', 'segment', 'interim', 'translation', 'translation_chunk',
       'meeting_started', 'recording_status', 'service_status',
       'language_detected', 'backend_switched', 'error',
-      'chat_response', 'config_changed',
+      'chat_response', 'config_changed', 'audio_level',
     ];
     if (!knownTypes.includes(data.type)) return null;
     // Unsafe cast: validates `type` discriminant only, not field presence/types.
