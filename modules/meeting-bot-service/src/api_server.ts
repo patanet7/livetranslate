@@ -244,6 +244,46 @@ app.post('/api/auth/setup', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/bot/screenshot/:botId
+ * Get a screenshot of what the bot currently sees.
+ * Useful for debugging join failures and verifying the bot is on the
+ * expected page (lobby vs in-call).
+ */
+app.get('/api/bot/screenshot/:botId', async (req: Request, res: Response) => {
+  const botId = req.params.botId as string;
+
+  const bot = activeBots.get(botId);
+  if (!bot) {
+    return res.status(404).json({
+      success: false,
+      error: 'Bot not found'
+    });
+  }
+
+  try {
+    // Access the page from the bot (it's protected, so we cast)
+    const page = (bot as any).page;
+    if (!page) {
+      return res.status(400).json({
+        success: false,
+        error: 'Bot page not available'
+      });
+    }
+
+    const screenshot = await page.screenshot({ type: 'png', fullPage: true });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `inline; filename="bot-${botId}-screenshot.png"`);
+    return res.send(screenshot);
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/health
  * Health check endpoint
  */

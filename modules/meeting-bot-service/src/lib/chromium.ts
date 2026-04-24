@@ -25,6 +25,12 @@ const BROWSER_ARGS = [
   '--auto-select-desktop-capture-source=Entire screen',
   '--autoplay-policy=no-user-gesture-required',
   '--enable-features=SharedArrayBuffer',
+  // Stealth args (cherry-picked from wip/main-bot-stealth-and-screenshot 279f465)
+  '--disable-blink-features=AutomationControlled',
+  '--disable-features=IsolateOrigins,site-per-process',
+  '--disable-infobars',
+  '--enable-webgl',
+  '--use-gl=swiftshader',
 ];
 
 /**

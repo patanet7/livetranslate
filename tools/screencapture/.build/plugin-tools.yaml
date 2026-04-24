@@ -4,73 +4,58 @@ client:
 tools: {}
 targets:
   "PackageStructure": ["<PackageStructure>"]
-  "livetranslate-capture-arm64-apple-macosx15.0-debug.exe": ["<livetranslate-capture-arm64-apple-macosx15.0-debug.exe>"]
-  "livetranslate-capture-arm64-apple-macosx15.0-debug.module": ["<livetranslate-capture-arm64-apple-macosx15.0-debug.module>"]
-  "main": ["<livetranslate-capture-arm64-apple-macosx15.0-debug.exe>","<livetranslate-capture-arm64-apple-macosx15.0-debug.module>"]
-  "test": ["<livetranslate-capture-arm64-apple-macosx15.0-debug.exe>","<livetranslate-capture-arm64-apple-macosx15.0-debug.module>"]
+  "livetranslate-capture-arm64-apple-macosx15.0-release.exe": ["<livetranslate-capture-arm64-apple-macosx15.0-release.exe>"]
+  "livetranslate-capture-arm64-apple-macosx15.0-release.module": ["<livetranslate-capture-arm64-apple-macosx15.0-release.module>"]
+  "main": ["<livetranslate-capture-arm64-apple-macosx15.0-release.exe>","<livetranslate-capture-arm64-apple-macosx15.0-release.module>"]
+  "test": ["<livetranslate-capture-arm64-apple-macosx15.0-release.exe>","<livetranslate-capture-arm64-apple-macosx15.0-release.module>"]
 default: "main"
 nodes:
   "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/":
     is-directory-structure: true
     content-exclusion-patterns: [".git",".build"]
-  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture":
-    is-mutated: true
 commands:
-  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture-entitlement.plist":
+  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture.product/Objects.LinkFileList":
     tool: write-auxiliary-file
-    inputs: ["<entitlement-plist>","<com.apple.security.get-task-allow>"]
-    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture-entitlement.plist"]
-    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture-entitlement.plist"
+    inputs: ["<link-file-list>","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/AudioCapture.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/main.swift.o"]
+    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture.product/Objects.LinkFileList"
 
-  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture.product/Objects.LinkFileList":
+  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/sources":
     tool: write-auxiliary-file
-    inputs: ["<link-file-list>","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/main.swift.o"]
-    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture.product/Objects.LinkFileList"]
-    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture.product/Objects.LinkFileList"
+    inputs: ["<sources-file-list>","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/AudioCapture.swift","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/main.swift"]
+    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/sources"]
+    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/sources"
 
-  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/sources":
-    tool: write-auxiliary-file
-    inputs: ["<sources-file-list>","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/main.swift"]
-    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/sources"]
-    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/sources"
-
-  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt":
+  "/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt":
     tool: write-auxiliary-file
     inputs: ["<swift-get-version>","/Library/Developer/CommandLineTools/usr/bin/swiftc"]
-    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"]
+    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"]
     always-out-of-date: "true"
-    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+    description: "Write auxiliary file /Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
 
-  "<livetranslate-capture-arm64-apple-macosx15.0-debug.exe>":
+  "<livetranslate-capture-arm64-apple-macosx15.0-release.exe>":
     tool: phony
-    inputs: ["<livetranslate-capture-arm64-apple-macosx15.0-debug.exe-CodeSigning>"]
-    outputs: ["<livetranslate-capture-arm64-apple-macosx15.0-debug.exe>"]
+    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture"]
+    outputs: ["<livetranslate-capture-arm64-apple-macosx15.0-release.exe>"]
 
-  "<livetranslate-capture-arm64-apple-macosx15.0-debug.module>":
+  "<livetranslate-capture-arm64-apple-macosx15.0-release.module>":
     tool: phony
-    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/main.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/Modules/livetranslate_capture.swiftmodule"]
-    outputs: ["<livetranslate-capture-arm64-apple-macosx15.0-debug.module>"]
+    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/AudioCapture.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/main.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/Modules/livetranslate_capture.swiftmodule"]
+    outputs: ["<livetranslate-capture-arm64-apple-macosx15.0-release.module>"]
 
-  "C.livetranslate-capture-arm64-apple-macosx15.0-debug.exe":
+  "C.livetranslate-capture-arm64-apple-macosx15.0-release.exe":
     tool: shell
-    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/main.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture.product/Objects.LinkFileList"]
-    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture"]
-    description: "Linking ./.build/arm64-apple-macosx/debug/livetranslate-capture"
-    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug","-o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture","-module-name","livetranslate_capture","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-alias","-Xlinker","_livetranslate_capture_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture.product/Objects.LinkFileList","-target","arm64-apple-macosx13.0","-Xlinker","-add_ast_path","-Xlinker","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/Modules/livetranslate_capture.swiftmodule","-F","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
+    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/AudioCapture.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/main.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture.product/Objects.LinkFileList"]
+    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture"]
+    description: "Linking ./.build/arm64-apple-macosx/release/livetranslate-capture"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release","-o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture","-module-name","livetranslate_capture","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_livetranslate_capture_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate-capture.product/Objects.LinkFileList","-target","arm64-apple-macosx13.0","-F","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
 
-  "C.livetranslate-capture-arm64-apple-macosx15.0-debug.exe-entitlements":
+  "C.livetranslate-capture-arm64-apple-macosx15.0-release.module":
     tool: shell
-    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture-entitlement.plist"]
-    outputs: ["<livetranslate-capture-arm64-apple-macosx15.0-debug.exe-CodeSigning>"]
-    description: "Applying debug entitlements to ./.build/arm64-apple-macosx/debug/livetranslate-capture"
-    args: ["codesign","--force","--sign","-","--entitlements","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture-entitlement.plist","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate-capture"]
-
-  "C.livetranslate-capture-arm64-apple-macosx15.0-debug.module":
-    tool: shell
-    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/main.swift","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/sources"]
-    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/main.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/Modules/livetranslate_capture.swiftmodule"]
-    description: "Compiling Swift Module 'livetranslate_capture' (1 sources)"
-    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","livetranslate_capture","-emit-dependencies","-emit-module","-emit-module-path","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/Modules/livetranslate_capture.swiftmodule","-output-file-map","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/output-file-map.json","-incremental","-c","@/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/livetranslate_capture.build/sources","-I","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx13.0","-enable-batch-mode","-index-store-path","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-j14","-DSWIFT_PACKAGE","-DDEBUG","-module-cache-path","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","livetranslate_capture_main","-parse-as-library","-swift-version","5","-F","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","screencapture"]
+    inputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/AudioCapture.swift","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/Sources/main.swift","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/sources"]
+    outputs: ["/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/AudioCapture.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/main.swift.o","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/Modules/livetranslate_capture.swiftmodule"]
+    description: "Compiling Swift Module 'livetranslate_capture' (2 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","livetranslate_capture","-emit-dependencies","-emit-module","-emit-module-path","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/Modules/livetranslate_capture.swiftmodule","-output-file-map","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/output-file-map.json","-whole-module-optimization","-num-threads","14","-c","@/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/livetranslate_capture.build/sources","-I","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-O","-j14","-DSWIFT_PACKAGE","-module-cache-path","/Users/thomaspatane/GitHub/personal/livetranslate/tools/screencapture/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","livetranslate_capture_main","-color-diagnostics","-swift-version","5","-F","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","screencapture"]
 
   "PackageStructure":
     tool: package-structure-tool
