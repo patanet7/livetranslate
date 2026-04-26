@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { beforeNavigate } from '$app/navigation';
   import { captionStore } from '$lib/stores/caption.svelte';
+  import { audioStore } from '$lib/stores/audio.svelte';
   import { AudioCapture } from '$lib/audio/capture';
   import { createSourceAdapter, type SourceAdapter } from '$lib/audio/source-adapter';
   import type { ServerMessage } from '$lib/types/ws-messages';
@@ -102,6 +103,7 @@
           },
           onLevel: (rms) => {
             audioLevel = rms;
+            audioStore.push(rms);
           },
         });
       } catch (err) {
@@ -152,6 +154,7 @@
             : undefined,
           onLevel: (rms) => {
             audioLevel = rms;
+            audioStore.push(rms);
           },
           onMeetingStarted: (sessionId, startedAt) => {
             startElapsedTimer(startedAt);
@@ -209,6 +212,7 @@
       captionStore.isCapturing = false;
       captionStore.connectionState = 'disconnected';
       audioLevel = 0;
+      audioStore.reset();
       stopElapsedTimer();
     } finally {
       isDraining = false;
