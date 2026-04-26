@@ -13,6 +13,7 @@
   import SubtitleView from '$lib/components/loopback/SubtitleView.svelte';
   import TranscriptView from '$lib/components/loopback/TranscriptView.svelte';
   import InterpreterView from '$lib/components/loopback/InterpreterView.svelte';
+  import EarwyrmMini from '$lib/components/brand/EarwyrmMini.svelte';
 
   let devices = $state<MediaDeviceInfo[]>([]);
   let selectedDeviceId = $state('');
@@ -336,6 +337,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Loopback — LiveTranslate</title>
+</svelte:head>
+
 <div class="loopback-page">
   <Toolbar
     {devices}
@@ -354,29 +359,39 @@
 
   {#if captureError}
     <div class="capture-error" role="alert">
-      <span>{captureError}</span>
-      <button class="dismiss-btn" onclick={() => captureError = null} aria-label="Dismiss error">&times;</button>
+      <span class="alert-mark" aria-hidden="true"></span>
+      <span class="alert-body">{captureError}</span>
+      <button class="dismiss-btn" onclick={() => captureError = null} aria-label="Dismiss error">×</button>
     </div>
   {/if}
 
   {#if captionStore.isMeetingActive}
-    <div class="meeting-bar">
-      <div class="meeting-bar-left">
-        <span class="recording-dot"></span>
-        <span class="meeting-label">Meeting</span>
+    <!-- Editorial meeting strip — replaces the red bar with a magazine running-head -->
+    <div class="meeting-strip" role="status">
+      <div class="ms-section ms-section--left">
+        <span class="record-pip" aria-hidden="true"></span>
+        <span class="byline">recording</span>
         {#if captionStore.meetingSessionId}
-          <span class="session-id">{captionStore.meetingSessionId}</span>
+          <span class="session-id font-mono" title={captionStore.meetingSessionId}>
+            {captionStore.meetingSessionId.slice(0, 8)}
+          </span>
         {/if}
       </div>
-      <div class="meeting-bar-center">
-        <span class="elapsed">{elapsedTime}</span>
+      <div class="ms-section ms-section--center">
+        <span class="elapsed font-mono tabular-nums">{elapsedTime}</span>
       </div>
-      <div class="meeting-bar-right">
+      <div class="ms-section ms-section--right">
         {#if captionStore.detectedLanguage}
-          <span class="lang-badge">{captionStore.detectedLanguage}</span>
+          <span class="meta-tag">
+            <span class="eyebrow">detected</span>
+            <span class="font-mono">{captionStore.detectedLanguage}</span>
+          </span>
         {/if}
         {#if captionStore.isRecording}
-          <span class="chunks-badge">{captionStore.recordingChunks} chunks</span>
+          <span class="meta-tag">
+            <span class="eyebrow">chunks</span>
+            <span class="font-mono tabular-nums">{captionStore.recordingChunks}</span>
+          </span>
         {/if}
       </div>
     </div>
@@ -393,6 +408,20 @@
       <TranscriptView />
     {/if}
   </div>
+
+  <!--
+    Loopback Earwyrm — bottom-right live indicator (D4.6).
+    Ear cups pulse with audioStore.rms; ring color reflects capture state.
+    Out of the way until you're looking for it; nice when you are.
+  -->
+  <div class="loopback-mascot" aria-hidden={!captionStore.isCapturing}>
+    <EarwyrmMini
+      size={42}
+      audioRms={audioStore.rms}
+      state={captionStore.isCapturing ? 'live' : (captionStore.connectionState === 'error' ? 'offline' : 'idle')}
+      title={captionStore.isCapturing ? 'Earwyrm — listening' : 'Earwyrm — idle'}
+    />
+  </div>
 </div>
 
 <style>
@@ -401,108 +430,136 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    background: var(--paper);
+    position: relative;
   }
 
-  .meeting-bar {
+  /* ── Loopback Earwyrm corner mascot — D4.6 ────────────────────
+     Sits in the bottom-right of the loopback page above the page
+     content (z-index above scroll, below modals). The mini variant
+     handles audio-RMS reactivity through the audioStore. */
+  .loopback-mascot {
+    position: absolute;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 5;
+    pointer-events: none;
+    /* Background ring softens contrast on dense transcripts */
+    background: var(--paper);
+    padding: 0.4rem;
+    border-radius: 9999px;
+    border: 1px solid var(--rule);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+  }
+
+  /* ── Meeting running-strip ─────────────────────────────────────
+     Replaces the harsh red meeting-bar with a magazine running-head
+     printed on a faint peach-tinted plate. Three columns: recording
+     state, elapsed timer, metadata tags. */
+  .meeting-strip {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0.5rem 1.25rem;
+    gap: 1rem;
+    background: color-mix(in srgb, var(--peach) 16%, var(--paper));
+    border-bottom: 1px solid var(--rule);
+  }
+  .ms-section {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 6px 16px;
-    background: #991b1b;
-    color: #fecaca;
-    font-size: 13px;
-    gap: 12px;
+    gap: 0.625rem;
+  }
+  .ms-section--right { justify-content: flex-end; }
+  .ms-section--center { justify-content: center; }
+
+  .record-pip {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 9999px;
+    background: var(--peach-deep);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--peach-deep) 18%, transparent);
+    animation: record-breathe 2.4s ease-in-out infinite;
   }
 
-  .meeting-bar-left,
-  .meeting-bar-center,
-  .meeting-bar-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .meeting-bar-left {
-    flex: 1;
-  }
-
-  .meeting-bar-right {
-    flex: 1;
-    justify-content: flex-end;
-  }
-
-  .recording-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #ef4444;
-    animation: pulse 1.5s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  .meeting-label {
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+  @keyframes record-breathe {
+    0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--peach-deep) 18%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--peach-deep) 8%, transparent); }
   }
 
   .session-id {
-    font-family: monospace;
-    font-size: 11px;
-    opacity: 0.7;
-    max-width: 200px;
+    font-size: 0.6875rem;
+    color: var(--ink-soft);
+    max-width: 12rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .elapsed {
-    font-family: monospace;
-    font-weight: 600;
-    font-size: 14px;
+    font-size: 0.9375rem;
+    color: var(--ink);
+    letter-spacing: 0.04em;
   }
 
-  .lang-badge,
-  .chunks-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    background: rgba(255, 255, 255, 0.15);
+  .meta-tag {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 9999px;
+    background: var(--paper);
+    font-size: 0.75rem;
+    color: var(--ink-soft);
   }
+  .meta-tag .eyebrow { color: var(--ink-faint); }
 
+  /* ── Capture-error banner — editorial alert ─────────────────── */
   .capture-error {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: #7f1d1d;
-    color: #fecaca;
-    font-size: 13px;
-    gap: 12px;
+    gap: 0.875rem;
+    padding: 0.75rem 1.25rem;
+    background: color-mix(in srgb, var(--oxblood) 12%, var(--paper));
+    border-bottom: 1px solid var(--oxblood);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
   }
-
+  .alert-mark {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: var(--oxblood);
+    flex-shrink: 0;
+  }
+  .alert-body {
+    flex: 1;
+  }
   .dismiss-btn {
     background: none;
     border: none;
-    color: #fecaca;
-    font-size: 18px;
-    cursor: pointer;
-    padding: 0 4px;
+    color: var(--ink-soft);
+    font-size: 1.25rem;
     line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    transition: color 160ms ease;
   }
-
   .dismiss-btn:hover {
-    color: white;
+    color: var(--ink);
   }
 
   .display-area {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    /* Page-color paper underneath the active view */
+    background: var(--paper);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .record-pip { animation: none; }
   }
 </style>

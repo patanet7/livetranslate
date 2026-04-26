@@ -65,9 +65,9 @@
 	let levelDb = $derived(audioLevel > 0 ? 20 * Math.log10(audioLevel) : -60);
 	let levelPercent = $derived(Math.max(0, Math.min(100, Math.round((levelDb + 60) * (100 / 60)))));
 	let levelColor = $derived(
-		levelPercent > 90 ? 'var(--status-clip, #ef4444)' :
-		levelPercent > 5 ? 'var(--status-up, #22c55e)' :
-		'var(--text-muted, #94a3b8)'
+		levelPercent > 90 ? 'var(--oxblood)' :
+		levelPercent > 5 ? 'var(--peach-deep)' :
+		'var(--ink-faint)'
 	);
 
 	const SOURCE_LANGUAGES = [
@@ -240,7 +240,8 @@
 	});
 
 	function statusColor(status: 'up' | 'down'): string {
-		return status === 'up' ? 'var(--status-up, #22c55e)' : 'var(--status-down, #ef4444)';
+		// Editorial palette: sage = healthy, oxblood = down
+		return status === 'up' ? 'var(--sage)' : 'var(--oxblood)';
 	}
 
 	function handleEndMeetingConfirm() {
@@ -556,19 +557,22 @@
 </Dialog.Root>
 
 <style>
+	/* ── Editorial toolbar styling — D4.5 ─────────────────────────
+	   Reads as the masthead's settings strip: small-caps eyebrow labels,
+	   inked CTA buttons, and an editorial peach for the recording state. */
 	.toolbar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid var(--border, #333);
-		background: var(--bg-secondary, #1e293b);
+		gap: 1.25rem;
+		padding: 0.875rem 1.25rem;
+		border-bottom: 1px solid var(--rule);
+		background: var(--paper-cream);
 		position: relative;
 	}
 
 	.toolbar-collapsed {
-		padding: 0.5rem 1rem;
+		padding: 0.5rem 1.25rem;
 	}
 
 	.toolbar-toggle {
@@ -578,29 +582,30 @@
 		padding: 0.125rem;
 		border: none;
 		background: transparent;
-		color: var(--text-muted, #94a3b8);
+		color: var(--ink-faint);
 		cursor: pointer;
-		opacity: 0.5;
-		transition: opacity 0.15s;
+		transition: color 160ms ease;
 		z-index: 1;
 	}
-
 	.toolbar-toggle:hover {
-		opacity: 1;
+		color: var(--ink-soft);
 	}
 
 	.toolbar-group {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: 0.375rem;
 	}
 
 	.toolbar-label {
-		font-size: 0.675rem;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--text-muted, #94a3b8);
+		font-family: var(--font-display);
+		font-variation-settings: "opsz" 14;
+		font-feature-settings: "smcp", "c2sc", "kern";
+		letter-spacing: 0.14em;
+		text-transform: lowercase;
+		font-weight: 600;
+		font-size: 0.6875rem;
+		color: var(--ink-faint);
 	}
 
 	.toolbar-actions {
@@ -614,198 +619,204 @@
 		min-width: 8rem;
 	}
 
-
+	/* ── Display mode switcher — segmented small-caps ─────────────── */
 	.display-mode-switcher {
-		display: flex;
-		border: 1px solid var(--border, #333);
+		display: inline-flex;
+		border: 1px solid var(--rule);
 		border-radius: 0.375rem;
 		overflow: hidden;
+		background: var(--paper);
 	}
 
 	.display-mode-btn {
-		padding: 0.25rem 0.625rem;
-		font-size: 0.8125rem;
+		padding: 0.375rem 0.75rem;
+		font-family: var(--font-display);
+		font-variation-settings: "opsz" 14;
+		font-feature-settings: "smcp", "c2sc";
+		letter-spacing: 0.08em;
+		text-transform: lowercase;
+		font-size: 0.75rem;
 		background: transparent;
-		color: var(--text-muted, #94a3b8);
+		color: var(--ink-soft);
 		border: none;
 		cursor: pointer;
-		transition: background-color 0.15s, color 0.15s;
+		transition: background-color 160ms ease, color 160ms ease;
 	}
-
 	.display-mode-btn:not(:last-child) {
-		border-right: 1px solid var(--border, #333);
+		border-right: 1px solid var(--rule);
 	}
-
 	.display-mode-btn:hover {
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		background: var(--paper-cream);
+		color: var(--ink);
 	}
-
 	.display-mode-btn.active {
-		background: var(--primary, #3b82f6);
-		color: white;
+		background: var(--ink);
+		color: var(--paper);
 	}
 
+	/* ── Status pips — earth-tone dots ───────────────────────────── */
 	.status-dots {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
+		gap: 0.5rem;
 		padding: 0.25rem 0;
 	}
-
 	.status-dot {
 		display: inline-block;
-		width: 0.5rem;
-		height: 0.5rem;
+		width: 0.4375rem;
+		height: 0.4375rem;
 		border-radius: 50%;
 	}
-
 	.status-label {
-		font-size: 0.6875rem;
-		color: var(--text-muted, #94a3b8);
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--ink-faint);
 		margin-right: 0.25rem;
 	}
 
+	/* ── VU meter — single peach bar on a hairline track ───────── */
 	.vu-meter {
-		width: 5rem;
-		height: 0.5rem;
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
-		border-radius: 0.25rem;
+		width: 5.5rem;
+		height: 0.375rem;
+		background: var(--paper);
+		border: 1px solid var(--rule);
+		border-radius: 0.125rem;
 		overflow: hidden;
-		margin-top: 0.125rem;
+		margin-top: 0.25rem;
 	}
-
 	.vu-bar {
 		height: 100%;
-		border-radius: 0.25rem;
-		transition: width 80ms linear;
+		transition: width 80ms linear, background-color 200ms ease;
 	}
 
+	/* ── Pipeline counters ───────────────────────────────────── */
 	.pipeline-counters {
 		display: flex;
-		align-items: center;
-		gap: 0.25rem;
+		align-items: baseline;
+		gap: 0.4rem;
+		font-family: var(--font-mono);
 		font-size: 0.6875rem;
 		font-variant-numeric: tabular-nums;
 		padding: 0.125rem 0;
 	}
-
-	.counter {
-		color: var(--text, #e2e8f0);
-	}
-
+	.counter { color: var(--ink); }
 	.counter-label {
-		color: var(--text-muted, #94a3b8);
+		color: var(--ink-faint);
+		margin-left: 0.125rem;
 	}
-
 	.counter-sep {
-		color: var(--text-muted, #94a3b8);
-		font-size: 0.5625rem;
+		color: var(--ink-faint);
+		font-size: 0.625rem;
 	}
 
 	.drain-spinner {
 		display: inline-block;
 		width: 12px;
 		height: 12px;
-		border: 2px solid var(--text-muted, #94a3b8);
+		border: 2px solid var(--ink-soft);
 		border-top-color: transparent;
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
 		margin-right: 4px;
 		vertical-align: middle;
 	}
+	@keyframes spin { to { transform: rotate(360deg); } }
 
-	@keyframes spin {
-		to { transform: rotate(360deg); }
-	}
-
+	/* ── Source radio options ─────────────────────────────────── */
 	.source-options {
 		display: flex;
-		gap: 0.25rem;
+		gap: 0.375rem;
 		flex-wrap: wrap;
 	}
-
 	.source-option {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		gap: 0.25rem;
-		padding: 0.25rem 0.5rem;
+		gap: 0.375rem;
+		padding: 0.375rem 0.625rem;
+		font-family: var(--font-body);
 		font-size: 0.8125rem;
-		border: 1px solid var(--border, #333);
-		border-radius: 0.375rem;
+		border: 1px solid var(--rule);
+		border-radius: 9999px;
 		cursor: pointer;
-		color: var(--text, #e2e8f0);
-		background: transparent;
-		transition: background-color 0.15s, border-color 0.15s;
+		color: var(--ink-soft);
+		background: var(--paper);
+		transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 		user-select: none;
 		white-space: nowrap;
 	}
-
 	.source-option:hover:not(.source-option-disabled) {
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		color: var(--ink);
+		border-color: var(--ink-soft);
 	}
-
+	.source-option:has(input:checked) {
+		color: var(--ink);
+		border-color: var(--peach-deep);
+		background: color-mix(in srgb, var(--peach) 12%, var(--paper));
+	}
 	.source-option input[type="radio"] {
-		accent-color: var(--primary, #3b82f6);
+		accent-color: var(--peach-deep);
 		width: 0.75rem;
 		height: 0.75rem;
 		flex-shrink: 0;
 	}
-
 	.source-option-disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
 	}
-
 	.source-badge {
+		font-family: var(--font-display);
+		font-feature-settings: "smcp", "c2sc";
+		letter-spacing: 0.12em;
+		text-transform: lowercase;
 		font-size: 0.625rem;
 		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		padding: 0.0625rem 0.3125rem;
-		border-radius: 0.25rem;
-		background: var(--warning, #f59e0b);
-		color: #000;
-		margin-left: 0.125rem;
+		padding: 0.0625rem 0.4rem;
+		border-radius: 9999px;
+		background: var(--ochre);
+		color: var(--paper);
 	}
 
+	/* ── Fireflies meeting picker ──────────────────────────────── */
 	.fireflies-status {
+		font-family: var(--font-body);
 		font-size: 0.8125rem;
-		color: var(--text-muted, #94a3b8);
+		color: var(--ink-soft);
 		padding: 0.25rem 0;
 	}
-
 	.fireflies-status-empty {
 		font-style: italic;
 	}
-
 	.fireflies-auto-selected {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
+		gap: 0.5rem;
+		font-family: var(--font-body);
 		font-size: 0.8125rem;
-		color: var(--text, #e2e8f0);
-		padding: 0.25rem 0.5rem;
-		border: 1px solid var(--primary, #3b82f6);
-		border-radius: 0.375rem;
+		color: var(--ink);
+		padding: 0.375rem 0.625rem;
+		border: 1px solid var(--peach-deep);
+		border-radius: 0.25rem;
+		background: color-mix(in srgb, var(--peach) 12%, var(--paper));
 		max-width: 14rem;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
 	}
-
 	.fireflies-time {
+		font-family: var(--font-mono);
 		font-size: 0.6875rem;
-		color: var(--text-muted, #94a3b8);
+		color: var(--ink-faint);
 		flex-shrink: 0;
 	}
-
 	.meeting-option-title {
 		font-size: 0.8125rem;
 	}
-
 	.meeting-option-time {
+		font-family: var(--font-mono);
 		font-size: 0.6875rem;
-		color: var(--text-muted, #94a3b8);
+		color: var(--ink-faint);
 		margin-left: 0.375rem;
 	}
 </style>

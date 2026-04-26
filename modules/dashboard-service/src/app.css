@@ -366,4 +366,60 @@
   @media (prefers-reduced-transparency) {
     body::before { display: none; }
   }
+
+  /* ── Ink-drying caption animation — D4.7 ────────────────────────
+     The "unstable" span on a caption is text that's still being
+     written by the transcriber — the equivalent of ink that hasn't
+     dried. Treat it visually that way: a soft peach underline that
+     pulses while we wait, and fades out the moment the text becomes
+     stable (the .unstable class disappears, taking the animation with it).
+
+     Component-level .unstable rules can add italic / opacity on top of
+     this; the underline is purely a global treatment so every caption
+     surface (SubtitleView, SplitView, TranscriptView) reads consistently. */
+  .unstable {
+    text-decoration-line: underline;
+    text-decoration-style: solid;
+    text-decoration-thickness: 0.075em;
+    text-underline-offset: 0.18em;
+    text-decoration-color: color-mix(in srgb, var(--peach-deep) 35%, transparent);
+    animation: ink-drying 1.4s ease-in-out infinite;
+  }
+
+  @keyframes ink-drying {
+    0%, 100% {
+      text-decoration-color: color-mix(in srgb, var(--peach-deep) 20%, transparent);
+    }
+    50% {
+      text-decoration-color: color-mix(in srgb, var(--peach-deep) 65%, transparent);
+    }
+  }
+
+  /* Newly-arrived captions get a one-shot fade-in on first paint.
+     @starting-style triggers when an element is added to the DOM with
+     a class change — perfect for caption append. */
+  [data-testid="caption-text"],
+  [data-testid="paragraph"],
+  [data-testid="transcript-entry"] {
+    transition:
+      opacity 280ms ease-out,
+      transform 280ms ease-out;
+  }
+  @starting-style {
+    [data-testid="caption-text"],
+    [data-testid="paragraph"],
+    [data-testid="transcript-entry"] {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .unstable { animation: none; }
+    [data-testid="caption-text"],
+    [data-testid="paragraph"],
+    [data-testid="transcript-entry"] {
+      transition: none;
+    }
+  }
 }

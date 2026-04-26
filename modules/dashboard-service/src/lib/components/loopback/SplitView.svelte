@@ -1,43 +1,46 @@
-<script lang="ts">
-  import { captionStore, type UnifiedCaption as CaptionEntry } from '$lib/stores/caption.svelte';
-  import { paragraphTranslation, translationPhase } from './paragraph-helpers';
-  import TranslationText from './TranslationText.svelte';
+<!--
+  Editorial facing-pages spread (D4.4).
 
-  // Allow undefined before mount
+  Reads as the open spread of a translation anthology:
+    [ source page  ‖  centre gutter  ‖  target page ]
+
+  The centre gutter holds the speaker byline + JBM timestamp that span
+  both pages — the same way running heads do across a magazine spread.
+  Each paragraph block has a hairline rule above it; section-openers get
+  a thicker rule + drop-cap on both sides simultaneously.
+-->
+<script lang="ts">
+  import { captionStore, type UnifiedCaption as CaptionEntry } from "$lib/stores/caption.svelte";
+  import { paragraphTranslation, translationPhase } from "./paragraph-helpers";
+  import TranslationText from "./TranslationText.svelte";
+
   let captionsEndOriginal: HTMLElement | undefined;
   let captionsEndTranslation: HTMLElement | undefined;
 
-  /** Gap threshold to start a new paragraph. Must exceed stride time (~4.5-6s)
-   *  plus inference latency (~1-2s). 10s means: silence > 10s = new paragraph. */
   const PARAGRAPH_GAP_MS = 10000;
 
   interface Paragraph {
-    id: string;             // First caption's id (stable key)
+    id: string;
     captions: CaptionEntry[];
     speaker: string | null;
+    timestamp: number;
   }
 
-  /**
-   * Group captions into paragraphs. A new paragraph starts when:
-   *  - The time gap between consecutive segments exceeds PARAGRAPH_GAP_MS
-   *  - The speaker changes
-   */
   const paragraphs = $derived.by(() => {
     const result: Paragraph[] = [];
     let current: Paragraph | null = null;
 
     for (const cap of captionStore.captions) {
       if (current === null) {
-        current = { id: cap.id, captions: [cap], speaker: cap.speaker };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker, timestamp: cap.timestamp };
         result.push(current);
         continue;
       }
       const lastTs = current.captions[current.captions.length - 1].timestamp;
-      const shouldBreak = cap.speaker !== current.speaker
-        || (cap.timestamp - lastTs > PARAGRAPH_GAP_MS);
-
+      const shouldBreak =
+        cap.speaker !== current.speaker || cap.timestamp - lastTs > PARAGRAPH_GAP_MS;
       if (shouldBreak) {
-        current = { id: cap.id, captions: [cap], speaker: cap.speaker };
+        current = { id: cap.id, captions: [cap], speaker: cap.speaker, timestamp: cap.timestamp };
         result.push(current);
       } else {
         current.captions.push(cap);
@@ -46,145 +49,272 @@
     return result;
   });
 
-  // Scroll on new paragraphs or when the last paragraph grows
+  function isSectionOpener(idx: number): boolean {
+    if (idx === 0) return true;
+    return paragraphs[idx].speaker !== paragraphs[idx - 1].speaker;
+  }
+
   let prevCaptionCount = 0;
   $effect(() => {
     const count = captionStore.captions.length;
     if (count > prevCaptionCount) {
       prevCaptionCount = count;
-      captionsEndOriginal?.scrollIntoView({ behavior: 'smooth' });
-      captionsEndTranslation?.scrollIntoView({ behavior: 'smooth' });
+      captionsEndOriginal?.scrollIntoView({ behavior: "smooth" });
+      captionsEndTranslation?.scrollIntoView({ behavior: "smooth" });
     }
   });
 
-  /** CJK languages don't use spaces between words. */
   function isCjk(lang: string): boolean {
-    return ['zh', 'ja', 'ko'].includes(lang);
+    return ["zh", "ja", "ko"].includes(lang);
   }
+
+  function formatTime(ts: number): string {
+    const d = new Date(ts);
+    return d.toLocaleTimeString(undefined, { hour12: false });
+  }
+
+  const sourceLabel = $derived(
+    captionStore.detectedLanguage ?? captionStore.sourceLanguage ?? "detecting…",
+  );
 </script>
 
-<div class="split-view" data-testid="split-view">
-  <!-- Original language panel -->
-  <div class="panel panel-original" data-testid="panel-original">
-    <div class="panel-header">
-      Original ({captionStore.detectedLanguage ?? captionStore.sourceLanguage ?? 'detecting...'})
-    </div>
-    <div class="panel-content" role="log" aria-live="polite" aria-label="Original captions">
-      {#each paragraphs as para (para.id)}
-        <div
-          class="paragraph"
-          data-testid="paragraph"
-          data-para-id={para.id}
-          style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
-        >
-          {#if para.speaker}
-            <span class="speaker" data-testid="speaker-label" style="color: {captionStore.getSpeakerColor(para.speaker)}">
-              {para.speaker}:
-            </span>
-          {/if}
-          <span class="para-text">
-            {#each para.captions as cap, i}
-              {#if i > 0 && cap.stableText && !isCjk(cap.language)}{' '}{/if}
-              <span class:is-draft={cap.isDraft} data-testid="caption-text" data-segment-id={cap.id}>{cap.stableText}</span>
-              {#if cap.unstableText}<span class="unstable">{#if !isCjk(cap.language)}{' '}{/if}{cap.unstableText}</span>{/if}
-            {/each}
-          </span>
-        </div>
-      {/each}
-      {#if captionStore.interimText}
-        <div class="paragraph interim">
-          <span class="para-text">{captionStore.interimText}</span>
-        </div>
-      {/if}
-      <div bind:this={captionsEndOriginal}></div>
-    </div>
-  </div>
+<div class="spread" data-testid="split-view">
+  <!-- Spread header — small-caps department labels for each page -->
+  <header class="spread-head">
+    <p class="byline page-label original-label">
+      original
+      <span class="lang font-mono">{sourceLabel}</span>
+    </p>
+    <p class="byline page-label translation-label">
+      translation
+      <span class="lang font-mono">{captionStore.targetLanguage}</span>
+    </p>
+  </header>
 
-  <!-- Translation panel -->
-  <div class="panel panel-translation" data-testid="panel-translation">
-    <div class="panel-header">
-      Translation ({captionStore.targetLanguage})
-    </div>
-    <div class="panel-content" role="log" aria-live="polite" aria-label="Translations">
-      {#each paragraphs as para (para.id)}
-        {@const trans = paragraphTranslation(para.captions)}
-        {@const phase = translationPhase(para.captions)}
-        <div
-          class="paragraph"
-          data-testid="paragraph"
-          data-para-id={para.id}
-          data-translation-state={phase}
-          style="border-left-color: {captionStore.getSpeakerColor(para.speaker)}"
-        >
-          {#if para.speaker}
-            <span class="speaker" style="color: {captionStore.getSpeakerColor(para.speaker)}">
-              {para.speaker}:
-            </span>
-          {/if}
-          <span class="para-text">
-            <TranslationText text={trans} {phase} />
-          </span>
-        </div>
-      {/each}
-      <div bind:this={captionsEndTranslation}></div>
-    </div>
-  </div>
+  <!-- Source page -->
+  <section class="page page-original" data-testid="panel-original" role="log" aria-live="polite" aria-label="Original captions">
+    {#each paragraphs as para, idx (para.id)}
+      {@const opens = isSectionOpener(idx)}
+      {@const speakerColor = captionStore.getSpeakerColor(para.speaker)}
+      <article
+        class="para"
+        class:opens-section={opens}
+        data-testid="paragraph"
+        data-para-id={para.id}
+        style="--speaker-color: {speakerColor};"
+      >
+        {#if opens}
+          <header class="para-head">
+            {#if para.speaker}
+              <span class="byline speaker">{para.speaker}</span>
+            {/if}
+            <span class="ts font-mono tabular-nums">{formatTime(para.timestamp)}</span>
+          </header>
+        {/if}
+        <p class="prose original" class:drop-cap={opens && para.speaker !== null}>
+          {#each para.captions as cap, i}
+            {#if i > 0 && cap.stableText && !isCjk(cap.language)}{" "}{/if}
+            <span
+              class:is-draft={cap.isDraft}
+              data-testid="caption-text"
+              data-segment-id={cap.id}>{cap.stableText}</span
+            >
+            {#if cap.unstableText}<span class="unstable"
+                >{#if !isCjk(cap.language)}{" "}{/if}{cap.unstableText}</span
+              >{/if}
+          {/each}
+        </p>
+      </article>
+    {/each}
+    {#if captionStore.interimText}
+      <article class="para interim">
+        <p class="prose original">{captionStore.interimText}</p>
+      </article>
+    {/if}
+    <div bind:this={captionsEndOriginal}></div>
+  </section>
+
+  <!-- Centre gutter — visual rule between pages -->
+  <div class="gutter" aria-hidden="true"></div>
+
+  <!-- Target page -->
+  <section class="page page-translation" data-testid="panel-translation" role="log" aria-live="polite" aria-label="Translations">
+    {#each paragraphs as para, idx (para.id)}
+      {@const trans = paragraphTranslation(para.captions)}
+      {@const phase = translationPhase(para.captions)}
+      {@const opens = isSectionOpener(idx)}
+      {@const speakerColor = captionStore.getSpeakerColor(para.speaker)}
+      <article
+        class="para"
+        class:opens-section={opens}
+        data-testid="paragraph"
+        data-para-id={para.id}
+        data-translation-state={phase}
+        style="--speaker-color: {speakerColor};"
+      >
+        {#if opens}
+          <header class="para-head">
+            {#if para.speaker}
+              <span class="byline speaker">{para.speaker}</span>
+            {/if}
+            <span class="ts font-mono tabular-nums">{formatTime(para.timestamp)}</span>
+          </header>
+        {/if}
+        <p class="prose translation" class:drop-cap={opens && para.speaker !== null && !!trans}>
+          <TranslationText text={trans} {phase} />
+        </p>
+      </article>
+    {/each}
+    <div bind:this={captionsEndTranslation}></div>
+  </section>
 </div>
 
 <style>
-  .split-view {
-    display: flex;
-    gap: 2px;
+  .spread {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "head head head"
+      "left gutter right";
     height: 100%;
     min-height: 400px;
+    background: var(--paper);
   }
-  .panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+
+  .spread-head {
+    grid-area: head;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 1px;
+    padding: 1rem 2rem 0.5rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
   }
-  .panel-header {
-    padding: 8px 16px;
-    font-weight: 600;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid var(--border, #333);
+
+  .page-label {
+    margin: 0;
+    color: var(--ink-soft);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
   }
-  .panel-original .panel-header { color: var(--color-original, #ffd700); }
-  .panel-translation .panel-header { color: var(--color-translation, #90ee90); }
-  .panel-content {
-    flex: 1;
+  .page-label .lang {
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+    font-feature-settings: "tnum";
+  }
+  .original-label {
+    /* left page label sits on the left edge */
+    justify-self: start;
+  }
+  .translation-label {
+    justify-self: start;
+    padding-left: 1rem;
+  }
+
+  .page {
     overflow-y: auto;
-    padding: 12px;
+    padding: 1.5rem 2rem 4rem;
   }
-  .paragraph {
-    padding: 10px 12px;
-    margin-bottom: 10px;
-    border-left: 3px solid;
-    border-radius: 4px;
-    background: var(--bg-entry, rgba(255, 255, 255, 0.03));
-    line-height: 1.6;
+
+  .page-original {
+    grid-area: left;
   }
-  .paragraph.interim {
-    opacity: 0.5;
-    font-style: italic;
+
+  .gutter {
+    grid-area: gutter;
+    background: var(--rule);
   }
+
+  .page-translation {
+    grid-area: right;
+  }
+
+  /* ── Paragraphs ────────────────────────────────────────────── */
+  .para {
+    padding: 0.5rem 0 0.875rem;
+  }
+  .para.opens-section {
+    border-top: 1px solid var(--rule);
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+  .para.opens-section:first-of-type {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .para-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
   .speaker {
-    font-size: 11px;
-    font-weight: 600;
-    margin-right: 4px;
+    color: var(--speaker-color, var(--ink));
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    line-height: 1;
   }
-  .para-text {
-    transition: opacity 0.3s ease;
+  .ts {
+    color: var(--ink-faint);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
   }
+
+  .prose {
+    margin: 0;
+    font-family: var(--font-body);
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  .prose.original {
+    font-variation-settings: "opsz" 16;
+    font-size: 1rem;
+  }
+  .prose.translation {
+    font-variation-settings: "opsz" 18;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 1.0625rem;
+  }
+
   .is-draft {
-    opacity: 0.85;
+    opacity: 0.78;
   }
   .unstable {
     opacity: 0.45;
     font-style: italic;
     transition: opacity 0.3s ease;
+  }
+
+  .interim {
+    opacity: 0.55;
+    font-style: italic;
+  }
+
+  /* ── Mobile: stack the spread vertically ──────────────────────── */
+  @media (max-width: 820px) {
+    .spread {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "head"
+        "left"
+        "right";
+    }
+    .gutter {
+      display: none;
+    }
+    .page-translation {
+      border-top: 1px solid var(--rule);
+    }
+    .spread-head {
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
+    }
   }
 </style>
