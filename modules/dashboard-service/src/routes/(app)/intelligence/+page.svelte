@@ -435,9 +435,12 @@
 	}
 </script>
 
+<svelte:head><title>Intelligence — LiveTranslate</title></svelte:head>
+
 <PageHeader
-	title="Intelligence"
-	description="AI-powered meeting notes, insights, and Q&A"
+	eyebrow="the workshop · the lab"
+	title="The Lab"
+	description="What was said. What it meant. Notes, insights, and questions answered from the archive."
 />
 
 <!-- Session Selector -->

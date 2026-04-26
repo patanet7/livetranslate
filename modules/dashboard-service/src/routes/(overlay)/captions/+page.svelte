@@ -91,13 +91,13 @@
     };
   });
 
-  // Connection status indicator color
+  // Connection status indicator color (editorial palette: sage / ochre / oxblood)
   const statusColor = $derived(
     ws.status === 'connected'
-      ? '#22c55e'
+      ? '#7A9573'
       : ws.status === 'connecting'
-        ? '#eab308'
-        : '#ef4444'
+        ? '#C49A4F'
+        : '#8B3A3A'
   );
 
   const statusLabel = $derived(
@@ -208,11 +208,14 @@
   });
 </script>
 
+<svelte:head><title>Captions Overlay — LiveTranslate</title></svelte:head>
+
 {#if !sessionId}
   <!-- Setup help screen when no session param is provided -->
   <div class="help-screen">
     <div class="help-card">
-      <h1>LiveTranslate Captions Overlay</h1>
+      <p class="help-eyebrow">the wire · overlay</p>
+      <h1>Captions Overlay</h1>
       <p class="help-intro">
         Add this page as a Browser Source in OBS or any streaming tool.
         Pass URL parameters to configure the overlay.
@@ -283,7 +286,7 @@
         <div
           class="caption-entry"
           class:fading={fadingIds.has(caption.id)}
-          style="--fade-duration: {fadeTime}ms;"
+          style="--fade-duration: {fadeTime}ms; --speaker-ply: {caption.speaker_color};"
           data-caption-id={caption.id}
         >
           {#if liveShowSpeaker}
@@ -316,16 +319,24 @@
 {/if}
 
 <style>
-  /* --- Help screen styles --- */
+  /* ================================================================
+   * THE OVERLAY — paint on glass.
+   * Inverted editorial: ink plates carry paper-cream type. Peach
+   * pulses for "live", earth-tone plies for speaker identity.
+   * Hardcoded hex values are intentional — overlay must render
+   * legibly atop arbitrary backgrounds (OBS, Meet, Zoom).
+   * ================================================================ */
+
+  /* --- Help screen (theme-aware, lives inside the dashboard) --- */
   .help-screen {
     width: 100vw;
     height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #0f0f0f;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #181410;
+    color: #FAF6EE;
+    font-family: 'Newsreader', Georgia, serif;
     padding: 24px;
     box-sizing: border-box;
   }
@@ -333,31 +344,54 @@
   .help-card {
     max-width: 720px;
     width: 100%;
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 12px;
-    padding: 32px;
+    background: rgba(250, 246, 238, 0.04);
+    border: 1px solid rgba(250, 246, 238, 0.14);
+    border-radius: 2px;
+    padding: 40px 44px;
+    box-shadow: inset 0 0 0 1px rgba(250, 246, 238, 0.04);
+  }
+
+  .help-eyebrow {
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 14;
+    font-feature-settings: 'smcp', 'c2sc';
+    text-transform: lowercase;
+    letter-spacing: 0.18em;
+    font-size: 11px;
+    color: #E8B4A0;
+    margin: 0 0 6px;
   }
 
   .help-card h1 {
-    margin: 0 0 8px;
-    font-size: 24px;
-    color: #fff;
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 96, 'SOFT' 50, 'WONK' 1;
+    font-weight: 500;
+    margin: 0 0 14px;
+    font-size: 34px;
+    line-height: 1.05;
+    color: #FAF6EE;
   }
 
   .help-intro {
-    color: #999;
-    margin: 0 0 24px;
-    font-size: 14px;
-    line-height: 1.5;
+    font-family: 'Newsreader', Georgia, serif;
+    font-style: italic;
+    color: rgba(250, 246, 238, 0.72);
+    margin: 0 0 28px;
+    font-size: 15px;
+    line-height: 1.55;
   }
 
   .help-card h2 {
-    font-size: 16px;
-    color: #ccc;
-    margin: 20px 0 8px;
-    border-bottom: 1px solid #333;
-    padding-bottom: 4px;
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 14;
+    font-feature-settings: 'smcp', 'c2sc';
+    text-transform: lowercase;
+    letter-spacing: 0.18em;
+    font-size: 11px;
+    color: rgba(250, 246, 238, 0.54);
+    margin: 24px 0 10px;
+    border-bottom: 1px solid rgba(250, 246, 238, 0.12);
+    padding-bottom: 6px;
   }
 
   .param-table {
@@ -365,91 +399,107 @@
     border-collapse: collapse;
     font-size: 13px;
     margin-bottom: 12px;
+    font-family: 'Newsreader', Georgia, serif;
   }
 
   .param-table th {
     text-align: left;
-    color: #888;
-    font-weight: 600;
-    padding: 6px 8px;
-    border-bottom: 1px solid #333;
+    color: rgba(250, 246, 238, 0.46);
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 14;
+    font-feature-settings: 'smcp', 'c2sc';
+    text-transform: lowercase;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    font-size: 11px;
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid rgba(250, 246, 238, 0.18);
   }
 
   .param-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid #222;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(250, 246, 238, 0.08);
     vertical-align: top;
+    color: rgba(250, 246, 238, 0.86);
   }
 
-  .param-table code {
-    background: #2a2a2a;
-    padding: 2px 6px;
-    border-radius: 4px;
+  .param-table code,
+  .example-url {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    background: rgba(232, 180, 160, 0.10);
+    padding: 2px 7px;
+    border-radius: 1px;
     font-size: 12px;
-    color: #7dd3fc;
+    color: #E8B4A0;
   }
 
   .example-url {
     display: block;
-    background: #2a2a2a;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 12px;
-    color: #7dd3fc;
+    padding: 14px 18px;
     word-break: break-all;
-    line-height: 1.6;
+    line-height: 1.7;
     margin: 8px 0;
+    border-left: 2px solid #E8B4A0;
+    background: rgba(232, 180, 160, 0.06);
   }
 
   .copy-url-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin: 12px 0 4px;
+    gap: 14px;
+    margin: 16px 0 4px;
   }
 
   .copy-btn {
-    background: #2563eb;
-    color: #fff;
+    background: #FAF6EE;
+    color: #181410;
     border: none;
-    border-radius: 6px;
-    padding: 7px 16px;
-    font-size: 13px;
-    font-weight: 600;
+    border-radius: 1px;
+    padding: 9px 18px;
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 14;
+    font-feature-settings: 'smcp', 'c2sc';
+    text-transform: lowercase;
+    letter-spacing: 0.14em;
+    font-size: 11px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.18s ease, transform 0.1s ease;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .copy-btn:hover {
-    background: #1d4ed8;
+    background: #E8B4A0;
   }
 
   .copy-btn:active {
-    background: #1e40af;
+    transform: translateY(1px);
   }
 
   .copy-hint {
-    color: #666;
+    color: rgba(250, 246, 238, 0.46);
     font-size: 12px;
-  }
-
-  .help-tip {
-    color: #888;
-    font-size: 13px;
-    margin: 16px 0 0;
     font-style: italic;
   }
 
-  /* --- Overlay styles --- */
+  .help-tip {
+    color: rgba(250, 246, 238, 0.62);
+    font-size: 13px;
+    margin: 20px 0 0;
+    font-style: italic;
+    border-left: 1px solid rgba(232, 180, 160, 0.4);
+    padding-left: 14px;
+  }
+
+  /* --- The overlay itself (paint on glass) --- */
   .captions-overlay {
     width: 100vw;
     height: 100vh;
     display: flex;
     flex-direction: column;
-    padding: 20px;
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 28px;
+    font-family: 'Newsreader', Georgia, serif;
     overflow: hidden;
     position: relative;
   }
@@ -457,45 +507,57 @@
   /* --- Connection status indicator --- */
   .status-indicator {
     position: fixed;
-    top: 8px;
-    right: 12px;
+    top: 10px;
+    right: 14px;
     display: flex;
     align-items: center;
-    gap: 6px;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 4px 10px;
-    border-radius: 12px;
+    gap: 8px;
+    background: rgba(24, 20, 16, 0.78);
+    padding: 5px 12px;
+    border-radius: 1px;
+    border: 1px solid rgba(250, 246, 238, 0.10);
     z-index: 100;
+    backdrop-filter: blur(8px);
   }
 
   .status-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     display: inline-block;
     flex-shrink: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
   }
 
   .status-text {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.7);
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 14;
+    font-feature-settings: 'smcp', 'c2sc';
+    text-transform: lowercase;
+    letter-spacing: 0.16em;
+    font-size: 10px;
+    color: rgba(250, 246, 238, 0.78);
     white-space: nowrap;
   }
 
-  /* --- Caption list --- */
+  /* --- Caption list (the broadsheet) --- */
   .caption-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
 
   .caption-entry {
-    background: rgba(0, 0, 0, 0.75);
-    border-radius: 8px;
-    padding: 8px 12px;
-    animation: fadeIn 0.3s ease;
+    background: rgba(24, 20, 16, 0.86);
+    border-left: 4px solid var(--speaker-ply, #E8B4A0);
+    border-radius: 1px;
+    padding: 10px 16px 11px;
+    animation: captionRise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
     opacity: 1;
     transition: opacity var(--fade-duration, 500ms) ease;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 1px 0 rgba(250, 246, 238, 0.04) inset,
+                0 8px 24px rgba(0, 0, 0, 0.32);
   }
 
   .caption-entry.fading {
@@ -503,42 +565,63 @@
   }
 
   .caption-entry.interim {
-    opacity: 0.6;
-    border: 1px dashed rgba(255, 255, 255, 0.3);
+    opacity: 0.55;
+    border-left-style: dashed;
+    border-left-color: rgba(232, 180, 160, 0.6);
   }
 
   .speaker {
-    font-size: 0.75em;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    display: inline-block;
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 14;
+    font-feature-settings: 'smcp', 'c2sc';
+    font-size: 0.68em;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 2px;
   }
 
   .original {
-    color: rgba(255, 255, 255, 0.7);
+    font-family: 'Newsreader', Georgia, serif;
+    color: rgba(250, 246, 238, 0.66);
     margin: 2px 0;
+    line-height: 1.42;
+    font-feature-settings: 'kern', 'liga', 'onum';
   }
 
   .translated {
-    color: #fff;
-    font-weight: 500;
+    font-family: 'Newsreader', Georgia, serif;
+    color: #FAF6EE;
+    font-weight: 450;
     margin: 2px 0;
+    line-height: 1.4;
     transition: opacity 0.3s ease;
+    font-feature-settings: 'kern', 'liga', 'onum';
   }
 
   .translated.translating {
     opacity: 0.5;
     font-style: italic;
+    color: rgba(232, 180, 160, 0.78);
   }
 
-  @keyframes fadeIn {
+  @keyframes captionRise {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(6px);
+      filter: blur(2px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .caption-entry {
+      animation: none;
     }
   }
 </style>

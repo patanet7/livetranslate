@@ -78,7 +78,9 @@
 	}
 </script>
 
-<PageHeader title="Live Session">
+<svelte:head><title>Live Session — LiveTranslate</title></svelte:head>
+
+<PageHeader eyebrow="the loop · live session" title="In the Wire">
 	{#snippet actions()}
 		<StatusIndicator status={wsStore.status} label={wsStore.status} />
 		<Button variant="destructive" size="sm" disabled={disconnecting} onclick={handleDisconnect}>

@@ -53,7 +53,13 @@
 	let draftStride = $derived(activeStride / 2);
 </script>
 
-<PageHeader title="Audio Configuration" description="Audio processing, VAC chunking, and two-pass settings" />
+<svelte:head><title>Audio Config — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the desk · audio"
+	title="Audio"
+	description="Pre-press settings: VAC chunking, two-pass, and the way the line listens."
+/>
 
 <div class="max-w-2xl space-y-6">
 	<!-- Section A: Audio Processing -->

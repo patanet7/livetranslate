@@ -142,7 +142,13 @@
 	}
 </script>
 
-<PageHeader title="Settings" description="Manage API keys and service integrations" />
+<svelte:head><title>Settings — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the desk · settings"
+	title="Settings"
+	description="API keys and service integrations — the credentials behind the masthead."
+/>
 
 <div class="space-y-6 max-w-2xl">
 	<!-- Saved Key Status -->

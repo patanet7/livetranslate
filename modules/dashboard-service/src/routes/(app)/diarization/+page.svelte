@@ -175,9 +175,12 @@
 	}
 </script>
 
+<svelte:head><title>Diarization — LiveTranslate</title></svelte:head>
+
 <PageHeader
-	title="Diarization"
-	description="Offline speaker diarization with VibeVoice-ASR"
+	eyebrow="the workshop · who said it"
+	title="Who Said It"
+	description="Offline speaker diarization with VibeVoice-ASR — telling the speakers apart, after the fact."
 />
 
 <Tabs.Root value="jobs">

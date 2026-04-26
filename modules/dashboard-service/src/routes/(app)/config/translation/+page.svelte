@@ -224,9 +224,12 @@
 	}
 </script>
 
+<svelte:head><title>Translation Config — LiveTranslate</title></svelte:head>
+
 <PageHeader
-	title="Translation Configuration"
-	description="Manage translation backends, models, language settings, and prompt templates"
+	eyebrow="the desk · translation"
+	title="Translation"
+	description="Backends, models, language defaults, and the prompt templates the translator follows."
 />
 
 <div class="max-w-3xl space-y-6">

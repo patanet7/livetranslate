@@ -420,7 +420,13 @@
 	}
 </script>
 
-<PageHeader title="Glossary" description="Manage translation glossary terms and dictionaries">
+<svelte:head><title>Glossary — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the loop · the dictionary"
+	title="The Glossary"
+	description="Translator's notes — the words we want rendered exactly the same way every time."
+>
 	{#snippet actions()}
 		<Button variant="outline" onclick={() => (newGlossaryOpen = true)}>New Glossary</Button>
 	{/snippet}

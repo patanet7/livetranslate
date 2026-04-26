@@ -287,7 +287,13 @@
 	}
 </script>
 
-<PageHeader title="Business Insights Chat" description="AI-powered analysis of your meetings, transcripts, and translations">
+<svelte:head><title>Chat — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the workshop · the chat"
+	title="A Reading Conversation"
+	description="Ask questions of the archive. The model answers from your meetings, transcripts, and translations."
+>
 	{#snippet actions()}
 		<Button variant="outline" size="sm" onclick={() => (settingsOpen = true)}>
 			<SettingsIcon class="size-4 mr-2" />

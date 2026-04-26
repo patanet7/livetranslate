@@ -184,9 +184,12 @@
 	});
 </script>
 
+<svelte:head><title>Connections — LiveTranslate</title></svelte:head>
+
 <PageHeader
-	title="AI Connections"
-	description="Manage AI backend connections shared across Chat, Translation, and Intelligence"
+	eyebrow="the desk · connections"
+	title="The Wires"
+	description="Backends shared across Chat, Translation, and Intelligence — where the inks come from."
 />
 
 <div class="max-w-3xl space-y-6">

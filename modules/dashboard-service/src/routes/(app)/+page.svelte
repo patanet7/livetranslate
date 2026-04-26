@@ -131,58 +131,47 @@
 	];
 </script>
 
-<PageHeader title="Dashboard" description="LiveTranslate system overview">
+<svelte:head>
+	<title>Overview — LiveTranslate</title>
+</svelte:head>
+
+<PageHeader
+	eyebrow="overview · the desk"
+	title="Today's Edition"
+	description="A live read of the orchestration service, the speakers it's heard, and the conversations in flight."
+>
 	{#snippet actions()}
 		<Button variant="ghost" size="sm" onclick={loadStats} disabled={loading}>
-			<RefreshCwIcon class="size-4 mr-1 {loading ? 'animate-spin' : ''}" />
+			<RefreshCwIcon class="size-4 mr-1.5 {loading ? 'animate-spin' : ''}" />
 			Refresh
 		</Button>
 	{/snippet}
 </PageHeader>
 
 {#if error}
-	<div class="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4">
-		{error}
+	<div class="alert-banner" role="alert">
+		<span class="alert-mark" aria-hidden="true"></span>
+		<span class="alert-body">{error}</span>
 	</div>
 {/if}
 
-<!-- Row 1: Stats Grid -->
-<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-	<Card.Root>
-		<Card.Content class="pt-6">
-			<p class="text-3xl font-bold tracking-tight">{stats?.total_meetings ?? '—'}</p>
-			<p class="text-sm text-muted-foreground mt-1">Total Meetings</p>
-		</Card.Content>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Content class="pt-6">
-			<p class="text-3xl font-bold tracking-tight text-green-500">{stats?.active_meetings ?? 0}</p>
-			<p class="text-sm text-muted-foreground mt-1">Active Now</p>
-		</Card.Content>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Content class="pt-6">
-			<p class="text-3xl font-bold tracking-tight">{stats?.total_chunks ?? '—'}</p>
-			<p class="text-sm text-muted-foreground mt-1">Transcriptions</p>
-		</Card.Content>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Content class="pt-6">
-			<p class="text-3xl font-bold tracking-tight">{stats?.total_translations ?? '—'}</p>
-			<p class="text-sm text-muted-foreground mt-1">Translations</p>
-		</Card.Content>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Content class="pt-6">
-			<p class="text-3xl font-bold tracking-tight">{stats?.total_audio_minutes?.toFixed(0) ?? '—'}</p>
-			<p class="text-sm text-muted-foreground mt-1">Audio Minutes</p>
-		</Card.Content>
-	</Card.Root>
-</div>
+<!-- Row 1: Stats Grid — magazine "by the numbers" callouts -->
+<section class="stats-grid">
+	{#each [
+		{ label: 'meetings, total', value: stats?.total_meetings ?? null, accent: false },
+		{ label: 'active now', value: stats?.active_meetings ?? 0, accent: true },
+		{ label: 'transcriptions', value: stats?.total_chunks ?? null, accent: false },
+		{ label: 'translations', value: stats?.total_translations ?? null, accent: false },
+		{ label: 'audio, minutes', value: stats?.total_audio_minutes !== undefined ? Math.round(stats.total_audio_minutes) : null, accent: false },
+	] as stat}
+		<article class="stat" class:stat-accent={stat.accent && (stat.value as number) > 0}>
+			<p class="stat-value font-display">
+				{stat.value === null ? '—' : stat.value}
+			</p>
+			<p class="eyebrow stat-label">{stat.label}</p>
+		</article>
+	{/each}
+</section>
 
 <!-- Row 2: Active Meetings + Services -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -195,11 +184,11 @@
 			{#if stats?.active_meeting_list && stats.active_meeting_list.length > 0}
 				<div class="space-y-3">
 					{#each stats.active_meeting_list as meeting (meeting.id)}
-						<div class="flex items-center justify-between p-2 rounded-md bg-muted/50">
+						<div class="flex items-center justify-between p-2 rounded-md bg-paper-cream">
 							<div class="flex items-center gap-2">
 								<span class="relative flex h-2 w-2">
-									<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-									<span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+									<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-peach opacity-75"></span>
+									<span class="relative inline-flex rounded-full h-2 w-2 bg-peach-deep"></span>
 								</span>
 								<span class="font-mono text-xs">{meeting.id.slice(0, 8)}...</span>
 								<Badge variant={sourceBadgeVariant(meeting.source)}>{meeting.source}</Badge>
@@ -231,7 +220,7 @@
 			{#if stats?.services}
 				<ul class="space-y-2">
 					{#each stats.services as service (service.name)}
-						<li class="flex items-center justify-between text-sm p-2 rounded-md bg-muted/30">
+						<li class="flex items-center justify-between text-sm p-2 rounded-md bg-paper-cream/60">
 							<span class="capitalize">{service.name.replace(/-/g, ' ')}</span>
 							<div class="flex items-center gap-2">
 								{#if service.latency_ms}
@@ -267,7 +256,7 @@
 						{@const height = (day.meetings / maxMeetings) * 100}
 						<div class="flex-1 flex flex-col items-center gap-1">
 							<div
-								class="w-full bg-primary/80 rounded-t transition-all"
+								class="w-full bg-peach-deep/85 rounded-t transition-all"
 								style="height: {Math.max(height, 4)}%"
 								title="{day.meetings} meetings"
 							></div>
@@ -298,10 +287,10 @@
 				{#if total > 0}
 					<div class="space-y-3">
 						{#each [
-							{ label: 'Fireflies', count: stats.by_source.fireflies, color: 'bg-blue-500' },
-							{ label: 'Loopback', count: stats.by_source.loopback, color: 'bg-green-500' },
-							{ label: 'Google Meet', count: stats.by_source.gmeet, color: 'bg-yellow-500' },
-							{ label: 'Other', count: stats.by_source.other, color: 'bg-gray-500' },
+							{ label: 'Fireflies', count: stats.by_source.fireflies, color: 'bg-slate-blue' },
+							{ label: 'Loopback', count: stats.by_source.loopback, color: 'bg-sage' },
+							{ label: 'Google Meet', count: stats.by_source.gmeet, color: 'bg-ochre' },
+							{ label: 'Other', count: stats.by_source.other, color: 'bg-plum' },
 						] as item}
 							{#if item.count > 0}
 								<div>
@@ -343,14 +332,71 @@
 	</Card.Content>
 </Card.Root>
 
-<!-- Footer -->
+<!-- Footer — colophon -->
 {#if lastRefresh}
-	<p class="text-xs text-muted-foreground text-center mt-4">
-		Last updated: {lastRefresh}
+	<p class="font-mono text-xs text-ink-faint text-center mt-6">
+		printed {lastRefresh}
 		{#if stats?.database_connected}
-			<span class="ml-2 text-green-500">DB connected</span>
+			<span class="ml-2 text-sage">· db connected</span>
 		{:else if stats}
-			<span class="ml-2 text-yellow-500">DB unavailable</span>
+			<span class="ml-2 text-ochre">· db unavailable</span>
 		{/if}
 	</p>
 {/if}
+
+<style>
+	/* ── Editorial home callouts — D5.1 ───────────────────────── */
+	.stats-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1px;
+		background: var(--rule);
+		border: 1px solid var(--rule);
+		border-radius: 0.375rem;
+		overflow: hidden;
+		margin-bottom: 1.5rem;
+	}
+	@media (min-width: 1024px) {
+		.stats-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+	}
+	.stat {
+		background: var(--paper);
+		padding: 1.25rem 1.25rem 1rem;
+		min-height: 6.5rem;
+	}
+	.stat-accent {
+		background: color-mix(in srgb, var(--peach) 10%, var(--paper));
+	}
+	.stat-value {
+		margin: 0;
+		font-size: 2.75rem;
+		line-height: 1;
+		color: var(--ink);
+		font-variation-settings: "opsz" 96, "SOFT" 50, "WONK" 1;
+		letter-spacing: -0.04em;
+		font-feature-settings: "lnum"; /* lining figures for big stat numbers */
+	}
+	.stat-accent .stat-value { color: var(--peach-deep); }
+	.stat-label {
+		margin: 0.5rem 0 0;
+	}
+
+	/* ── Alert banner ─────────────────────────────────────────── */
+	.alert-banner {
+		display: flex;
+		align-items: center;
+		gap: 0.875rem;
+		padding: 0.75rem 1.25rem;
+		background: color-mix(in srgb, var(--oxblood) 12%, var(--paper));
+		border-left: 3px solid var(--oxblood);
+		color: var(--ink);
+		margin-bottom: 1rem;
+		border-radius: 0.25rem;
+	}
+	.alert-mark {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 9999px;
+		background: var(--oxblood);
+	}
+</style>

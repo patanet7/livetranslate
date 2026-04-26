@@ -146,7 +146,13 @@
 	}
 </script>
 
-<PageHeader title="Meetings" description="Browse all meeting transcripts, translations, and insights" />
+<svelte:head><title>Meetings — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the loop · the calendar"
+	title="The Conversations"
+	description="Every meeting we've heard, transcribed, and rendered into another tongue. Browse the archive."
+/>
 
 <!-- Action Buttons -->
 <div class="mb-4 flex flex-wrap items-center gap-2">

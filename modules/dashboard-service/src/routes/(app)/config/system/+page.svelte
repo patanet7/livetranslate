@@ -131,9 +131,12 @@
 	}
 </script>
 
+<svelte:head><title>System Config — LiveTranslate</title></svelte:head>
+
 <PageHeader
-	title="System Configuration"
-	description="Manage languages, translation domains, and default settings"
+	eyebrow="the desk · system"
+	title="System"
+	description="Languages, translation domains, and the defaults every page inherits."
 />
 
 <Tabs.Root bind:value={activeTab}>

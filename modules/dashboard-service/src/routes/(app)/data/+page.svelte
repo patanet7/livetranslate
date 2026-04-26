@@ -328,7 +328,13 @@
 	}
 </script>
 
-<PageHeader title="Data & Logs" description="System data, transcription logs, and analytics">
+<svelte:head><title>Data — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the workshop · the records"
+	title="The Records"
+	description="Logs, system data, and analytics — the printer's marks behind the published edition."
+>
 	{#snippet actions()}
 		{#if hasData}
 			<Button variant="outline" size="sm" onclick={clearData}>Clear</Button>

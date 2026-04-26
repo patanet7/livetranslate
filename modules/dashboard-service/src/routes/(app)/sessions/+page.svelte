@@ -351,9 +351,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Sessions — LiveTranslate</title>
+</svelte:head>
+
 <PageHeader
-	title="Session Manager"
-	description="Create sessions, send test captions, and monitor WebSocket activity"
+	eyebrow="the workshop · sessions"
+	title="The Caption Bench"
+	description="Stand up a session, push test captions, and watch the WebSocket traffic — the workbench you reach for when something on the line stops singing."
 />
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

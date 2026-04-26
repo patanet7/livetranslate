@@ -12,7 +12,13 @@
   let submitting = $state(false);
 </script>
 
-<PageHeader title="Translation Test Bench" description="Test translation quality interactively" />
+<svelte:head><title>Translation Bench — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the workshop · the bench"
+	title="The Translator's Bench"
+	description="Side-by-side trials. Type a line on the left, watch the model render it on the right."
+/>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
   <!-- Input -->

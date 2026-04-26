@@ -10,7 +10,13 @@
   ];
 </script>
 
-<PageHeader title="Configuration" description="Manage system settings" />
+<svelte:head><title>Configuration — LiveTranslate</title></svelte:head>
+
+<PageHeader
+  eyebrow="the desk · colophon"
+  title="The Colophon"
+  description="House style — the rules every page is set under."
+/>
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   {#each sections as section}

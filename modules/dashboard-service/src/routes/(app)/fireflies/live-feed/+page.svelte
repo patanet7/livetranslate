@@ -227,7 +227,13 @@
 	}
 </script>
 
-<PageHeader title="Live Feed" description="Real-time Fireflies transcript and translation stream">
+<svelte:head><title>Live Feed — LiveTranslate</title></svelte:head>
+
+<PageHeader
+	eyebrow="the loop · the wire"
+	title="Off the Wire"
+	description="Real-time Fireflies transcript and translation, as it comes in."
+>
 	{#snippet actions()}
 		<StatusIndicator status={wsStatus} label={wsStatus} />
 	{/snippet}

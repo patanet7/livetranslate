@@ -38,9 +38,12 @@
 	}
 </script>
 
+<svelte:head><title>Fireflies — LiveTranslate</title></svelte:head>
+
 <PageHeader
-	title="Fireflies"
-	description="Connect to a live Fireflies transcript for real-time translation"
+	eyebrow="the loop · the wire"
+	title="From the Fireflies Wire"
+	description="Connect to a live Fireflies transcript and feed it into our translation line."
 />
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
