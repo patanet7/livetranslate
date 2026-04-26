@@ -24,10 +24,10 @@
   let translationOnline = $derived(health === "healthy");
 
   // Derive a department-style label from the URL — used as the running-head text.
-  // "/loopback/foo" → "loopback". Empty path → "overview".
+  // "/loopback/foo" → "loopback". Root → "overview".
   const departmentLabel = $derived.by(() => {
     const path = $page.url.pathname;
-    if (path === "/" || path === "") return "overview";
+    if (path === "/") return "overview";
     return path.split("/").filter(Boolean)[0] ?? "overview";
   });
 
@@ -202,14 +202,6 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--peach-deep) 22%, transparent);
     animation: dot-pulse 2s ease-in-out infinite;
   }
-  .demo-trigger .chevron {
-    transition: transform 200ms ease;
-    color: var(--ink-faint);
-  }
-  .demo-trigger .chevron.open {
-    transform: rotate(180deg);
-  }
-
   /* Popover */
   .demo-popover {
     position: absolute;

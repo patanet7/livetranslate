@@ -37,11 +37,18 @@ const page = await context.newPage();
 
 for (const [name, route] of ROUTES) {
   try {
+    // Vite HMR keeps a WebSocket open; networkidle never lands. Use
+    // domcontentloaded + explicit waits for fonts and the reveal cascade.
     await page.goto(`http://localhost:5180${route}`, {
-      waitUntil: "networkidle",
-      timeout: 8000,
+      waitUntil: "domcontentloaded",
+      timeout: 12000,
     });
-    await page.waitForTimeout(400); // settle animations
+    // Wait for Google Fonts (Fraunces / Newsreader / JetBrains Mono) so
+    // headlines render in the editorial faces, not a fallback.
+    await page.evaluate(() => document.fonts.ready);
+    // Settle the staggered editorial reveal (D6.2): max delay 480ms
+    // + 380ms transition + rule-draw 540ms@320ms delay = 860ms ceiling.
+    await page.waitForTimeout(1100);
     await page.screenshot({ path: `${outDir}/${name}.png`, fullPage: true });
     console.log(`✓ ${name.padEnd(18)} ${route}`);
   } catch (err) {

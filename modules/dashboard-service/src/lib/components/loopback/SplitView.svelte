@@ -255,10 +255,26 @@
   }
 
   .speaker {
-    color: var(--speaker-color, var(--ink));
+    /* WCAG: byline at 12px requires 4.5:1, which several earth-tone
+       speaker hues miss on paper. Render the name in --ink and lead
+       it with a small pip in the speaker color — the visual identity
+       lives in the swatch, the legibility lives in the type. */
+    color: var(--ink);
     font-size: 0.75rem;
     letter-spacing: 0.16em;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+  }
+  .speaker::before {
+    content: "";
+    display: inline-block;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 50%;
+    background: var(--speaker-color, var(--ink-faint));
+    flex-shrink: 0;
   }
   .ts {
     color: var(--ink-faint);

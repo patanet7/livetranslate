@@ -16,8 +16,8 @@
 >
 	<div class="flex items-center gap-2">
 		<span
-			class="speaker-name text-xs font-medium px-1.5 py-0.5 rounded"
-			style="background-color: {caption.speaker_color}20; color: {caption.speaker_color}"
+			class="speaker-name text-xs font-medium px-1.5 py-0.5 rounded text-foreground"
+			style="background-color: {caption.speaker_color}20; border-left: 2px solid {caption.speaker_color}; padding-left: 0.5rem;"
 		>
 			{caption.speaker_name}
 		</span>

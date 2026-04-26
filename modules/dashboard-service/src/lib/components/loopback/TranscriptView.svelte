@@ -202,8 +202,11 @@
   }
 
   .speaker {
+    /* WCAG: speaker byline at 12px needs 4.5:1, which several earth-tone
+       speaker hues fail on paper. Preserve identity via the colored pip
+       (line 197); render the byline text in --ink for AA. */
     margin: 0 0 0.375rem;
-    color: var(--speaker-color, var(--ink));
+    color: var(--ink);
     font-size: 0.75rem;
     letter-spacing: 0.16em;
     line-height: 1;
