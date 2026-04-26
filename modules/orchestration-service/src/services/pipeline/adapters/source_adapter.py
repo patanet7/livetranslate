@@ -28,6 +28,7 @@ class CaptionEvent:
     caption_id: str
     text: str
     speaker_name: str | None = None
+    speaker_id: str | None = None  # diarization id (e.g. "SPEAKER_00"); rendered iff WebcamConfig.show_diarization_ids
     speaker_color: str = "#4CAF50"
     source_lang: str = "auto"
     target_lang: str | None = None

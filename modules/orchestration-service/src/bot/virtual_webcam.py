@@ -73,6 +73,10 @@ class WebcamConfig:
     show_speaker_names: bool = True
     show_confidence: bool = True
     show_timestamps: bool = False
+    # Append diarization tag (e.g. "Alice (SPEAKER_00)") only when speaker identity
+    # is unknown (recorded audio with anonymous speakers). For Meet calls where the
+    # participant has a real account name, leave this off so the UI shows just "Alice".
+    show_diarization_ids: bool = False
 
 
 @dataclass
@@ -88,6 +92,9 @@ class TranslationDisplay:
     timestamp: datetime
     display_position: tuple[int, int] = (0, 0)
     expires_at: datetime | None = None
+    # When set and distinct from `text`, renderers draw it as a secondary line
+    # above the translation. `text` always holds the primary (translated) line.
+    original_text: str | None = None
 
 
 @dataclass
@@ -275,65 +282,112 @@ class VirtualWebcamManager:
             return False
 
     def add_translation(self, translation_data: dict[str, Any]):
-        """Add a new translation to display."""
+        """Dict-shaped façade over :meth:`add_caption`.
+
+        Pulls `original_text` AND `translated_text` from the dict so callers
+        that already have both (e.g. `bot_integration.py:1257-1258`) get
+        paired-block rendering for free without changing their call sites.
+        Older callers that only supply `translated_text` still work — secondary
+        line is just empty in that case.
+        """
         try:
-            # Determine display text and type
-            is_original = translation_data.get("is_original_transcription", False)
-            display_text = translation_data["translated_text"]
-
-            # Format speaker name with diarization info if available
-            speaker_name = translation_data.get("speaker_name")
-            speaker_id = translation_data.get("speaker_id")
-
-            # Enhanced speaker name formatting
-            if speaker_name and speaker_id:
-                # Check if speaker_id contains diarization info (e.g., "SPEAKER_00", "diarized_speaker_1")
-                if "SPEAKER_" in speaker_id or "diarized" in speaker_id.lower():
-                    formatted_speaker = f"{speaker_name} ({speaker_id})"
-                else:
-                    formatted_speaker = speaker_name
-            elif speaker_id:
-                formatted_speaker = speaker_id
-            elif speaker_name:
-                formatted_speaker = speaker_name
-            else:
-                formatted_speaker = "Unknown Speaker"
-
-            # Create translation display item
-            translation = TranslationDisplay(
-                translation_id=translation_data.get("translation_id", str(uuid.uuid4())),
-                text=display_text,
+            self.add_caption(
+                original_text=translation_data.get("original_text"),
+                translated_text=translation_data.get("translated_text"),
+                speaker_name=translation_data.get("speaker_name"),
+                speaker_id=translation_data.get("speaker_id"),
                 source_language=translation_data.get("source_language", "auto"),
                 target_language=translation_data.get("target_language", "en"),
+                confidence=translation_data.get("translation_confidence", 0.0),
+                pair_id=translation_data.get("translation_id"),
+            )
+        except Exception as e:
+            logger.error(f"Error adding translation: {e}")
+
+    def _format_speaker_label(
+        self, speaker_name: str | None, speaker_id: str | None
+    ) -> str:
+        """Format the visible speaker label.
+
+        Diarization-style ids (`SPEAKER_00`, `diarized_speaker_1`) are appended in
+        parentheses only when `WebcamConfig.show_diarization_ids` is on. In Meet
+        calls the participant has a real account name and the diarization id is
+        meaningless leak; in raw recordings the id is all we have, so the flag
+        controls visibility.
+        """
+        if speaker_name and speaker_id:
+            is_diarization_id = (
+                "SPEAKER_" in speaker_id or "diarized" in speaker_id.lower()
+            )
+            if is_diarization_id and self.config.show_diarization_ids:
+                return f"{speaker_name} ({speaker_id})"
+            return speaker_name
+        if speaker_id:
+            return speaker_id
+        if speaker_name:
+            return speaker_name
+        return "Unknown Speaker"
+
+    def add_caption(
+        self,
+        *,
+        original_text: str | None = None,
+        translated_text: str | None = None,
+        speaker_name: str | None = None,
+        speaker_id: str | None = None,
+        source_language: str = "auto",
+        target_language: str = "en",
+        confidence: float = 1.0,
+        pair_id: str | None = None,
+    ) -> None:
+        """Append a paired caption (original + translation) as one display entry.
+
+        Preferred over `add_translation()` when both texts are known together —
+        avoids the deque-pair-recovery problem where the renderer cannot tell
+        which original goes with which translation.
+        """
+        try:
+            formatted_speaker = self._format_speaker_label(speaker_name, speaker_id)
+
+            primary = translated_text if translated_text else original_text
+            secondary = (
+                original_text
+                if original_text and original_text != translated_text
+                else None
+            )
+
+            caption = TranslationDisplay(
+                translation_id=pair_id or str(uuid.uuid4()),
+                text=primary or "",
+                original_text=secondary,
+                source_language=source_language,
+                target_language=target_language,
                 speaker_name=formatted_speaker,
-                confidence=translation_data.get(
-                    "translation_confidence", 0.0
-                ),  # Default to 0.0 instead of 1.0
+                confidence=confidence,
                 timestamp=datetime.now(UTC),
                 expires_at=datetime.now(UTC)
                 + timedelta(seconds=self.config.translation_duration_seconds),
             )
 
-            # Add speaker if new
             if speaker_id and speaker_id not in self.speakers:
                 self._add_speaker(speaker_id, formatted_speaker)
-
-            # Update speaker activity
             if speaker_id in self.speakers:
                 self.speakers[speaker_id].last_active = datetime.now(UTC)
 
-            # Add to display queue
             with self.frame_lock:
-                self.current_translations.append(translation)
+                self.current_translations.append(caption)
                 self.last_translation_time = time.time()
 
-            # Log with appropriate prefix
-            prefix = "TRANSCRIPTION" if is_original else "TRANSLATION"
-            lang_info = f"[{translation_data.get('source_language', 'auto')} → {translation_data.get('target_language', 'en')}]"
-            logger.info(f"{prefix} {lang_info} {formatted_speaker}: {display_text[:100]}...")
-
+            logger.info(
+                "caption_added",
+                speaker=formatted_speaker,
+                source=source_language,
+                target=target_language,
+                original=(original_text or "")[:80],
+                translated=(translated_text or "")[:80],
+            )
         except Exception as e:
-            logger.error(f"Error adding translation: {e}")
+            logger.error(f"Error adding caption: {e}")
 
     def _add_speaker(self, speaker_id: str, speaker_name: str | None):
         """Add a new speaker to tracking."""
@@ -506,7 +560,7 @@ class VirtualWebcamManager:
             self._draw_sidebar_translation(
                 draw, translation, sidebar_x, y_offset, sidebar_width - 20, colors
             )
-            y_offset += 100
+            y_offset += 130
 
         self.current_frame = np.array(img)
 
@@ -550,14 +604,14 @@ class VirtualWebcamManager:
 
         # Center the translations
         if self.current_translations:
-            total_height = len(self.current_translations) * 100
+            total_height = len(self.current_translations) * 130
             start_y = (self.config.height - total_height) // 2
 
             for i, translation in enumerate(self.current_translations):
                 if translation.expires_at and datetime.now(UTC) > translation.expires_at:
                     continue
 
-                y_pos = start_y + (i * 100)
+                y_pos = start_y + (i * 130)
                 self._draw_centered_translation(draw, translation, y_pos, colors)
 
         self.current_frame = np.array(img)
@@ -667,28 +721,27 @@ class VirtualWebcamManager:
         width: int,
         colors: dict[str, tuple[int, int, int]],
     ):
-        """Draw translation in sidebar format."""
-        # Similar to box but adapted for sidebar layout
+        """Draw a paired caption (original + translation) in sidebar format."""
+        small_font = self.fonts.get("small", ImageFont.load_default())
+        regular_font = self.fonts.get("regular", ImageFont.load_default())
+
         if translation.speaker_name:
             draw.text(
                 (x, y),
                 f"{translation.speaker_name}:",
                 fill=colors["accent"],
-                font=self.fonts.get("small", ImageFont.load_default()),
+                font=small_font,
             )
             y += 20
 
-        # Wrap text for sidebar
-        lines = wrap_text(translation.text, max_chars=30, max_lines=3)
+        if translation.original_text:
+            for line in wrap_text(translation.original_text, max_chars=30, max_lines=2):
+                draw.text((x, y), line, fill=colors["text_secondary"], font=small_font)
+                y += 18
 
-        for line in lines:
-            draw.text(
-                (x, y),
-                line,
-                fill=colors["text_primary"],
-                font=self.fonts.get("regular", ImageFont.load_default()),
-            )
-            y += 20
+        for line in wrap_text(translation.text, max_chars=30, max_lines=2):
+            draw.text((x, y), line, fill=colors["text_primary"], font=regular_font)
+            y += 22
 
     def _draw_banner_translation(
         self,
@@ -697,27 +750,32 @@ class VirtualWebcamManager:
         y: int,
         colors: dict[str, tuple[int, int, int]],
     ):
-        """Draw translation in banner format with text wrapping."""
-        text = translation.text
-        font = self.fonts.get("regular", ImageFont.load_default())
+        """Draw a paired caption (original + translation) in banner format."""
+        regular_font = self.fonts.get("regular", ImageFont.load_default())
+        small_font = self.fonts.get("small", ImageFont.load_default())
 
-        # Draw speaker name on first line if present
-        line_y = y + 10
+        line_y = y + 6
+
         if translation.speaker_name:
             speaker_text = f"{translation.speaker_name}:"
-            bbox = draw.textbbox((0, 0), speaker_text, font=font)
-            text_width = bbox[2] - bbox[0]
-            x = (self.config.width - text_width) // 2
-            draw.text((x, line_y), speaker_text, fill=colors["accent"], font=font)
-            line_y += 30
+            bbox = draw.textbbox((0, 0), speaker_text, font=small_font)
+            x = (self.config.width - (bbox[2] - bbox[0])) // 2
+            draw.text((x, line_y), speaker_text, fill=colors["accent"], font=small_font)
+            line_y += 22
 
-        # Wrap main text to fit banner width (max ~80 chars for 1280px at default font)
-        lines = wrap_text(text, max_chars=80, max_lines=2)
-        for line in lines:
-            bbox = draw.textbbox((0, 0), line, font=font)
-            text_width = bbox[2] - bbox[0]
-            x = (self.config.width - text_width) // 2
-            draw.text((x, line_y), line, fill=colors["text_primary"], font=font)
+        if translation.original_text:
+            for line in wrap_text(translation.original_text, max_chars=90, max_lines=1):
+                bbox = draw.textbbox((0, 0), line, font=small_font)
+                x = (self.config.width - (bbox[2] - bbox[0])) // 2
+                draw.text(
+                    (x, line_y), line, fill=colors["text_secondary"], font=small_font
+                )
+                line_y += 22
+
+        for line in wrap_text(translation.text, max_chars=80, max_lines=1):
+            bbox = draw.textbbox((0, 0), line, font=regular_font)
+            x = (self.config.width - (bbox[2] - bbox[0])) // 2
+            draw.text((x, line_y), line, fill=colors["text_primary"], font=regular_font)
             line_y += 28
 
     def _draw_centered_translation(
@@ -727,32 +785,35 @@ class VirtualWebcamManager:
         y: int,
         colors: dict[str, tuple[int, int, int]],
     ):
-        """Draw translation centered for fullscreen mode."""
-        font = self.fonts.get("bold", ImageFont.load_default())
+        """Draw a paired caption (original + translation) centered for fullscreen."""
+        small_font = self.fonts.get("small", ImageFont.load_default())
+        bold_font = self.fonts.get("bold", ImageFont.load_default())
 
-        # Speaker name
         if translation.speaker_name:
-            speaker_text = translation.speaker_name
-            bbox = draw.textbbox(
-                (0, 0),
-                speaker_text,
-                font=self.fonts.get("small", ImageFont.load_default()),
-            )
-            text_width = bbox[2] - bbox[0]
-            x = (self.config.width - text_width) // 2
+            bbox = draw.textbbox((0, 0), translation.speaker_name, font=small_font)
+            x = (self.config.width - (bbox[2] - bbox[0])) // 2
             draw.text(
                 (x, y),
-                speaker_text,
+                translation.speaker_name,
                 fill=colors["accent"],
-                font=self.fonts.get("small", ImageFont.load_default()),
+                font=small_font,
             )
-            y += 30
+            y += 24
 
-        # Translation text
-        bbox = draw.textbbox((0, 0), translation.text, font=font)
-        text_width = bbox[2] - bbox[0]
-        x = (self.config.width - text_width) // 2
-        draw.text((x, y), translation.text, fill=colors["text_primary"], font=font)
+        if translation.original_text:
+            for line in wrap_text(translation.original_text, max_chars=70, max_lines=2):
+                bbox = draw.textbbox((0, 0), line, font=small_font)
+                x = (self.config.width - (bbox[2] - bbox[0])) // 2
+                draw.text(
+                    (x, y), line, fill=colors["text_secondary"], font=small_font
+                )
+                y += 22
+
+        for line in wrap_text(translation.text, max_chars=60, max_lines=2):
+            bbox = draw.textbbox((0, 0), line, font=bold_font)
+            x = (self.config.width - (bbox[2] - bbox[0])) // 2
+            draw.text((x, y), line, fill=colors["text_primary"], font=bold_font)
+            y += 30
 
     def _draw_session_header(self, draw: ImageDraw.Draw, colors: dict[str, tuple[int, int, int]]):
         """Draw session information header."""
