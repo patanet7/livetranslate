@@ -33,6 +33,7 @@
   --peach: #E8B4A0;
   --peach-soft: #F5DCCF;
   --peach-deep: #C68B71;
+  --peach-ink: #9C5638;       /* AA-grade warm — text-on-paper hover/links */
   --purple: #7C6CF0;
   --purple-soft: #E9E5FA;
   --purple-deep: #4A3DC4;
@@ -90,21 +91,28 @@
 }
 
 .dark {
-  /* ── Editorial neutrals (Evening Edition — refined further in D6.1) ─ */
-  --paper: #1A1612;
-  --paper-cream: #252019;
-  --paper-deep: #1F1B16;
-  --ink: #F0E6D2;
-  --ink-soft: #B8AC97;
-  --ink-faint: #8A8073;
-  --rule: #3A332B;
-  --rule-soft: #2C271F;
+  /* ── Editorial neutrals (Evening Edition — D6.1 refinement) ────────
+     Mood: a broadsheet read by tungsten desk-lamp at midnight. The
+     base paper is cooled a hair (less tea-stain, more shadow) while
+     cards and pop-overs keep a touch of warmth — they are the "lit"
+     pages. The 8-unit gap between paper and paper-cream gives cards
+     real lift on uncalibrated displays, where the previous 11-unit
+     diff was indistinguishable. */
+  --paper: #16130E;             /* deeper, cooler base — the room */
+  --paper-cream: #28221B;       /* cards lit by the lamp (+11 from paper) */
+  --paper-deep: #1B1712;        /* sidebar recedes between paper & cream */
+  --ink: #EFE5D2;               /* warm paper-cream type, easy on eyes */
+  --ink-soft: #B0A28C;          /* bylines, metadata */
+  --ink-faint: #7A7163;         /* placeholders, captions */
+  --rule: #3D352B;              /* hairlines slightly warmer for visibility */
+  --rule-soft: #2D281F;
 
-  /* Brand anchors stay; they pop equally well on dark paper. */
-  --peach: #E8B4A0;
-  --peach-soft: #4A2E22;        /* dark mode "soft" inverts: deep peach tint */
-  --peach-deep: #F4C9B5;        /* lighter for legibility on dark */
-  --purple: #9C8FFF;            /* slightly lifted for contrast */
+  /* Brand anchors — peach lifted toward lamplight (warmer + brighter). */
+  --peach: #EEBCA6;             /* tungsten-warm — was #E8B4A0 */
+  --peach-soft: #4A2E22;        /* dark-mode "soft" inverts: deep peach tint */
+  --peach-deep: #F6CDB8;        /* lifted for live-indicator legibility */
+  --peach-ink: #F0BFA8;         /* dark-mode link hover (already AA on dark paper) */
+  --purple: #9C8FFF;
   --purple-soft: #2A2440;
   --purple-deep: #C7BEFF;
 
@@ -207,6 +215,7 @@
   --color-peach: var(--peach);
   --color-peach-soft: var(--peach-soft);
   --color-peach-deep: var(--peach-deep);
+  --color-peach-ink: var(--peach-ink);
   --color-purple: var(--purple);
   --color-purple-soft: var(--purple-soft);
   --color-purple-deep: var(--purple-deep);
@@ -232,6 +241,40 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    /* Caret color — D6.4 — peach across all input/textarea/contenteditable. */
+    caret-color: var(--peach-deep);
+  }
+  .dark body {
+    caret-color: var(--peach);
+  }
+
+  /* ── Editorial text selection — D6.4 ──────────────────────────────
+     Selection paints with peach (the "active record" color from the
+     Earwyrm palette) on warm cream — like a highlighter on newsprint.
+     Two declarations: light and dark variants. Vendor `::selection`
+     is the only variant supported across browsers. */
+  ::selection {
+    background: color-mix(in srgb, var(--peach) 65%, transparent);
+    color: var(--ink);
+    text-shadow: none;
+  }
+  .dark ::selection {
+    background: color-mix(in srgb, var(--peach) 32%, transparent);
+    color: var(--ink);
+  }
+  /* Mono / code selection picks up purple (the link/focus color) so
+     copying a value reads like an inked footnote reference. */
+  code::selection,
+  pre::selection,
+  .font-mono ::selection {
+    background: color-mix(in srgb, var(--purple-soft) 80%, transparent);
+    color: var(--purple-deep);
+  }
+  .dark code::selection,
+  .dark pre::selection,
+  .dark .font-mono ::selection {
+    background: color-mix(in srgb, var(--purple) 30%, transparent);
+    color: var(--ink);
   }
 
   /* ── Editorial display utility — D1.1 ─────────────────────────────
@@ -359,12 +402,38 @@
   .dark body::before {
     /* In evening edition, grain blends differently — lift opacity, switch
        to screen so it adds light instead of subtracting. */
-    opacity: 0.06;
+    opacity: 0.05;
+    mix-blend-mode: screen;
+  }
+
+  /* ── Evening lamplight vignette — D6.1 ───────────────────────────
+     A warm radial bias from the upper-left simulates a desk-lamp
+     spilling onto the page. Dark mode only, behind everything. The
+     gradient's center isn't centred on the viewport — it's offset
+     toward the masthead so the eye reads the page top "lit." */
+  .dark body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(
+        ellipse 80% 60% at 30% 0%,
+        color-mix(in srgb, var(--peach) 8%, transparent) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 70% 50% at 100% 100%,
+        color-mix(in srgb, var(--purple) 4%, transparent) 0%,
+        transparent 60%
+      );
     mix-blend-mode: screen;
   }
 
   @media (prefers-reduced-transparency) {
-    body::before { display: none; }
+    body::before,
+    body::after { display: none; }
   }
 
   /* ── Ink-drying caption animation — D4.7 ────────────────────────
@@ -414,12 +483,153 @@
     }
   }
 
+  /* ── Editorial reveal cascade — D6.2 ──────────────────────────────
+     Each page assembles itself like the printing press setting type:
+     masthead first, then byline, headline, body. Opt in by adding
+     `data-reveal="N"` to any element where N is the step in the cascade
+     (each step is 80ms after the previous). Uses @starting-style so
+     it triggers on first paint AND on route-transition mounts — no JS.
+
+     Conventions:
+       N=0  eyebrow / department label
+       N=1  page title
+       N=2  kicker / description
+       N=3  the typesetter's rule beneath the masthead
+       N=4  primary card / first content block
+       N=5  secondary content
+       N=6+ tertiary content (toolbars, footers)
+
+     The slight blur(2px) on the starting-style mimics ink-not-quite-set,
+     which clears as the type "settles" on the page. */
+  [data-reveal] {
+    transition:
+      opacity 380ms cubic-bezier(0.22, 0.7, 0.28, 1),
+      transform 380ms cubic-bezier(0.22, 0.7, 0.28, 1),
+      filter 380ms ease-out;
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  @starting-style {
+    [data-reveal] {
+      opacity: 0;
+      transform: translateY(8px);
+      filter: blur(2px);
+    }
+  }
+
+  [data-reveal="0"] { --reveal-delay: 0ms; }
+  [data-reveal="1"] { --reveal-delay: 80ms; }
+  [data-reveal="2"] { --reveal-delay: 160ms; }
+  [data-reveal="3"] { --reveal-delay: 240ms; }
+  [data-reveal="4"] { --reveal-delay: 320ms; }
+  [data-reveal="5"] { --reveal-delay: 400ms; }
+  [data-reveal="6"] { --reveal-delay: 480ms; }
+
+  /* The "typesetter's rule" — a horizontal hairline that draws itself
+     left-to-right on page load. Add `data-rule-draw` to any element
+     whose `border-bottom` should appear as if a typesetter is laying
+     it down. Implemented via clip-path so the rule's character (color,
+     weight) is unchanged.  */
+  [data-rule-draw] {
+    clip-path: inset(0 0 0 0);
+    transition: clip-path 540ms cubic-bezier(0.22, 0.7, 0.28, 1) 320ms;
+  }
+  @starting-style {
+    [data-rule-draw] {
+      clip-path: inset(0 100% 0 0);
+    }
+  }
+
+  /* ── Letterpress button + link states — D6.3 ──────────────────────
+     The metaphor is real letterpress: the type is *pressed into* the
+     paper, leaving an ink impression. On hover the inked CTA "wants
+     to set" — a barely-perceptible vertical lift — and on press it
+     sinks back into the paper with a tightened shadow. Outline and
+     ghost variants get a subtler treatment: their border deepens, the
+     ink underneath warms.
+
+     Targets `[data-slot="button"]` — the shadcn-svelte canonical slot
+     attribute — so this propagates to every Button across the app
+     without per-component overrides. */
+  [data-slot="button"] {
+    transition:
+      background-color 180ms ease,
+      color 180ms ease,
+      border-color 180ms ease,
+      transform 120ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      box-shadow 180ms ease,
+      filter 180ms ease;
+  }
+
+  /* Inked-primary CTA: subtle warm under-shadow on hover, pressed-in on active. */
+  [data-slot="button"].bg-primary:not(:disabled):hover,
+  [data-slot="button"][class*="bg-primary"]:not(:disabled):hover {
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, var(--ink) 12%, transparent),
+      0 2px 6px -2px color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+  [data-slot="button"]:not(:disabled):active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in srgb, var(--ink) 22%, transparent),
+      0 0 0 0 transparent;
+    filter: brightness(0.96);
+  }
+
+  /* Outline + ghost — the ink under the type warms slightly on hover. */
+  [data-slot="button"].border:not(:disabled):hover,
+  [data-slot="button"][class*="border"]:not(:disabled):hover {
+    border-color: color-mix(in srgb, var(--ink) 28%, var(--rule));
+  }
+
+  /* Destructive (oxblood) — no shadow lift, just a warming press. */
+  [data-slot="button"].bg-destructive:not(:disabled):active,
+  [data-slot="button"][class*="bg-destructive"]:not(:disabled):active {
+    filter: brightness(0.92);
+  }
+
+  /* Editorial links — peach-deep ink on hover, with the underline
+     "drying" in via text-underline-offset rather than instant.
+     `:not([data-slot])` keeps anchor-as-button styling (Button with
+     href) on the button track, and skips Sidebar/TopBar nav links
+     which carry their own treatments. */
+  a:not([data-slot]):not([class*="nav-"]):not([class*="sidebar-"]) {
+    color: var(--purple-deep);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--purple-deep) 22%, transparent);
+    text-decoration-thickness: 0.05em;
+    text-underline-offset: 0.15em;
+    transition:
+      color 200ms ease,
+      text-decoration-color 220ms ease,
+      text-underline-offset 220ms ease;
+  }
+  a:not([data-slot]):not([class*="nav-"]):not([class*="sidebar-"]):hover {
+    /* AA-grade warm — `--peach-ink` is the text-only deep peach (passes
+       4.5:1 on paper). `--peach-deep` stays reserved for indicators
+       and decoration where size or opacity make AA-large sufficient. */
+    color: var(--peach-ink);
+    text-decoration-color: var(--peach-ink);
+    text-underline-offset: 0.22em;
+  }
+  .dark a:not([data-slot]):not([class*="nav-"]):not([class*="sidebar-"]):hover {
+    color: var(--peach-ink);
+    text-decoration-color: var(--peach-ink);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .unstable { animation: none; }
     [data-testid="caption-text"],
     [data-testid="paragraph"],
-    [data-testid="transcript-entry"] {
+    [data-testid="transcript-entry"],
+    [data-reveal],
+    [data-rule-draw],
+    [data-slot="button"],
+    a:not([data-slot]) {
       transition: none;
+    }
+    [data-slot="button"]:not(:disabled):active {
+      transform: none;
     }
   }
 }
