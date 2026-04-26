@@ -186,6 +186,7 @@ jobs:
           output: trivy-report-${{ matrix.service.name }}.json
           severity: CRITICAL,HIGH,MEDIUM
           ignore-unfixed: true
+          timeout: 20m
 
       - name: Run Trivy (console output)
         if: steps.dockerfile-check.outputs.exists == 'true'
@@ -195,6 +196,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH,MEDIUM
           ignore-unfixed: true
+          timeout: 20m
 
       - name: Upload Trivy report
         if: steps.dockerfile-check.outputs.exists == 'true' && always()
