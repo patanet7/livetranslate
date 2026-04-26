@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Simple worm body - single pink, coiled shape -->
+  <path fill="#f4a896" d="
+    M256 80
+    C 340 80, 400 140, 400 220
+    C 400 300, 340 360, 300 400
+    C 270 430, 300 460, 360 450
+    C 420 440, 450 400, 440 350
+    C 430 300, 380 290, 340 310
+    C 300 330, 260 360, 200 350
+    C 140 340, 100 280, 120 220
+    C 140 160, 200 130, 220 160
+    C 240 190, 200 200, 200 200
+    C 200 200, 180 180, 200 140
+    C 220 100, 256 80, 256 80
+    Z
+  "/>
+
+  <!-- Simple head - overlapping circle -->
+  <ellipse cx="256" cy="150" rx="90" ry="80" fill="#f4a896"/>
+
+  <!-- Headphone band - simple arc -->
+  <path d="M166 135 Q256 60 346 135" stroke="#7c6cf0" stroke-width="16" fill="none" stroke-linecap="round"/>
+
+  <!-- Left ear cup - simple circle -->
+  <circle cx="166" cy="150" r="35" fill="#7c6cf0"/>
+
+  <!-- Right ear cup - simple circle -->
+  <circle cx="346" cy="150" r="35" fill="#7c6cf0"/>
+
+  <!-- Left eye - simple black oval -->
+  <ellipse cx="220" cy="150" rx="22" ry="28" fill="#000"/>
+
+  <!-- Right eye - simple black oval -->
+  <ellipse cx="292" cy="150" rx="22" ry="28" fill="#000"/>
+</svg>

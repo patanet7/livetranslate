@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="sparkG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <!-- Deep purple squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#bgG)"/>
+
+  <!-- Central 4-point star (Gemini-style sparkle) representing transformation -->
+  <path d="M256 120 L272 220 L372 236 L272 252 L256 352 L240 252 L140 236 L240 220 Z"
+        fill="url(#sparkG)"/>
+
+  <!-- Smaller accent sparkles -->
+  <path d="M380 140 L388 168 L416 176 L388 184 L380 212 L372 184 L344 176 L372 168 Z"
+        fill="#fff" opacity="0.7"/>
+  <path d="M120 320 L128 348 L156 356 L128 364 L120 392 L112 364 L84 356 L112 348 Z"
+        fill="#fff" opacity="0.6"/>
+
+  <!-- Subtle audio wave entering from left -->
+  <g stroke="#c4b5fd" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.5">
+    <path d="M80 236 Q100 200 100 236 Q100 272 80 236"/>
+  </g>
+
+  <!-- Multiple output lines on right (different languages) -->
+  <g stroke="#fff" stroke-width="5" stroke-linecap="round" opacity="0.6">
+    <line x1="400" y1="200" x2="440" y2="200"/>
+    <line x1="400" y1="236" x2="450" y2="236"/>
+    <line x1="400" y1="272" x2="430" y2="272"/>
+  </g>
+</svg>

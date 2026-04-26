@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Options</title>
+  <style>
+    body {
+      font-family: system-ui;
+      background: #0f0f1a;
+      color: white;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 { margin-bottom: 16px; color: #a78bfa; }
+    h2 { margin: 40px 0 24px; color: #6366f1; font-weight: 500; }
+    .subtitle { color: #666; margin-bottom: 40px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 1200px;
+      width: 100%;
+    }
+    .option {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+      border: 1px solid #2a2a4a;
+      border-radius: 20px;
+      padding: 28px;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .option:hover {
+      transform: translateY(-4px);
+      border-color: #6366f1;
+    }
+    .option img {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+    }
+    .option .large {
+      width: 160px;
+      height: 160px;
+      margin-bottom: 12px;
+    }
+    .option h3 { margin: 8px 0 4px; font-weight: 600; }
+    .option p { color: #888; font-size: 13px; margin: 0; }
+    .sizes {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: flex-end;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #2a2a4a;
+    }
+    .sizes img { background: #0a0a14; border-radius: 6px; padding: 4px; }
+    .s16 { width: 16px; height: 16px; }
+    .s32 { width: 32px; height: 32px; }
+    .s64 { width: 64px; height: 64px; }
+    .featured { border-color: #7c3aed; background: linear-gradient(135deg, #1e1a3a 0%, #1a1830 100%); }
+  </style>
+</head>
+<body>
+  <h1>Earwyrm</h1>
+  <p class="subtitle">Real-time audio transcription & translation</p>
+
+  <h2>Earwyrm Mascot</h2>
+  <div class="grid">
+    <div class="option featured" style="background:#1a1a2e;">
+      <img src="earwyrm-final.svg" style="width:auto;height:200px;">
+      <h3>Final (106KB)</h3>
+      <p>Cleaned up in Figma</p>
+    </div>
+    <div class="option featured">
+      <img src="earwyrm-icon.svg" class="large">
+      <h3>App Icon (3KB)</h3>
+      <p>Simplified for favicon/app icon use</p>
+      <div class="sizes">
+        <img src="earwyrm-icon.svg" class="s16">
+        <img src="earwyrm-icon.svg" class="s32">
+        <img src="earwyrm-icon.svg" class="s64">
+      </div>
+    </div>
+  </div>
+
+  <h2>Style-Inspired Designs</h2>
+  <div class="grid">
+    <div class="option featured">
+      <img src="style-gemini.svg" class="large">
+      <h3>Gemini-style</h3>
+      <p>Sparkle transformation — audio in, multi-language out</p>
+      <div class="sizes">
+        <img src="style-gemini.svg" class="s16">
+        <img src="style-gemini.svg" class="s32">
+        <img src="style-gemini.svg" class="s64">
+      </div>
+    </div>
+    <div class="option featured">
+      <img src="style-mistral.svg" class="large">
+      <h3>Mistral-style</h3>
+      <p>Flowing wind — one input transforms to many outputs</p>
+      <div class="sizes">
+        <img src="style-mistral.svg" class="s16">
+        <img src="style-mistral.svg" class="s32">
+        <img src="style-mistral.svg" class="s64">
+      </div>
+    </div>
+    <div class="option featured">
+      <img src="style-kiro.svg" class="large">
+      <h3>Kiro-style</h3>
+      <p>Cute speech bubble mascot with floating scripts</p>
+      <div class="sizes">
+        <img src="style-kiro.svg" class="s16">
+        <img src="style-kiro.svg" class="s32">
+        <img src="style-kiro.svg" class="s64">
+      </div>
+    </div>
+    <div class="option featured">
+      <img src="style-factor.svg" class="large">
+      <h3>Factor-style</h3>
+      <p>Ultra-minimal: circle → equals/arrow → square</p>
+      <div class="sizes">
+        <img src="style-factor.svg" class="s16">
+        <img src="style-factor.svg" class="s32">
+        <img src="style-factor.svg" class="s64">
+      </div>
+    </div>
+    <div class="option">
+      <img src="style-piebald.svg" class="large">
+      <h3>Piebald-style</h3>
+      <p>Warm two-tone patches with flowing connection</p>
+      <div class="sizes">
+        <img src="style-piebald.svg" class="s16">
+        <img src="style-piebald.svg" class="s32">
+        <img src="style-piebald.svg" class="s64">
+      </div>
+    </div>
+  </div>
+
+  <h2>Glass Panel Designs</h2>
+  <div class="grid">
+    <div class="option">
+      <img src="modern9-glass-compact.svg" class="large">
+      <h3>Glass + Compact</h3>
+      <p>Clean vertical split: waveform | multi-script output</p>
+      <div class="sizes">
+        <img src="modern9-glass-compact.svg" class="s16">
+        <img src="modern9-glass-compact.svg" class="s32">
+        <img src="modern9-glass-compact.svg" class="s64">
+      </div>
+    </div>
+    <div class="option">
+      <img src="modern6-glass.svg" class="large">
+      <h3>Original Glass</h3>
+      <p>Clean glass panel with text lines</p>
+      <div class="sizes">
+        <img src="modern6-glass.svg" class="s16">
+        <img src="modern6-glass.svg" class="s32">
+        <img src="modern6-glass.svg" class="s64">
+      </div>
+    </div>
+  </div>
+</body>
+</html>

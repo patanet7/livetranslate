@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 700" width="500" height="700">
+  <!-- Worm body - simple cylinder/tube shape -->
+  <path fill="none" stroke="#e8b4a0" stroke-width="70" stroke-linecap="round" d="
+    M250 160
+    C 250 250, 350 300, 350 400
+    C 350 500, 250 520, 200 480
+    C 150 440, 200 380, 280 400
+    C 360 420, 400 500, 380 580
+  "/>
+
+  <!-- Head -->
+  <ellipse cx="250" cy="160" rx="90" ry="80" fill="#e8b4a0"/>
+
+  <!-- Headphone band -->
+  <path d="M160 140 Q250 60 340 140" stroke="#7c6cf0" stroke-width="14" fill="none" stroke-linecap="round"/>
+
+  <!-- Left ear cup -->
+  <circle cx="160" cy="160" r="32" fill="#7c6cf0"/>
+
+  <!-- Right ear cup -->
+  <circle cx="340" cy="160" r="32" fill="#7c6cf0"/>
+
+  <!-- Left eye -->
+  <ellipse cx="215" cy="160" rx="20" ry="28" fill="#000"/>
+
+  <!-- Right eye -->
+  <ellipse cx="285" cy="160" rx="20" ry="28" fill="#000"/>
+</svg>

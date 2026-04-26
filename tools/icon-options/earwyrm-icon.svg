@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgIcon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f86f7"/>
+    </linearGradient>
+    <!-- Body gradient - peachy pink -->
+    <linearGradient id="bodyIcon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcd5c8"/>
+      <stop offset="100%" stop-color="#f0a898"/>
+    </linearGradient>
+    <!-- Headphone gradient -->
+    <linearGradient id="hpIcon" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5b4dc9"/>
+      <stop offset="100%" stop-color="#4a7fd9"/>
+    </linearGradient>
+    <filter id="iconShadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#3730a3" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle background -->
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#bgIcon)"/>
+
+  <!-- Worm body - simplified coil -->
+  <path d="M256 130
+           C 320 130, 360 180, 360 240
+           C 360 300, 310 340, 290 380
+           C 275 410, 310 430, 350 420
+           C 380 412, 395 385, 380 360
+           C 365 335, 320 345, 280 360
+           C 240 375, 200 355, 185 310
+           C 170 265, 210 235, 240 240"
+        fill="url(#bodyIcon)" filter="url(#iconShadow)"/>
+
+  <!-- Head -->
+  <ellipse cx="256" cy="155" rx="75" ry="65" fill="url(#bodyIcon)" filter="url(#iconShadow)"/>
+
+  <!-- Headphone band -->
+  <path d="M180 140 Q256 75 332 140" stroke="url(#hpIcon)" stroke-width="14" fill="none" stroke-linecap="round"/>
+
+  <!-- Left ear cup -->
+  <ellipse cx="180" cy="155" rx="30" ry="38" fill="url(#hpIcon)"/>
+  <ellipse cx="180" cy="155" rx="20" ry="28" fill="#5a75d8"/>
+
+  <!-- Right ear cup -->
+  <ellipse cx="332" cy="155" rx="30" ry="38" fill="url(#hpIcon)"/>
+  <ellipse cx="332" cy="155" rx="20" ry="28" fill="#5a75d8"/>
+
+  <!-- Left eye -->
+  <ellipse cx="228" cy="155" rx="20" ry="24" fill="#1e1b4b"/>
+  <circle cx="234" cy="148" r="7" fill="#fff"/>
+
+  <!-- Right eye -->
+  <ellipse cx="284" cy="155" rx="20" ry="24" fill="#1e1b4b"/>
+  <circle cx="290" cy="148" r="7" fill="#fff"/>
+
+  <!-- Smile -->
+  <path d="M238 190 Q256 208 274 190" stroke="#c47a6a" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+  <!-- Mini speech bubbles -->
+  <circle cx="390" cy="120" r="24" fill="#fff" opacity="0.9"/>
+  <text x="390" y="130" font-family="system-ui" font-size="24" fill="#6366f1" text-anchor="middle" font-weight="600">あ</text>
+
+  <circle cx="420" cy="200" r="20" fill="#fff" opacity="0.7"/>
+  <text x="420" y="208" font-family="system-ui" font-size="20" fill="#6366f1" text-anchor="middle" font-weight="600">文</text>
+
+  <circle cx="100" cy="140" r="18" fill="#fff" opacity="0.6"/>
+  <text x="100" y="147" font-family="system-ui" font-size="16" fill="#6366f1" text-anchor="middle" font-weight="600">ع</text>
+</svg>

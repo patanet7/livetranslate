@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Body gradient - peachy pink -->
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8c9b8"/>
+      <stop offset="50%" stop-color="#f0b5a0"/>
+      <stop offset="100%" stop-color="#e8a090"/>
+    </linearGradient>
+    <!-- Headphone gradient -->
+    <linearGradient id="headphoneGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c6cf0"/>
+      <stop offset="100%" stop-color="#5b8def"/>
+    </linearGradient>
+    <!-- Shadow -->
+    <radialGradient id="shadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c5c0e8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#c5c0e8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Shadow under worm -->
+  <ellipse cx="256" cy="460" rx="120" ry="24" fill="url(#shadowGrad)"/>
+
+  <!-- Worm body - coiled S-shape -->
+  <path d="M256 140
+           C 310 140, 340 180, 340 230
+           C 340 280, 300 320, 280 360
+           C 260 400, 300 430, 340 430
+           C 380 430, 400 400, 400 370
+           C 400 340, 370 320, 330 330
+           C 290 340, 270 380, 230 380
+           C 190 380, 160 350, 160 310
+           C 160 270, 200 250, 200 250"
+        fill="url(#bodyGrad)" stroke="#e0988a" stroke-width="2"/>
+
+  <!-- Body segments (subtle lines) -->
+  <g stroke="#dca090" stroke-width="1.5" fill="none" opacity="0.5">
+    <path d="M230 180 Q256 175 280 185"/>
+    <path d="M235 210 Q260 205 285 215"/>
+    <path d="M240 245 Q265 240 290 250"/>
+    <path d="M250 280 Q275 278 295 290"/>
+    <path d="M270 315 Q290 315 310 330"/>
+    <path d="M295 350 Q320 355 340 370"/>
+    <path d="M320 390 Q345 400 360 395"/>
+  </g>
+
+  <!-- Head -->
+  <ellipse cx="256" cy="145" rx="70" ry="60" fill="url(#bodyGrad)" stroke="#e0988a" stroke-width="2"/>
+
+  <!-- Headphone band -->
+  <path d="M186 130 Q256 70 326 130" stroke="url(#headphoneGrad)" stroke-width="12" fill="none" stroke-linecap="round"/>
+
+  <!-- Left headphone ear cup -->
+  <ellipse cx="186" cy="145" rx="28" ry="35" fill="url(#headphoneGrad)"/>
+  <ellipse cx="186" cy="145" rx="18" ry="25" fill="#6580e8"/>
+  <ellipse cx="186" cy="140" rx="8" ry="10" fill="#8ba5f5" opacity="0.6"/>
+
+  <!-- Right headphone ear cup -->
+  <ellipse cx="326" cy="145" rx="28" ry="35" fill="url(#headphoneGrad)"/>
+  <ellipse cx="326" cy="145" rx="18" ry="25" fill="#6580e8"/>
+  <ellipse cx="326" cy="140" rx="8" ry="10" fill="#8ba5f5" opacity="0.6"/>
+
+  <!-- Left eye -->
+  <ellipse cx="230" cy="145" rx="18" ry="22" fill="#1e1b4b"/>
+  <ellipse cx="230" cy="145" rx="15" ry="18" fill="#2d2a5e"/>
+  <circle cx="236" cy="138" r="6" fill="#fff"/>
+  <circle cx="226" cy="150" r="3" fill="#fff" opacity="0.5"/>
+
+  <!-- Right eye -->
+  <ellipse cx="282" cy="145" rx="18" ry="22" fill="#1e1b4b"/>
+  <ellipse cx="282" cy="145" rx="15" ry="18" fill="#2d2a5e"/>
+  <circle cx="288" cy="138" r="6" fill="#fff"/>
+  <circle cx="278" cy="150" r="3" fill="#fff" opacity="0.5"/>
+
+  <!-- Smile -->
+  <path d="M240 175 Q256 190 272 175" stroke="#c47a6a" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+  <!-- Blush marks -->
+  <ellipse cx="210" cy="170" rx="12" ry="6" fill="#f0a090" opacity="0.5"/>
+  <ellipse cx="302" cy="170" rx="12" ry="6" fill="#f0a090" opacity="0.5"/>
+
+  <!-- Speech bubble - あ (top left) -->
+  <circle cx="130" cy="100" r="28" fill="#8b7cf6" opacity="0.9"/>
+  <text x="130" y="110" font-family="system-ui, sans-serif" font-size="28" fill="#fff" text-anchor="middle" font-weight="500">あ</text>
+
+  <!-- Speech bubble - phone icon (left) -->
+  <ellipse cx="95" cy="180" rx="24" ry="22" fill="#f9a825"/>
+  <path d="M85 175 Q88 170 92 172 L98 178 Q100 180 98 183 L95 186 Q93 188 90 186 L84 180 Q82 178 85 175" fill="#fff" stroke="#fff" stroke-width="1"/>
+
+  <!-- Speech bubble - 文 (right) -->
+  <path d="M390 200 L420 200 Q435 200 435 215 L435 245 Q435 260 420 260 L405 260 L395 275 L395 260 L390 260 Q375 260 375 245 L375 215 Q375 200 390 200" fill="#4a90e2"/>
+  <text x="405" y="242" font-family="system-ui, sans-serif" font-size="26" fill="#fff" text-anchor="middle" font-weight="500">文</text>
+
+  <!-- Sparkle accent -->
+  <g fill="#f9d54a">
+    <path d="M115 230 L118 240 L128 243 L118 246 L115 256 L112 246 L102 243 L112 240 Z"/>
+  </g>
+  <circle cx="140" cy="255" r="4" fill="#f9d54a" opacity="0.7"/>
+</svg>

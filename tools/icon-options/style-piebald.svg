@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgP" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+  </defs>
+  <!-- Warm cream squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#bgP)"/>
+
+  <!-- Playful two-toned pattern (piebald = patches of two colors) -->
+  <!-- Dark patches representing different "languages" or modes -->
+  <circle cx="180" cy="200" r="80" fill="#1e1b4b"/>
+  <circle cx="340" cy="320" r="70" fill="#1e1b4b"/>
+  <ellipse cx="300" cy="180" rx="50" ry="40" fill="#1e1b4b"/>
+
+  <!-- Connecting flowing line (translation bridge) -->
+  <path d="M180 280 Q256 256 320 250"
+        stroke="#7c3aed" stroke-width="12" stroke-linecap="round" fill="none"/>
+
+  <!-- Small sparkle accents -->
+  <circle cx="256" cy="256" r="16" fill="#7c3aed"/>
+  <circle cx="400" cy="160" r="8" fill="#7c3aed" opacity="0.6"/>
+  <circle cx="120" cy="340" r="10" fill="#7c3aed" opacity="0.5"/>
+</svg>

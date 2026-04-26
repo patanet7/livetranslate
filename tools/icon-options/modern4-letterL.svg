@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="glow4" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.2"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow4" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#0f766e" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg4)" filter="url(#shadow4)"/>
+  <rect x="32" y="32" width="448" height="224" rx="96" fill="url(#glow4)"/>
+  <!-- Bold L lettermark -->
+  <path d="M168 128 h56 v216 h120 v56 h-176 z" fill="#fff"/>
+  <!-- Small sound waves -->
+  <g stroke="#fff" stroke-width="14" stroke-linecap="round" fill="none" opacity="0.7">
+    <path d="M368 200 q20 24 0 48"/>
+    <path d="M392 176 q32 40 0 80"/>
+  </g>
+</svg>

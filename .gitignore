@@ -10,6 +10,9 @@
 # Superpowers (ephemeral tool output)
 .superpowers/
 
+# Swift Package Manager build artifacts (e.g. tools/screencapture/.build/)
+**/.build/
+
 # Hypothesis test database
 .hypothesis/
 

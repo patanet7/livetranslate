@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg8" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="glass8" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="shadow8" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="20" flood-color="#4338ca" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg8)" filter="url(#shadow8)"/>
+  <!-- Glass panel -->
+  <rect x="80" y="128" width="352" height="256" rx="28" fill="url(#glass8)"/>
+
+  <!-- Audio waveform (left) - sound input -->
+  <g fill="#fff">
+    <rect x="112" y="220" width="10" height="72" rx="5" opacity="0.9"/>
+    <rect x="132" y="192" width="10" height="128" rx="5" opacity="0.85"/>
+    <rect x="152" y="208" width="10" height="96" rx="5" opacity="0.8"/>
+  </g>
+
+  <!-- Subtle arrow -->
+  <path d="M180 256 L200 256 M194 250 L204 256 L194 262" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/>
+
+  <!-- Original text (middle-left) - source transcript -->
+  <g fill="#fff" opacity="0.95">
+    <rect x="220" y="200" width="60" height="14" rx="7"/>
+    <rect x="220" y="224" width="44" height="14" rx="7" opacity="0.7"/>
+  </g>
+
+  <!-- Flow arrow (center) -->
+  <path d="M295 256 L325 256" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <path d="M318 248 L330 256 L318 264" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"/>
+
+  <!-- Translated output (right) - multi-language outputs -->
+  <g fill="#fff">
+    <!-- Different "text" styles suggesting different scripts -->
+    <rect x="348" y="180" width="56" height="12" rx="6" opacity="0.95"/>
+    <rect x="348" y="200" width="40" height="12" rx="6" opacity="0.7"/>
+    <!-- CJK-style square blocks -->
+    <rect x="348" y="228" width="16" height="16" rx="3" opacity="0.9"/>
+    <rect x="370" y="228" width="16" height="16" rx="3" opacity="0.9"/>
+    <rect x="392" y="228" width="16" height="16" rx="3" opacity="0.7"/>
+    <!-- Different script style (dots/marks like Arabic/Hindi) -->
+    <rect x="348" y="260" width="48" height="10" rx="5" opacity="0.6"/>
+    <circle cx="356" cy="278" r="4" opacity="0.5"/>
+    <circle cx="372" cy="278" r="4" opacity="0.5"/>
+    <circle cx="388" cy="278" r="4" opacity="0.5"/>
+    <!-- Another language hint -->
+    <rect x="348" y="296" width="52" height="10" rx="5" opacity="0.5"/>
+    <rect x="348" y="312" width="36" height="10" rx="5" opacity="0.4"/>
+  </g>
+</svg>
