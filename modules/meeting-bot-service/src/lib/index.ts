@@ -5,3 +5,4 @@ export { getTimeString, getISOTimestamp } from './datetime';
 export { vp9MimeType, webmMimeType, isMimeTypeSupported } from './recording';
 export { getWaitingPromise } from './promise';
 export { globalJobStore } from './globalJobStore';
+export { AuthManager, AuthStatus } from './auth_manager';

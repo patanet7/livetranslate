@@ -83,4 +83,6 @@ export default {
     forcePathStyle: process.env.S3_USE_MINIO_COMPATIBILITY === 'true',
   },
   uploaderType: process.env.UPLOADER_TYPE ? (process.env.UPLOADER_TYPE as UploaderType) : 's3' as UploaderType,
+  // Persistent browser profile for Google authentication
+  chromeProfileDir: process.env.CHROME_PROFILE_DIR || '/data/chrome-profile',
 };
