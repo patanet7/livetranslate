@@ -78,6 +78,7 @@ dependencies = [
 start-backend = "src.orchestration_service:main"
 start-fastapi = "backend.main:main"
 run-tests = "pytest:main"
+livedemo = "src.livedemo.cli:main"
 
 [build-system]
 requires = ["hatchling"]
