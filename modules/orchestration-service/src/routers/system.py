@@ -24,7 +24,7 @@ from dependencies import (
     get_health_monitor,
     get_websocket_manager,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from livetranslate_common.logging import get_logger
 from meeting.translation_recovery import get_translation_recovery_metrics
 from models.system import (

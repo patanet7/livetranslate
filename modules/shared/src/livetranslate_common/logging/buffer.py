@@ -2,7 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import Lock
 from typing import Any
 
@@ -76,7 +76,7 @@ def buffer_processor(
 
     # Extract standard fields
     entry = LogEntry(
-        timestamp=event_dict.get("timestamp", datetime.utcnow().isoformat()),
+        timestamp=event_dict.get("timestamp", datetime.now(UTC).isoformat()),
         level=event_dict.get("level", "info"),
         event=event_dict.get("event", ""),
         service=event_dict.get("service", "unknown"),
