@@ -175,7 +175,7 @@ jobs:
           docker build \
             -t ${{ matrix.service.name }}:scan \
             -f ${{ matrix.service.path }}/${{ matrix.service.dockerfile }} \
-            ${{ matrix.service.path }}
+            .
 
       - name: Run Trivy vulnerability scanner
         if: steps.dockerfile-check.outputs.exists == 'true'

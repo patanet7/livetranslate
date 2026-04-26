@@ -1,0 +1,70 @@
+# Build context excludes for monorepo Docker builds.
+# Build context is the repository root (workspace root) for orchestration-service
+# and transcription-service Dockerfiles.
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Worktrees and Claude artifacts
+.worktrees
+.claude
+
+# Python virtualenvs and caches
+.venv
+venv
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+
+# Node / SvelteKit
+**/node_modules
+**/.svelte-kit
+**/dist
+**/build
+
+# Captured test data, outputs, sessions
+captured_data
+test_output
+output
+input
+session_data
+benchmarks/results
+benchmarks/.models
+
+# Logs and tmp
+**/*.log
+**/tmp
+**/.tmp
+
+# OS / editor
+**/.DS_Store
+**/.idea
+**/.vscode
+
+# Docs and large auxiliaries (not needed in Docker images)
+docs
+reference
+deprecated
+
+# Other modules not needed by the per-service builds
+modules/dashboard-service
+modules/frontend-service
+modules/translation-service
+modules/whisper-service
+modules/meeting-bot-service
+
+# Infra / dev-only
+docker-compose*.yml
+Justfile
+justfile
+*.bat
+*.sh

@@ -30,13 +30,13 @@ jobs:
         service:
           - name: transcription-service
             path: modules/transcription-service
-            context: modules/transcription-service
+            context: .
           - name: translation-service
             path: modules/translation-service
             context: modules/translation-service
           - name: orchestration-service
             path: modules/orchestration-service
-            context: modules/orchestration-service
+            context: .
           - name: frontend-service
             path: modules/frontend-service
             context: modules/frontend-service
