@@ -1,79 +1,161 @@
+/* ─────────────────────────────────────────────────────────────────────
+   Editorial Riso typography stack — committed in D1.1
+   ─────────────────────────────────────────────────────────────────────
+   Fraunces       — display serif with optical-size, SOFT and WONK axes.
+                    Used for headlines, drop caps, brand wordmark.
+   Newsreader     — humanist serif with opsz, used for body and captions.
+                    Pairs naturally with Fraunces (both designed by D. Schwartz
+                    / type-cooperative work for digital editorial use).
+   JetBrains Mono — for timestamps, technical labels, mono numerals.
+   ───────────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Newsreader:opsz,wght,ital@6..72,200..800,0;6..72,200..800,1&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap");
+
 @import "tailwindcss";
 
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────────────
+   Editorial Riso palette — committed in D1.2
+   ─────────────────────────────────────────────────────────────────────
+   Brand anchors (used in both modes):
+     --peach     #E8B4A0   Earwyrm body. Active-record / live indicator.
+     --purple    #7C6CF0   Headphone. Single sharp accent; focus, links.
+
+   Speaker chart palette (warm earth tones; mirrors theme.ts D1.3):
+     terracotta · ochre · sage · plum · slate-blue
+   ───────────────────────────────────────────────────────────────────── */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --radius: 0.5rem; /* slightly tighter — editorial restraint */
+
+  /* ── Brand anchors ─────────────────────────────────────────────── */
+  --peach: #E8B4A0;
+  --peach-soft: #F5DCCF;
+  --peach-deep: #C68B71;
+  --purple: #7C6CF0;
+  --purple-soft: #E9E5FA;
+  --purple-deep: #4A3DC4;
+
+  /* ── Editorial neutrals (Daytime / Print) ─────────────────────── */
+  --paper: #FAF6EE;        /* warm cream — main background */
+  --paper-cream: #F2EBDC;  /* slightly raised — cards, popovers */
+  --paper-deep: #EDE3D0;   /* deeper raised — sidebar, panels */
+  --ink: #181410;          /* warm near-black — body text */
+  --ink-soft: #5C544A;     /* muted text — bylines, metadata */
+  --ink-faint: #8A8073;    /* placeholder, disabled */
+  --rule: #D9D2C2;         /* hairline — borders, dividers */
+  --rule-soft: #E8E0CF;    /* paler rule */
+
+  /* ── Speaker / chart earth tones ──────────────────────────────── */
+  --terracotta: #C26F49;
+  --ochre: #C8893E;
+  --sage: #7A8C5C;
+  --plum: #6B4A6B;
+  --slate-blue: #5F6B85;
+  --oxblood: #A0392E;     /* destructive */
+
+  /* ── Semantic mapping (consumed by shadcn primitives) ─────────── */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-cream);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);              /* inked CTA — letterpress feel */
+  --primary-foreground: var(--paper);
+  --secondary: var(--paper-cream);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-cream);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--purple-soft);       /* purple-tinted hover surface */
+  --accent-foreground: var(--purple-deep);
+  --destructive: var(--oxblood);
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--purple);              /* focus ring = headphone purple */
+  --chart-1: var(--terracotta);
+  --chart-2: var(--ochre);
+  --chart-3: var(--sage);
+  --chart-4: var(--plum);
+  --chart-5: var(--slate-blue);
+  --sidebar: var(--paper-deep);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: var(--paper);
+  --sidebar-accent: var(--peach-soft);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--purple);
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
+  /* ── Editorial neutrals (Evening Edition — refined further in D6.1) ─ */
+  --paper: #1A1612;
+  --paper-cream: #252019;
+  --paper-deep: #1F1B16;
+  --ink: #F0E6D2;
+  --ink-soft: #B8AC97;
+  --ink-faint: #8A8073;
+  --rule: #3A332B;
+  --rule-soft: #2C271F;
+
+  /* Brand anchors stay; they pop equally well on dark paper. */
+  --peach: #E8B4A0;
+  --peach-soft: #4A2E22;        /* dark mode "soft" inverts: deep peach tint */
+  --peach-deep: #F4C9B5;        /* lighter for legibility on dark */
+  --purple: #9C8FFF;            /* slightly lifted for contrast */
+  --purple-soft: #2A2440;
+  --purple-deep: #C7BEFF;
+
+  /* Earth tones — slightly desaturated/lifted for dark legibility */
+  --terracotta: #D89270;
+  --ochre: #DDA969;
+  --sage: #9DAA82;
+  --plum: #9472A1;
+  --slate-blue: #8993A8;
+  --oxblood: #D85B49;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-cream);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-cream);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);              /* still inked — invert pulled into vars */
+  --primary-foreground: var(--paper);
+  --secondary: var(--paper-cream);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-cream);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--purple-soft);
+  --accent-foreground: var(--purple-deep);
+  --destructive: var(--oxblood);
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--purple);
+  --chart-1: var(--terracotta);
+  --chart-2: var(--ochre);
+  --chart-3: var(--sage);
+  --chart-4: var(--plum);
+  --chart-5: var(--slate-blue);
+  --sidebar: var(--paper-deep);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: var(--paper);
+  --sidebar-accent: var(--peach-soft);
+  --sidebar-accent-foreground: var(--peach-deep);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--purple);
 }
 
 @theme inline {
+  /* ── Typography — D1.1 ──────────────────────────────────────────── */
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Newsreader", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Newsreader", ui-serif, Georgia, serif; /* override Tailwind default */
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -109,6 +191,31 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── Editorial brand utilities (D1.2) ────────────────────────────
+     `bg-paper`, `text-ink`, `border-rule`, `text-peach`, `bg-purple`, etc.
+     These hand-craftable tokens live alongside the shadcn semantics so
+     hero surfaces (loopback, mascot, live indicators) can opt in directly. */
+  --color-paper: var(--paper);
+  --color-paper-cream: var(--paper-cream);
+  --color-paper-deep: var(--paper-deep);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
+  --color-peach: var(--peach);
+  --color-peach-soft: var(--peach-soft);
+  --color-peach-deep: var(--peach-deep);
+  --color-purple: var(--purple);
+  --color-purple-soft: var(--purple-soft);
+  --color-purple-deep: var(--purple-deep);
+  --color-terracotta: var(--terracotta);
+  --color-ochre: var(--ochre);
+  --color-sage: var(--sage);
+  --color-plum: var(--plum);
+  --color-slate-blue: var(--slate-blue);
+  --color-oxblood: var(--oxblood);
 }
 
 @layer base {
@@ -117,5 +224,146 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    /* Newsreader optical-size axis — bias toward "text" sizes by default */
+    font-variation-settings: "opsz" 14;
+    /* Enable kerning + ligatures + contextual alts */
+    font-feature-settings: "kern", "liga", "calt";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ── Editorial display utility — D1.1 ─────────────────────────────
+     <h1 class="font-display">…</h1> picks up Fraunces with display-sized
+     optical-size and a touch of WONK for character. Override per-element
+     when you want a calmer rendering. */
+  .font-display,
+  h1.font-display,
+  h2.font-display {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 96, "SOFT" 50, "WONK" 1;
+    letter-spacing: -0.02em;
+  }
+
+  /* Mono — give timestamps and technical labels real character */
+  .font-mono,
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-feature-settings: "calt", "liga", "ss01"; /* programming ligatures */
+  }
+
+  /* ── Small-caps byline utility — D1.1 ────────────────────────────
+     Used for speaker names, section labels, byline-style metadata.
+     Driven by Fraunces's c2sc + smcp + tracking. */
+  .byline {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 14;
+    font-feature-settings: "smcp", "c2sc", "kern";
+    letter-spacing: 0.08em;
+    text-transform: lowercase;
+    font-weight: 500;
+  }
+
+  /* ── Editorial type scale — D1.4 ─────────────────────────────────
+     Composable semantic classes; sizes use Tailwind utilities for layout.
+       <h1 class="font-display text-5xl">…           page title
+       <h2 class="headline">…                        section title
+       <p  class="kicker">…                          italic lead-in
+       <span class="byline">…                        speaker / metadata small-caps
+       <span class="eyebrow">…                       tinier small-caps eyebrow
+       <p  class="drop-cap">…                        opens a section
+  */
+  .headline {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 60, "SOFT" 30;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+
+  .eyebrow {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 14;
+    font-feature-settings: "smcp", "c2sc", "kern";
+    letter-spacing: 0.14em;
+    text-transform: lowercase;
+    font-weight: 600;
+    font-size: 0.6875rem;       /* 11px — fine print */
+    color: var(--ink-soft);
+  }
+
+  .kicker {
+    font-family: var(--font-body);
+    font-style: italic;
+    font-variation-settings: "opsz" 24;
+    color: var(--ink-soft);
+  }
+
+  /* Page-running heading — magazine-style "department" label */
+  .running-head {
+    font-family: var(--font-mono);
+    font-feature-settings: "smcp", "c2sc";
+    letter-spacing: 0.18em;
+    text-transform: lowercase;
+    font-size: 0.6875rem;
+    color: var(--ink-faint);
+  }
+
+  /* ── Drop-cap utility — D1.1 ─────────────────────────────────────
+     Apply to a paragraph that opens a section: <p class="drop-cap">…
+     Uses Fraunces at display optical-size with controlled WONK. */
+  .drop-cap::first-letter {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 144, "SOFT" 30, "WONK" 1;
+    font-weight: 600;
+    float: left;
+    font-size: 4em;
+    line-height: 0.85;
+    padding-right: 0.08em;
+    padding-top: 0.05em;
+    color: var(--ink, currentColor);
+  }
+
+  /* Render proportional / oldstyle figures in body text by default;
+     mono spans (timestamps) keep their tabular figures via .font-mono. */
+  p, li, span, dd, dt, td {
+    font-feature-settings: "kern", "liga", "calt", "onum";
+  }
+  /* but tabular nums where alignment matters (numbers in tables, mono) */
+  .font-mono, code, kbd, samp, pre, .tabular-nums {
+    font-feature-settings: "tnum", "calt", "liga", "ss01";
+  }
+
+  /* ── Paper grain overlay — D1.5 ──────────────────────────────────
+     Inline SVG turbulence sits on top of the paper without intercepting
+     interaction. Light enough you don't see it directly — you feel it.
+     Tuned for warm grain by biasing the alpha channel only (color stays
+     true to the underlying paper or evening-edition). Honors
+     prefers-reduced-transparency by removing itself. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.035;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.7 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+    background-size: 200px 200px;
+  }
+
+  .dark body::before {
+    /* In evening edition, grain blends differently — lift opacity, switch
+       to screen so it adds light instead of subtracting. */
+    opacity: 0.06;
+    mix-blend-mode: screen;
+  }
+
+  @media (prefers-reduced-transparency) {
+    body::before { display: none; }
   }
 }

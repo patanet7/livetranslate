@@ -36,7 +36,7 @@ import numpy as np
 from bot.pil_virtual_cam_renderer import PILVirtualCamRenderer
 from services.meeting_session_config import MeetingSessionConfig
 from services.caption_buffer import CaptionBuffer
-from livetranslate_common.theme import DisplayMode, ThemeColors
+from livetranslate_common.theme import DisplayMode, SPEAKER_COLORS, ThemeColors
 
 
 OUTPUT_DIR = Path("/tmp/webcam-render-qa")
@@ -143,10 +143,10 @@ def run_tests():
     renderer.start_rendering()
 
     speakers = [
-        ("Thomas Patane", "#4CAF50", "Hola equipo", "Hello team"),
-        ("Eric Wang", "#2196F3", "Buenos días", "Good morning"),
-        ("Sarah Johnson", "#E91E63", "Gracias por unirse", "Thanks for joining"),
-        ("Mike Brown", "#9C27B0", "Empecemos", "Let's begin"),
+        ("Thomas Patane", SPEAKER_COLORS[0], "Hola equipo", "Hello team"),
+        ("Eric Wang", SPEAKER_COLORS[1], "Buenos días", "Good morning"),
+        ("Sarah Johnson", SPEAKER_COLORS[6], "Gracias por unirse", "Thanks for joining"),
+        ("Mike Brown", SPEAKER_COLORS[3], "Empecemos", "Let's begin"),
     ]
 
     for name, color, text, original in speakers:

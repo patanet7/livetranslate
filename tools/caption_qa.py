@@ -80,7 +80,7 @@ async def inject_caption(
     text: str,
     speaker: str = "Alice",
     original: str | None = None,
-    color: str = "#4CAF50",
+    color: str = "#C26F49",  # terracotta — SPEAKER_COLORS[0]
     lang: str = "es",
     duration: float | None = None,
 ) -> dict:

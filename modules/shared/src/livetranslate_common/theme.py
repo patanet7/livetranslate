@@ -18,16 +18,19 @@ from enum import Enum
 # =============================================================================
 
 SPEAKER_COLORS: list[str] = [
-    "#4CAF50",  # Green
-    "#2196F3",  # Blue
-    "#FF9800",  # Orange
-    "#9C27B0",  # Purple
-    "#F44336",  # Red
-    "#00BCD4",  # Cyan
-    "#E91E63",  # Pink
-    "#FFEB3B",  # Yellow
-    "#795548",  # Brown
-    "#607D8B",  # Blue Grey
+    # Editorial Riso palette — warm earth tones that sit naturally beside
+    # the Earwyrm peach/purple brand pairing. Mirrored in the dashboard's
+    # src/lib/theme.ts. Both must change together (D1.3).
+    "#C26F49",  # terracotta
+    "#C8893E",  # ochre
+    "#7A8C5C",  # sage
+    "#6B4A6B",  # plum
+    "#5F6B85",  # slate-blue
+    "#A0392E",  # oxblood
+    "#B89B45",  # mustard
+    "#5B7048",  # fern
+    "#A37388",  # dusk
+    "#4D5A8C",  # indigo
 ]
 
 

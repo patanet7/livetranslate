@@ -332,9 +332,9 @@ class CaptionSystemTestSuite:
         """Test multiple speakers with different colors."""
         mgr = VirtualWebcamManager(config=WebcamConfig())
         speakers = [
-            ("Alice", "#4CAF50", "Hello from Alice"),
-            ("Bob", "#2196F3", "Hi Alice, this is Bob"),
-            ("Carol", "#FF9800", "Hey everyone"),
+            ("Alice", SPEAKER_COLORS[0], "Hello from Alice"),
+            ("Bob", SPEAKER_COLORS[1], "Hi Alice, this is Bob"),
+            ("Carol", SPEAKER_COLORS[2], "Hey everyone"),
         ]
         for name, color, text in speakers:
             mgr.add_translation({
