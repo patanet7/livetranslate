@@ -331,6 +331,22 @@ class ConfigChangedMessage(BaseModel):
     changes: dict[str, Any] = {}
 
 
+class AudioLevelMessage(BaseModel):
+    """Periodic broadcast of input audio RMS for VU-meter display.
+
+    Args:
+        rms: Audio RMS level in [0.0, 1.0]. Frontend renders on a dB scale.
+        source: Optional capture source ("mic" or "screencapture") so the
+            dashboard can label the meter.
+        chunks: Optional cumulative chunk counter for diagnostics.
+    """
+
+    type: Literal["audio_level"] = "audio_level"
+    rms: float = Field(ge=0.0, le=1.0)
+    source: Literal["mic", "screencapture"] | None = None
+    chunks: int | None = None
+
+
 # ---------------------------------------------------------------------------
 # Message registries
 # ---------------------------------------------------------------------------
@@ -359,6 +375,7 @@ _SERVER_MESSAGES: dict[str, type[BaseModel]] = {
     "error": ErrorMessage,
     "chat_response": ChatResponseMessage,
     "config_changed": ConfigChangedMessage,
+    "audio_level": AudioLevelMessage,
 }
 
 _ALL_MESSAGES: dict[str, type[BaseModel]] = {**_CLIENT_MESSAGES, **_SERVER_MESSAGES}

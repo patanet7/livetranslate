@@ -39,7 +39,13 @@ _TS_FILE = (
 
 
 def _parse_ts_interfaces(path: Path) -> dict[str, set[str]]:
-    """Extract interface names and their field names from TypeScript source."""
+    """Extract interface names and their field names from TypeScript source.
+
+    Skips `*OverridesMessage` interfaces (LLMOverridesMessage,
+    WhisperOverridesMessage) — those are nested payload shapes carried inside
+    other messages (e.g. ConfigMessage.llm, ConfigMessage.whisper), not
+    standalone WS message types with a `type:` discriminator.
+    """
     content = path.read_text()
     interfaces: dict[str, set[str]] = {}
     for match in re.finditer(
@@ -48,6 +54,9 @@ def _parse_ts_interfaces(path: Path) -> dict[str, set[str]]:
         re.DOTALL,
     ):
         name = match.group(1)
+        # Override interfaces are nested payloads, not standalone messages
+        if name.endswith("OverridesMessage"):
+            continue
         body = match.group(2)
         # Strip JSDoc comments (/** ... */) before parsing field names
         body = re.sub(r"/\*\*.*?\*/", "", body, flags=re.DOTALL)
@@ -87,6 +96,7 @@ TS_TO_PYTHON: dict[str, type] = {
     "EndMeetingMessage": ws_messages.EndMeetingMessage,
     "ConfigMessage": ws_messages.ConfigMessage,
     "EndMessage": ws_messages.EndMessage,
+    "AudioLevelMessage": ws_messages.AudioLevelMessage,
 }
 
 
