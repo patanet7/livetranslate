@@ -1,63 +1,35 @@
-"""Async dependency helpers for resolving LLM clients from ai_connections."""
+"""Compatibility shim — superseded by `services.llm_resolver`.
 
-import json
+The old `resolve_intelligence_llm_client` is preserved as a thin wrapper
+around `services.llm_resolver.resolve_llm_client` so existing FastAPI
+`Depends(...)` wiring (e.g. `routers/insights.py`) keeps working.
+
+New code MUST import from `services.llm_resolver` directly.
+"""
+
+from __future__ import annotations
 
 from fastapi import Depends
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from clients.llm_client import create_llm_client
-from clients.protocol import LLMClientProtocol
 from database import get_db_session
 from livetranslate_common.logging import get_logger
+from services.llm_resolver import resolve_llm_client
 
 logger = get_logger()
 
 
 async def resolve_intelligence_llm_client(
     db: AsyncSession = Depends(get_db_session),
-) -> LLMClientProtocol | None:
-    """Resolve the intelligence LLM client from ai_connections at request time.
+):
+    """FastAPI-friendly resolver for the 'intelligence' purpose.
 
-    Returns None if no preference is configured, allowing fallback behavior.
+    Returns the merged LLMClient. Always returns a client (the new resolver
+    has a hard-coded last-resort default) — never None. Callers that branched
+    on None should treat 'always present' as the new contract.
     """
     try:
-        result = await db.execute(
-            text("SELECT value FROM system_config WHERE key = 'intelligence_model_preference'")
-        )
-        row = result.fetchone()
-        if not row or not row[0]:
-            return None
-
-        pref = json.loads(row[0])
-        active_model = pref.get("active_model", "")
-        if not active_model or "/" not in active_model:
-            return None
-
-        prefix, model_name = active_model.split("/", 1)
-        conn_result = await db.execute(
-            text(
-                "SELECT url, api_key, engine FROM ai_connections "
-                "WHERE prefix = :prefix AND enabled = true"
-            ),
-            {"prefix": prefix},
-        )
-        conn_row = conn_result.fetchone()
-        if not conn_row:
-            return None
-
-        base_url = conn_row[0].rstrip("/")
-        if not base_url.endswith("/v1"):
-            base_url = f"{base_url}/v1"
-
-        return create_llm_client(
-            base_url=base_url,
-            api_key=conn_row[1] or "",
-            model=model_name,
-            max_tokens=pref.get("max_tokens", 1024),
-            temperature=pref.get("temperature", 0.3),
-            proxy_mode=False,
-        )
+        return await resolve_llm_client("intelligence", db)
     except Exception as e:
         logger.warning("intelligence_llm_resolve_failed", error=str(e))
         return None

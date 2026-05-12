@@ -2,6 +2,11 @@
 
 from livetranslate_common.models.transcription import ModelInfo, Segment, TranscriptionResult
 from livetranslate_common.models.audio import AudioChunk, MeetingAudioStream
+from livetranslate_common.models.llm import (
+    LLMConnection,
+    LLMEngine,
+    LLMParameterOverrides,
+)
 from livetranslate_common.models.translation import (
     TranslationContext,
     TranslationRequest,
@@ -36,6 +41,10 @@ __all__ = [
     # audio
     "AudioChunk",
     "MeetingAudioStream",
+    # llm
+    "LLMConnection",
+    "LLMEngine",
+    "LLMParameterOverrides",
     # translation
     "TranslationContext",
     "TranslationRequest",

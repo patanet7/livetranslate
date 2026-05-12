@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from livetranslate_common.models.llm import LLMParameterOverrides
+
 PROTOCOL_VERSION = 1
 
 # ---------------------------------------------------------------------------
@@ -37,6 +39,10 @@ class StartSessionMessage(BaseModel):
     encoding: str = "float32"
     device_id: str | None = None
     source: str = "mic"
+    # Optional per-session LLM tunables. When present, the orchestration
+    # resolver applies these as overrides on top of the resolved connection
+    # for every translation call in this session.
+    llm: LLMParameterOverrides | None = None
 
 
 class EndSessionMessage(BaseModel):
@@ -80,6 +86,10 @@ class ConfigMessage(BaseModel):
     interpreter_languages: list[str] | None = None
     initial_prompt: str | None = None
     glossary_terms: list[str] | None = None
+    # Optional LLM sampling overrides applied to subsequent translation
+    # calls. Successive ConfigMessages can send partial deltas — fields left
+    # as None keep their previous value on the server side.
+    llm: LLMParameterOverrides | None = None
 
 
 class EndMessage(BaseModel):
