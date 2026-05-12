@@ -119,6 +119,40 @@ async def fake_anthropic_server() -> AsyncIterator[Any]:
         await server.stop()
 
 
+@pytest_asyncio.fixture(loop_scope="function")
+async def fake_whisper_server() -> AsyncIterator[Any]:
+    from integration.fakes import FakeWhisperServer
+
+    server = FakeWhisperServer()
+    await server.start()
+    try:
+        yield server
+    finally:
+        await server.stop()
+
+
+@pytest.fixture
+def whisper_connection_factory() -> Callable[..., Any]:
+    """Build WhisperConnection instances with sensible defaults for tests."""
+    from livetranslate_common.models.whisper import WhisperConnection
+
+    def _make(**overrides: Any) -> Any:
+        defaults: dict[str, Any] = {
+            "engine": "openai_compatible",
+            "base_url": "http://localhost:8005",
+            "model": "mlx-community/whisper-large-v3-turbo",
+            "api_key": "",
+            "temperature": 0.0,
+            "beam_size": 1,
+            "timeout_s": 5.0,
+            "max_retries": 0,
+        }
+        defaults.update(overrides)
+        return WhisperConnection(**defaults)
+
+    return _make
+
+
 @pytest.fixture
 def llm_connection_factory() -> Callable[..., Any]:
     """Build LLMConnection instances quickly with sensible defaults.

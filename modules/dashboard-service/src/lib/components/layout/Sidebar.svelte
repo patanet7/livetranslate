@@ -158,7 +158,7 @@
 
   <!-- ── Sections ─────────────────────────────────────── -->
   <nav class="flex-1 px-3 py-4 overflow-y-auto">
-    {#each navSections as section, sIdx}
+    {#each navSections as section, sIdx (section.label)}
       {#if !collapsed}
         <p class="eyebrow mt-{sIdx === 0 ? 0 : 5} mb-2 px-2">{section.label}</p>
       {:else if sIdx > 0}
@@ -166,7 +166,7 @@
       {/if}
 
       <ul class="space-y-px">
-        {#each section.items as item}
+        {#each section.items as item (item.href)}
           {@const parentActive = isParentActive(item)}
           {@const Icon = item.icon}
           <li class="relative">
@@ -195,7 +195,7 @@
 
             {#if !collapsed && item.children && parentActive}
               <ul class="mt-0.5 mb-2 ml-7 pl-3 border-l border-rule space-y-px">
-                {#each item.children as child, cIdx}
+                {#each item.children as child, cIdx (child.href)}
                   <li class="flex items-baseline gap-2">
                     <span class="font-mono text-[10px] tabular-nums text-ink-faint w-4">{String(cIdx + 1).padStart(2, "0")}</span>
                     <a

@@ -45,7 +45,7 @@
 	<div class="mb-3">
 		<p class="text-xs font-medium text-muted-foreground mb-2">Suggestions</p>
 		<div class="flex flex-wrap gap-2">
-			{#each suggestions as suggestion}
+			{#each suggestions as suggestion (suggestion)}
 				<button
 					type="button"
 					class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

@@ -53,7 +53,7 @@
             <Label for="target_language">Target Language</Label>
             <select id="target_language" name="target_language" class="w-full rounded-md border bg-background px-3 py-2 text-sm">
               {#if data.uiConfig?.languages}
-                {#each data.uiConfig.languages as lang}
+                {#each data.uiConfig.languages as lang (lang.code)}
                   <option value={lang.code}>{lang.name}</option>
                 {/each}
               {:else}
@@ -67,7 +67,7 @@
           <div class="space-y-2">
             <Label for="service">Service</Label>
             <select id="service" name="service" class="w-full rounded-md border bg-background px-3 py-2 text-sm">
-              {#each data.models as model}
+              {#each data.models as model (model.backend_name ?? model.backend)}
                 <option value={model.backend_name ?? model.backend}>{model.backend_name ?? model.backend} — {model.name}</option>
               {/each}
               {#if data.models.length === 0}

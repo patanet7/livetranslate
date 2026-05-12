@@ -396,7 +396,7 @@
 						</div>
 						{#if speakers.length > 0}
 							<div class="mt-2 flex flex-wrap gap-1" role="group" aria-label="Filter by speaker">
-								{#each speakers as speaker}
+								{#each speakers as speaker (speaker)}
 									<button
 										class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
 										style="background-color: {getSpeakerColor(speaker)}20; color: {getSpeakerColor(
@@ -451,7 +451,7 @@
 										</div>
 										<p>{sentence.text}</p>
 										{#if sentence.translations?.length}
-											{#each sentence.translations as translation}
+											{#each sentence.translations as translation (translation.target_language)}
 												<p class="text-xs italic text-primary/80">
 													{translation.translated_text}
 													<span class="text-muted-foreground">
@@ -654,7 +654,7 @@
 									{#each keywordInsights as insight (insight.id)}
 										{@const kws = getKeywords(insight)}
 										<div class="flex flex-wrap gap-2">
-											{#each kws as kw}
+											{#each kws as kw (kw)}
 												<Badge variant="secondary">{kw}</Badge>
 											{/each}
 										</div>
@@ -664,7 +664,7 @@
 						{/if}
 
 						<!-- Outline / Shorthand Bullet — markdown rendered -->
-						{#each ['outline', 'shorthand_bullet'] as insightType}
+						{#each ['outline', 'shorthand_bullet'] as insightType (insightType)}
 							{@const items = getInsightsByType(insightType)}
 							{#if items.length > 0}
 								<Card.Root>
@@ -733,7 +733,7 @@
 										{@const filters = getAiFilters(insight)}
 										{#if filters}
 											<div class="flex flex-wrap gap-3">
-												{#each filters as f}
+												{#each filters as f (f.label)}
 													<div class="flex items-center gap-1.5 rounded-lg border px-3 py-2">
 														<span class="text-lg font-semibold">{f.value}</span>
 														<span class="text-sm text-muted-foreground">{f.label}</span>
@@ -772,7 +772,7 @@
 															</tr>
 														</thead>
 														<tbody>
-															{#each att.attendance as person}
+															{#each att.attendance as person (person.name)}
 																<tr class="border-b">
 																	<td class="p-2">{person.name}</td>
 																	<td class="p-2 text-muted-foreground">{person.join_time ?? '—'}</td>
@@ -784,7 +784,7 @@
 												</div>
 											{:else if att.attendees.length > 0}
 												<div class="flex flex-wrap gap-2">
-													{#each att.attendees as name}
+													{#each att.attendees as name (name)}
 														<Badge variant="outline">{name}</Badge>
 													{/each}
 												</div>
@@ -800,7 +800,7 @@
 						{/if}
 
 						<!-- Decisions / Questions / other types — markdown rendered -->
-						{#each ['decisions', 'questions'] as insightType}
+						{#each ['decisions', 'questions'] as insightType (insightType)}
 							{@const items = getInsightsByType(insightType)}
 							{#if items.length > 0}
 								<Card.Root>
@@ -1119,7 +1119,7 @@
 												{#if compareData.fireflies_sentences.length === 0}
 													<p class="text-sm text-muted-foreground">No Fireflies sentences available.</p>
 												{:else}
-													{#each compareData.fireflies_sentences as sentence}
+													{#each compareData.fireflies_sentences as sentence, i (i)}
 														<div class="space-y-0.5 text-sm">
 															{#if sentence.speaker_name}
 																<span class="text-xs font-medium text-primary">
@@ -1141,7 +1141,7 @@
 												{#if compareData.vibevoice_segments.length === 0}
 													<p class="text-sm text-muted-foreground">No VibeVoice segments available.</p>
 												{:else}
-													{#each compareData.vibevoice_segments as segment}
+													{#each compareData.vibevoice_segments as segment, i (i)}
 														<div class="space-y-0.5 text-sm">
 															{#if segment.speaker}
 																<span class="text-xs font-medium text-primary">
@@ -1318,7 +1318,7 @@
 								<div>
 									<p class="mb-2 text-sm font-medium">Participants</p>
 									<div class="flex flex-wrap gap-1">
-										{#each meeting.participants as participant}
+										{#each meeting.participants as participant (participant)}
 											<Badge variant="outline">{participant}</Badge>
 										{/each}
 									</div>

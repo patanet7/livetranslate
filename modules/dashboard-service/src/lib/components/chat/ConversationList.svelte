@@ -53,7 +53,6 @@
 		{:else}
 			{#each conversations as conv (conv.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="group w-full flex items-start gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors cursor-pointer {conv.id === selectedId
 						? 'bg-accent text-accent-foreground'

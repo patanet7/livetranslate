@@ -105,7 +105,7 @@
       {#if demoOpen}
         <div class="demo-popover">
           <p class="eyebrow px-3 pt-2 pb-1.5">demo mode</p>
-          {#each demoModes as mode}
+          {#each demoModes as mode (mode.value)}
             <button
               type="button"
               class="demo-option"

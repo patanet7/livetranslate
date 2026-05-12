@@ -137,7 +137,7 @@
 								bind:value={selectedModel}
 							>
 								<option value="">Default</option>
-								{#each data.uiConfig.translation_models as model}
+								{#each data.uiConfig.translation_models as model (model.name)}
 									<option value={model.name}>
 										{model.name} ({model.backend})
 									</option>
@@ -164,7 +164,7 @@
 						>
 							<option value="">General</option>
 							{#if data.uiConfig?.domains}
-								{#each data.uiConfig.domains as d}
+								{#each data.uiConfig.domains as d (d.value)}
 									{#if d.value}
 										<option value={d.value}>{d.label}</option>
 									{/if}
@@ -196,7 +196,7 @@
 					<p class="text-sm text-muted-foreground">No active sessions</p>
 				{:else}
 					<ul class="space-y-2">
-						{#each data.sessions as session}
+						{#each data.sessions as session (session.session_id)}
 							<li>
 								<a
 									href="/fireflies/connect?session={session.session_id}"

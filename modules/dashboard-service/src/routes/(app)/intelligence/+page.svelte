@@ -783,7 +783,7 @@
 									Suggested questions
 								</p>
 								<div class="flex flex-wrap gap-2">
-									{#each suggestions as suggestion}
+									{#each suggestions as suggestion (suggestion)}
 										<button
 											type="button"
 											class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"

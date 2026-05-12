@@ -323,7 +323,7 @@
 	</Card.Header>
 	<Card.Content>
 		<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-			{#each quickActions as action}
+			{#each quickActions as action (action.href)}
 				<Button variant="outline" href={action.href} class="justify-start h-9 px-3">
 					{action.label}
 				</Button>

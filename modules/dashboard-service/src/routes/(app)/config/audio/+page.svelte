@@ -21,8 +21,14 @@
 
 	type PresetKey = keyof typeof PRESETS;
 
-	// Extract current values from server data
+	// Seed form fields from server data on initial render only — after that,
+	// the local $state below owns the values (so the user's in-progress edits
+	// aren't clobbered if `data` invalidates mid-edit). Intentional capture-once
+	// pattern; suppress the warning rather than wrap in $derived (which would
+	// make the fields read-only).
+	// svelte-ignore state_referenced_locally
 	const chunkingData = data.chunking as Record<string, any> | null;
+	// svelte-ignore state_referenced_locally
 	const audioData = data.audioProcessing as Record<string, any> | null;
 
 	const currentStride = chunkingData?.chunking?.chunk_duration ?? 6.0;

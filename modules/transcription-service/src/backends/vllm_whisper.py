@@ -23,6 +23,8 @@ import soundfile as sf
 
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models import ModelInfo, Segment, TranscriptionResult
+from livetranslate_common.models.whisper import WhisperConnection
+from livetranslate_common.tracing import trace_request
 
 logger = get_logger()
 
@@ -63,17 +65,54 @@ class VLLMWhisperBackend:
         compute_type: str = "float16",
         base_url: str | None = None,
         timeout_s: int = 30,
+        connection: WhisperConnection | None = None,
         **kwargs,
     ) -> None:
+        """Construct the backend.
+
+        Prefers `connection` (canonical WhisperConnection — carries URL,
+        api_key, model, timeouts, decoding tunables). Falls back to the
+        legacy positional args + env vars for backwards compatibility
+        with the existing registry-yaml-driven instantiation path.
+
+        Env fallback order for base_url:
+          1. `base_url` kwarg
+          2. VLLM_MLX_URL env var
+          3. http://localhost:8000 (last-resort default)
+
+        Env fallback for api_key:
+          1. connection.api_key
+          2. VLLM_MLX_API_KEY env var
+          3. LLM_API_KEY env var (shared-fleet convenience)
+        """
         import os
-        self._model_name = model_name
-        self._compute_type = compute_type
-        self._base_url = base_url or os.getenv("VLLM_MLX_URL", "http://localhost:8000")
-        self._timeout_s = timeout_s
+
+        if connection is not None:
+            self._connection: WhisperConnection | None = connection
+            self._model_name = connection.model or model_name
+            self._compute_type = connection.compute_type
+            self._base_url = connection.base_url or os.getenv(
+                "VLLM_MLX_URL", "http://localhost:8000"
+            )
+            self._timeout_s = int(connection.timeout_s)
+            self._api_key = connection.api_key
+        else:
+            self._connection = None
+            self._model_name = model_name
+            self._compute_type = compute_type
+            self._base_url = base_url or os.getenv(
+                "VLLM_MLX_URL", "http://localhost:8000"
+            )
+            self._timeout_s = timeout_s
+            # Auth fallback chain: VLLM-specific key, then shared LLM key.
+            self._api_key = (
+                os.getenv("VLLM_MLX_API_KEY") or os.getenv("LLM_API_KEY") or ""
+            )
+
         self._client: httpx.AsyncClient | None = None
         self._loaded = False
         # Map short names to HF repos for the API
-        self._whisper_model = self._resolve_model(model_name)
+        self._whisper_model = self._resolve_model(self._model_name)
 
     @staticmethod
     def _resolve_model(name: str) -> str:
@@ -93,9 +132,14 @@ class VLLMWhisperBackend:
         self._model_name = model_name
         self._whisper_model = self._resolve_model(model_name)
 
+        headers: dict[str, str] = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=httpx.Timeout(self._timeout_s),
+            headers=headers or None,
         )
 
         # Verify server is reachable
@@ -144,7 +188,15 @@ class VLLMWhisperBackend:
         language: str | None = None,
         **kwargs,
     ) -> TranscriptionResult:
-        """Transcribe audio via vllm-mlx's /v1/audio/transcriptions endpoint."""
+        """Transcribe audio via vllm-mlx's /v1/audio/transcriptions endpoint.
+
+        Emits standardized tracing:
+          - whisper.request.start  (connection_id, engine, model, audio_duration_s,
+                                    language_hint)
+          - whisper.request.complete (+ duration_ms, language_detected, text_chars,
+                                      segment_count, no_speech_prob, confidence)
+          - whisper.request.failed   (+ duration_ms, error_class, error)
+        """
         if not self._client:
             raise RuntimeError("VLLMWhisperBackend: not connected — call load_model() first")
 
@@ -153,66 +205,90 @@ class VLLMWhisperBackend:
         if mono.ndim == 2:
             mono = mono.mean(axis=1)
 
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
-            sf.write(f.name, mono, 16000)
-            f.seek(0)
+        audio_duration_s = float(mono.shape[0]) / 16000.0
+        connection_id = (
+            self._connection.connection_id if self._connection else None
+        )
+        engine = self._connection.engine if self._connection else "openai_compatible"
 
-            data = {
-                "model": self._whisper_model,
-                "response_format": "verbose_json",
-            }
-            if language:
-                data["language"] = language
-            # Pass previous segment text as decoder prompt (OpenAI API `prompt` param).
-            # Gives Whisper context continuity without condition_on_previous_text loop.
-            initial_prompt = kwargs.get("initial_prompt")
-            if initial_prompt:
-                data["prompt"] = initial_prompt
+        with trace_request(
+            "whisper",
+            "request",
+            connection_id=connection_id,
+            engine=engine,
+            model=self._whisper_model,
+            audio_duration_s=round(audio_duration_s, 3),
+            language_hint=language,
+        ) as t:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
+                sf.write(f.name, mono, 16000)
+                f.seek(0)
 
-            response = await self._client.post(
-                "/v1/audio/transcriptions",
-                files={"file": ("audio.wav", open(f.name, "rb"), "audio/wav")},
-                data=data,
-            )
-            response.raise_for_status()
+                data = {
+                    "model": self._whisper_model,
+                    "response_format": "verbose_json",
+                }
+                if language:
+                    data["language"] = language
+                # Pass previous segment text as decoder prompt (OpenAI API `prompt` param).
+                # Gives Whisper context continuity without condition_on_previous_text loop.
+                initial_prompt = kwargs.get("initial_prompt")
+                if initial_prompt:
+                    data["prompt"] = initial_prompt
 
-        result = response.json()
-
-        # Parse OpenAI Whisper API verbose_json response format
-        text = result.get("text", "").strip()
-        detected_language = result.get("language", language or "en")
-
-        # Build segments from response (verbose_json includes segments with metadata)
-        raw_segments = result.get("segments", [])
-        segments = []
-        for seg in raw_segments:
-            segments.append(
-                Segment(
-                    text=seg.get("text", "").strip(),
-                    start_ms=int(seg.get("start", 0) * 1000),
-                    end_ms=int(seg.get("end", 0) * 1000),
-                    confidence=max(0.0, min(1.0, math.exp(seg.get("avg_logprob", -1.0)))),
+                response = await self._client.post(
+                    "/v1/audio/transcriptions",
+                    files={"file": ("audio.wav", open(f.name, "rb"), "audio/wav")},
+                    data=data,
                 )
+                response.raise_for_status()
+
+            result = response.json()
+
+            # Parse OpenAI Whisper API verbose_json response format
+            text = result.get("text", "").strip()
+            detected_language = result.get("language", language or "en")
+
+            # Build segments from response (verbose_json includes segments with metadata)
+            raw_segments = result.get("segments", [])
+            segments = []
+            for seg in raw_segments:
+                segments.append(
+                    Segment(
+                        text=seg.get("text", "").strip(),
+                        start_ms=int(seg.get("start", 0) * 1000),
+                        end_ms=int(seg.get("end", 0) * 1000),
+                        confidence=max(0.0, min(1.0, math.exp(seg.get("avg_logprob", -1.0)))),
+                    )
+                )
+
+            overall_confidence = (
+                float(np.mean([s.confidence for s in segments])) if segments else 0.5
             )
 
-        overall_confidence = (
-            float(np.mean([s.confidence for s in segments])) if segments else 0.5
-        )
+            # Aggregate compression_ratio and no_speech_prob across segments (max = worst case)
+            compression_ratios = [seg.get("compression_ratio") for seg in raw_segments if seg.get("compression_ratio") is not None]
+            no_speech_probs = [seg.get("no_speech_prob") for seg in raw_segments if seg.get("no_speech_prob") is not None]
 
-        # Aggregate compression_ratio and no_speech_prob across segments (max = worst case)
-        compression_ratios = [seg.get("compression_ratio") for seg in raw_segments if seg.get("compression_ratio") is not None]
-        no_speech_probs = [seg.get("no_speech_prob") for seg in raw_segments if seg.get("no_speech_prob") is not None]
+            t.add(
+                language_detected=detected_language,
+                text_chars=len(text),
+                segment_count=len(segments),
+                no_speech_prob=(max(no_speech_probs) if no_speech_probs else None),
+                compression_ratio=(max(compression_ratios) if compression_ratios else None),
+                confidence=round(overall_confidence, 4),
+            )
 
-        return TranscriptionResult(
-            text=text,
-            language=detected_language,
-            confidence=overall_confidence,
-            segments=segments,
-            is_final=True,
-            is_draft=False,
-            compression_ratio=max(compression_ratios) if compression_ratios else None,
-            no_speech_prob=max(no_speech_probs) if no_speech_probs else None,
-        )
+            return TranscriptionResult(
+                text=text,
+                language=detected_language,
+                confidence=overall_confidence,
+                segments=segments,
+                is_final=True,
+                is_draft=False,
+                compression_ratio=max(compression_ratios) if compression_ratios else None,
+                no_speech_prob=max(no_speech_probs) if no_speech_probs else None,
+            )
 
     async def transcribe_stream(
         self,

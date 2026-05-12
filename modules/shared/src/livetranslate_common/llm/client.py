@@ -41,6 +41,7 @@ from livetranslate_common.models.llm import (
     LLMConnection,
     LLMParameterOverrides,
 )
+from livetranslate_common.tracing import trace_request
 
 logger = get_logger()
 
@@ -188,22 +189,42 @@ class LLMClient:
         messages: list[dict[str, str]],
         overrides: LLMParameterOverrides | None = None,
     ) -> str:
-        """Non-streaming completion. Returns the cleaned-up assistant text."""
+        """Non-streaming completion. Returns the cleaned-up assistant text.
+
+        Emits standardized tracing:
+          - llm.request.start    (connection_id, engine, model, prompt_chars,
+                                  stream=False)
+          - llm.request.complete (+ duration_ms, response_chars)
+          - llm.request.failed   (+ duration_ms, error_class, error)
+        """
         if not self._breaker.is_available:
             raise CircuitBreakerOpenError(
                 f"circuit breaker OPEN for {self._connection.base_url}"
             )
 
         sampling = _sampling_dict(self._connection, overrides)
+        prompt_chars = sum(len(m.get("content", "")) for m in messages)
 
-        # Engine + proxy dispatch
-        if self._proxy_mode:
-            return await self._complete_proxy(messages, sampling)
-        if self._connection.engine == "anthropic":
-            return await self._complete_anthropic(messages, sampling)
-        if self._use_ollama_native:
-            return await self._complete_ollama_native(messages, sampling)
-        return await self._complete_openai_compat(messages, sampling)
+        with trace_request(
+            "llm",
+            "request",
+            connection_id=self._connection.connection_id,
+            engine=self._connection.engine,
+            model=sampling.get("model", self._connection.model),
+            prompt_chars=prompt_chars,
+            stream=False,
+        ) as t:
+            # Engine + proxy dispatch
+            if self._proxy_mode:
+                result = await self._complete_proxy(messages, sampling)
+            elif self._connection.engine == "anthropic":
+                result = await self._complete_anthropic(messages, sampling)
+            elif self._use_ollama_native:
+                result = await self._complete_ollama_native(messages, sampling)
+            else:
+                result = await self._complete_openai_compat(messages, sampling)
+            t.add(response_chars=len(result))
+            return result
 
     async def stream(
         self,
@@ -211,24 +232,43 @@ class LLMClient:
         messages: list[dict[str, str]],
         overrides: LLMParameterOverrides | None = None,
     ) -> AsyncIterator[str]:
-        """Streaming completion. Yields raw text deltas as they arrive."""
+        """Streaming completion. Yields raw text deltas as they arrive.
+
+        Emits the same llm.request.{start,complete,failed} events as
+        complete() — duration_ms covers the time from request open to the
+        last delta yielded (consumer-paced). response_chars on .complete is
+        the sum of all delta bytes that crossed the boundary.
+        """
         if not self._breaker.is_available:
             raise CircuitBreakerOpenError(
                 f"circuit breaker OPEN for {self._connection.base_url}"
             )
         sampling = _sampling_dict(self._connection, overrides)
+        prompt_chars = sum(len(m.get("content", "")) for m in messages)
 
-        if self._proxy_mode:
-            inner = self._stream_proxy(messages, sampling)
-        elif self._connection.engine == "anthropic":
-            inner = self._stream_anthropic(messages, sampling)
-        elif self._use_ollama_native:
-            inner = self._stream_ollama_native(messages, sampling)
-        else:
-            inner = self._stream_openai_compat(messages, sampling)
+        with trace_request(
+            "llm",
+            "request",
+            connection_id=self._connection.connection_id,
+            engine=self._connection.engine,
+            model=sampling.get("model", self._connection.model),
+            prompt_chars=prompt_chars,
+            stream=True,
+        ) as t:
+            if self._proxy_mode:
+                inner = self._stream_proxy(messages, sampling)
+            elif self._connection.engine == "anthropic":
+                inner = self._stream_anthropic(messages, sampling)
+            elif self._use_ollama_native:
+                inner = self._stream_ollama_native(messages, sampling)
+            else:
+                inner = self._stream_openai_compat(messages, sampling)
 
-        async for chunk in strip_think_blocks_streaming(inner):
-            yield chunk
+            response_chars = 0
+            async for chunk in strip_think_blocks_streaming(inner):
+                response_chars += len(chunk)
+                yield chunk
+            t.add(response_chars=response_chars)
 
     # -- backend: OpenAI-compatible /v1/chat/completions -------------------
 

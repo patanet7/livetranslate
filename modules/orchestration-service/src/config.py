@@ -479,23 +479,13 @@ class MeetingIntelligenceSettings(BaseSettings):
         description="Safety limit on transcript size for insight generation",
     )
 
-    # Direct LLM (bypass Translation Service for intelligence features)
-    direct_llm_enabled: bool = Field(
-        default=False,
-        description="Use direct LLM client instead of Translation Service",
-    )
-    direct_llm_base_url: str = Field(
-        default="http://localhost:11434/v1",
-        description="OpenAI-compatible API base URL (Ollama default)",
-    )
-    direct_llm_api_key: str = Field(
-        default="",
-        description="API key for direct LLM (empty for Ollama)",
-    )
-    direct_llm_model: str = Field(
-        default="gemma3:4b",
-        description="Model to use for direct LLM calls",
-    )
+    # The previous `direct_llm_*` fields (INTELLIGENCE_DIRECT_LLM_BASE_URL,
+    # _API_KEY, _MODEL, _ENABLED) were removed during LLM config consolidation.
+    # Intelligence now resolves its LLM via `services.llm_resolver` with the
+    # "intelligence" purpose key — set system_config['intelligence_model_preference']
+    # in the dashboard Connections UI, or use LLM_BASE_URL / LLM_MODEL env
+    # vars as a bootstrap fallback.
+
     agent_max_context_tokens: int = Field(
         default=8192,
         description="Max tokens for agent conversation context window",

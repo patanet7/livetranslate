@@ -88,6 +88,121 @@ class TestTranscriptionServiceMessages:
         assert msg.language == "zh"
 
 
+class TestLLMOverrides:
+    """ConfigMessage and StartSessionMessage can carry per-session LLM overrides."""
+
+    def test_config_with_llm_overrides(self) -> None:
+        from livetranslate_common.models.llm import LLMParameterOverrides
+
+        msg = ConfigMessage(
+            llm=LLMParameterOverrides(temperature=0.1, max_tokens=512)
+        )
+        assert msg.llm is not None
+        assert msg.llm.temperature == 0.1
+        assert msg.llm.max_tokens == 512
+
+    def test_start_session_with_llm_overrides(self) -> None:
+        from livetranslate_common.models.llm import LLMParameterOverrides
+
+        msg = StartSessionMessage(
+            sample_rate=16000,
+            channels=1,
+            llm=LLMParameterOverrides(connection_id="conn-openai", model="gpt-4o-mini"),
+        )
+        assert msg.llm is not None
+        assert msg.llm.connection_id == "conn-openai"
+        assert msg.llm.model == "gpt-4o-mini"
+
+    def test_config_without_llm_defaults_to_none(self) -> None:
+        msg = ConfigMessage()
+        assert msg.llm is None
+
+    def test_llm_round_trip_json(self) -> None:
+        from livetranslate_common.models.llm import LLMParameterOverrides
+
+        msg = ConfigMessage(
+            llm=LLMParameterOverrides(temperature=0.7, top_p=0.95)
+        )
+        raw = msg.model_dump_json()
+        rebuilt = ConfigMessage.model_validate_json(raw)
+        assert rebuilt.llm is not None
+        assert rebuilt.llm.temperature == 0.7
+        assert rebuilt.llm.top_p == 0.95
+
+
+class TestWhisperOverrides:
+    """ConfigMessage and StartSessionMessage carry per-session Whisper overrides."""
+
+    def test_config_with_whisper_overrides(self) -> None:
+        from livetranslate_common.models.whisper import WhisperParameterOverrides
+
+        msg = ConfigMessage(
+            whisper=WhisperParameterOverrides(
+                beam_size=5, language_hint="zh", no_speech_threshold=0.4
+            )
+        )
+        assert msg.whisper is not None
+        assert msg.whisper.beam_size == 5
+        assert msg.whisper.language_hint == "zh"
+        assert msg.whisper.no_speech_threshold == 0.4
+
+    def test_start_session_with_whisper_overrides(self) -> None:
+        from livetranslate_common.models.whisper import WhisperParameterOverrides
+
+        msg = StartSessionMessage(
+            sample_rate=16000,
+            channels=1,
+            whisper=WhisperParameterOverrides(
+                connection_id="conn-tailscale-whisper",
+                model="mlx-community/whisper-medium",
+            ),
+        )
+        assert msg.whisper is not None
+        assert msg.whisper.connection_id == "conn-tailscale-whisper"
+        assert msg.whisper.model == "mlx-community/whisper-medium"
+
+    def test_config_without_whisper_defaults_to_none(self) -> None:
+        """Backward compat — old clients sending no whisper field still parse."""
+        msg = ConfigMessage.model_validate_json('{"type":"config"}')
+        assert msg.whisper is None
+        assert msg.llm is None
+
+    def test_whisper_round_trip_json(self) -> None:
+        from livetranslate_common.models.whisper import WhisperParameterOverrides
+
+        msg = ConfigMessage(
+            whisper=WhisperParameterOverrides(
+                temperature=0.2,
+                initial_prompt="一段会议录音。",
+            )
+        )
+        raw = msg.model_dump_json()
+        rebuilt = ConfigMessage.model_validate_json(raw)
+        assert rebuilt.whisper is not None
+        assert rebuilt.whisper.temperature == 0.2
+        assert rebuilt.whisper.initial_prompt == "一段会议录音。"
+
+    def test_bad_whisper_value_rejected(self) -> None:
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            ConfigMessage.model_validate_json(
+                '{"type":"config","whisper":{"beam_size":0}}'
+            )
+
+    def test_llm_and_whisper_both_present(self) -> None:
+        """A single message can carry both LLM and Whisper overrides."""
+        from livetranslate_common.models.llm import LLMParameterOverrides
+        from livetranslate_common.models.whisper import WhisperParameterOverrides
+
+        msg = ConfigMessage(
+            llm=LLMParameterOverrides(temperature=0.5),
+            whisper=WhisperParameterOverrides(beam_size=3),
+        )
+        assert msg.llm is not None and msg.llm.temperature == 0.5
+        assert msg.whisper is not None and msg.whisper.beam_size == 3
+
+
 class TestServerMessages:
     def test_connected(self) -> None:
         msg = ConnectedMessage(session_id="sess-abc-123")

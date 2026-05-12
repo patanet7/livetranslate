@@ -100,11 +100,16 @@ Real-time audio capture → transcription → translation page in the SvelteKit 
 
 ## Development Commands
 
+The project uses **mise** (https://mise.jdx.dev) as its task runner. Run
+`mise tasks` to see every task, `mise run <task>` to execute one. The
+`mise.toml` at the repo root is the canonical source; the legacy `justfile`
+still holds a handful of long-tail recipes (benchmarks, fixture recording)
+that haven't been ported yet — `mise run` proxies through `just` for those.
+
 ### Install Dependencies
 
 ```bash
-# CRITICAL: Must use --all-packages to install workspace packages (livetranslate-common, etc.)
-uv sync --all-packages --group dev
+mise run install    # Python + Node + Swift CLI (or: uv sync --all-packages --group dev)
 ```
 
 > **Python Version**: >=3.12,<3.14. Python 3.14+ not supported (grpcio, onnxruntime).
@@ -113,23 +118,21 @@ uv sync --all-packages --group dev
 ### Run Services
 
 ```bash
-uv run python modules/transcription-service/src/main.py   # Transcription (GPU)
-uv run python modules/orchestration-service/src/main_fastapi.py  # Orchestration
-
-cd modules/dashboard-service && npm install && npm run dev  # Dashboard (SvelteKit)
+mise run dev              # Full stack (split vLLM-MLX inference, dashboard, orchestration, transcription)
+mise run dev-debug        # Same with LOG_LEVEL=DEBUG
+mise run dev-dashboard    # SvelteKit dashboard only
+mise run dev-stt          # vLLM-MLX STT worker only
 ```
 
 ### Run Tests
 
 ```bash
-uv run pytest modules/shared/tests/ -v               # Shared contracts
-uv run pytest modules/orchestration-service/tests/ -v  # Orchestration
-uv run pytest modules/transcription-service/tests/ -v  # Transcription
-
-# Just commands
-just test-orchestration
-just test-transcription
-just coverage-backend
+mise run test                # Shared contracts + orchestration unit + transcription
+mise run test-shared         # Shared package only
+mise run test-orchestration  # Orchestration unit tests
+mise run test-transcription  # Transcription unit tests
+mise run test-llm            # LLM/translation consolidation test surface
+mise run test-playwright     # Browser E2E (loopback playback)
 ```
 
 ### Test Markers
@@ -146,21 +149,21 @@ just coverage-backend
 
 ### E2E / Playwright Testing
 
-All E2E tests assume `just dev` is already running (split vLLM-MLX inference).
+All E2E tests assume `mise run dev` is already running (split vLLM-MLX inference).
 
 ```bash
-just create-e2e-fixtures   # One-time: upsample 16kHz → 48kHz WAVs
-just test-playwright        # Playwright: browser → orchestration → vLLM-MLX → DOM
-just test-e2e-playback      # Backend: translation-only replay via vLLM-MLX LLM on :8006
+mise run create-e2e-fixtures   # One-time: upsample 16kHz → 48kHz WAVs (proxies to just)
+mise run test-playwright       # Playwright: browser → orchestration → vLLM-MLX → DOM
+just test-e2e-playback         # Backend: translation-only replay (not yet ported to mise)
 ```
 
-**Fixture recording**: Set `LIVETRANSLATE_RECORD_FIXTURES=1` when running `just dev` to capture live sessions as WAV + JSON sidecar pairs in `/tmp/livetranslate/fixture-recordings/`.
+**Fixture recording**: Set `LIVETRANSLATE_RECORD_FIXTURES=1` when running `mise run dev` to capture live sessions as WAV + JSON sidecar pairs in `/tmp/livetranslate/fixture-recordings/`.
 
 #### Language Detection Replay Tests
 
 ```bash
-just create-lang-detect-fixtures  # Convert FLAC recordings → 48kHz WAV fixtures
-just test-lang-detect             # Playwright: replay real meeting audio, verify stable detection
+just create-lang-detect-fixtures  # Convert FLAC recordings → 48kHz WAV fixtures (not yet ported)
+just test-lang-detect             # Playwright: replay real meeting audio (not yet ported)
 ```
 
 ## Shared Library (`livetranslate-common`)

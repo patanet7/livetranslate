@@ -215,7 +215,7 @@
 					</div>
 
 					<!-- Hidden inputs for form submission -->
-					{#each [...enabledCodes] as code}
+					{#each [...enabledCodes] as code (code)}
 						<input type="hidden" name="languages" value={code} />
 					{/each}
 				</Card.Content>

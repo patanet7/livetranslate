@@ -9,9 +9,11 @@ request bodies post-hoc.
 from .fake_anthropic_server import FakeAnthropicServer
 from .fake_ollama_server import FakeOllamaServer
 from .fake_openai_server import FakeOpenAIServer
+from .fake_whisper_server import FakeWhisperServer
 
 __all__ = [
     "FakeAnthropicServer",
     "FakeOllamaServer",
     "FakeOpenAIServer",
+    "FakeWhisperServer",
 ]

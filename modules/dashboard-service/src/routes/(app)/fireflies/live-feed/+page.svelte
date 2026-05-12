@@ -273,7 +273,7 @@
 					bind:value={selectedSession}
 				>
 					<option value="">Select a session...</option>
-					{#each data.sessions as session}
+					{#each data.sessions as session (session.session_id)}
 						<option value={session.session_id}>
 							{session.session_id.slice(0, 16)}... ({session.connection_status})
 						</option>
@@ -290,7 +290,7 @@
 					bind:value={selectedLang}
 				>
 					<option value="all">All Languages</option>
-					{#each languages as lang}
+					{#each languages as lang (lang.code)}
 						<option value={lang.code}>{lang.name}</option>
 					{/each}
 				</select>

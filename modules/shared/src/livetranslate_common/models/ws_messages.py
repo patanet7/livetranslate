@@ -13,6 +13,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from livetranslate_common.models.llm import LLMParameterOverrides
+from livetranslate_common.models.whisper import WhisperParameterOverrides
 
 PROTOCOL_VERSION = 1
 
@@ -43,6 +44,10 @@ class StartSessionMessage(BaseModel):
     # resolver applies these as overrides on top of the resolved connection
     # for every translation call in this session.
     llm: LLMParameterOverrides | None = None
+    # Optional per-session Whisper tunables (decoding/sampling). Same merge
+    # semantics as `llm` but routed through the whisper_resolver. Connection
+    # swap (via `whisper.connection_id`) re-resolves the active backend.
+    whisper: WhisperParameterOverrides | None = None
 
 
 class EndSessionMessage(BaseModel):
@@ -90,6 +95,11 @@ class ConfigMessage(BaseModel):
     # calls. Successive ConfigMessages can send partial deltas — fields left
     # as None keep their previous value on the server side.
     llm: LLMParameterOverrides | None = None
+    # Optional Whisper decoding overrides — same partial-delta semantics.
+    # Connection swap (whisper.connection_id) re-resolves the backend; other
+    # fields (beam_size, no_speech_threshold, language_hint, initial_prompt)
+    # are applied to subsequent transcribe calls.
+    whisper: WhisperParameterOverrides | None = None
 
 
 class EndMessage(BaseModel):

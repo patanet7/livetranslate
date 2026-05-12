@@ -103,6 +103,7 @@ async def run_single_model_benchmark(
     from translation.config import TranslationConfig
     from translation.service import TranslationService
     from livetranslate_common.models import TranslationRequest
+    from livetranslate_common.models.llm import LLMConnection
 
     src_lang, tgt_lang = lang_pair.split("-")
     model_result = {
@@ -111,13 +112,17 @@ async def run_single_model_benchmark(
         "runs": [],
     }
 
+    # Endpoint + sampling lives on LLMConnection; pipeline behavior knobs on
+    # TranslationConfig. The benchmark used to fold both into TranslationConfig.
+    connection = LLMConnection(
+        engine="ollama" if ":11434" in ollama_url else "openai_compatible",
+        base_url=ollama_url,
+        model=model,
+    )
+
     for ctx_size in context_sizes:
-        config = TranslationConfig(
-            base_url=ollama_url,
-            model=model,
-            context_window_size=ctx_size,
-        )
-        service = TranslationService(config)
+        behavioral = TranslationConfig(context_window_size=ctx_size)
+        service = TranslationService(connection, behavioral)
 
         hypotheses = []
         latencies = []
@@ -173,12 +178,8 @@ async def run_single_model_benchmark(
 
     # Concurrent throughput measurement
     if concurrency > 1:
-        config = TranslationConfig(
-            base_url=ollama_url,
-            model=model,
-            context_window_size=0,
-        )
-        service = TranslationService(config)
+        behavioral = TranslationConfig(context_window_size=0)
+        service = TranslationService(connection, behavioral)
 
         sample_texts = (sources * ((concurrency // len(sources)) + 1))[:concurrency]
 
@@ -223,7 +224,7 @@ async def run_benchmark(
     lang_pair: str,
     data_dir: Path,
     output_dir: Path,
-    ollama_url: str = "http://thomas-pc:11434/v1",
+    ollama_url: str = "http://100.64.0.2:8089/v1",
     context_sizes: list[int] | None = None,
     concurrency: int = 1,
 ) -> None:
@@ -302,7 +303,7 @@ def main():
     parser.add_argument("--lang-pair", required=True, help="Language pair (e.g. zh-en)")
     parser.add_argument("--data-dir", type=Path, default=Path("tools/translation_benchmark/data"))
     parser.add_argument("--output-dir", type=Path, default=Path("tools/translation_benchmark/results"))
-    parser.add_argument("--ollama-url", default="http://thomas-pc:11434/v1")
+    parser.add_argument("--ollama-url", default="http://100.64.0.2:8089/v1")
     parser.add_argument("--context-sizes", nargs="+", type=int, default=[0, 3, 5])
     parser.add_argument(
         "--concurrency", type=int, default=1,

@@ -400,6 +400,31 @@ async def lifespan(app: FastAPI):
 
         logger.info("[OK] All managers started successfully")
 
+        # Seed ai_connections + whisper_connections from env vars on first run.
+        # Idempotent — no-op when rows already exist or env unset.
+        try:
+            from services.llm_resolver import bootstrap_llm_connections
+            from services.whisper_resolver import bootstrap_whisper_connections
+
+            db = await get_database_manager().get_session_direct()
+            try:
+                llm_seeded = await bootstrap_llm_connections(db)
+                whisper_seeded = await bootstrap_whisper_connections(db)
+                if llm_seeded or whisper_seeded:
+                    logger.info(
+                        "connection_bootstrap_seeded",
+                        llm=llm_seeded,
+                        whisper=whisper_seeded,
+                    )
+            finally:
+                await db.close()
+        except Exception as e:
+            logger.warning(
+                "connection_bootstrap_failed",
+                error=str(e),
+                message="env→DB bootstrap failed; resolver will use env fallback path",
+            )
+
         # Recover stale meeting sessions and start orphan monitoring once per app.
         try:
             from routers.audio.websocket_audio import RECORDING_BASE_PATH

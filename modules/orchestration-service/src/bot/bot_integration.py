@@ -27,7 +27,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import httpx
-from clients.llm_client import LLMClient
+from livetranslate_common.llm.client import LLMClient
 from livetranslate_common.logging import get_logger
 from services.caption_buffer import CaptionBuffer
 
@@ -542,11 +542,14 @@ class GoogleMeetBotIntegration:
                 domain="meeting",
             )
 
-            # Create translation client for pipeline
-            translation_base_url = os.getenv(
-                "TRANSLATION_SERVICE_URL", self.config.service_endpoints.translation_service
-            )
-            llm_client = LLMClient(base_url=translation_base_url, proxy_mode=True)
+            # Resolve LLM client via the canonical resolver. Replaces a raw
+            # os.getenv("TRANSLATION_SERVICE_URL") + inline LLMClient(proxy_mode=True)
+            # path. Bot pipelines use the "translation" purpose key.
+            from database.database import get_database_manager
+            from services.llm_resolver import resolve_llm_client
+
+            async with get_database_manager().get_session() as _db:
+                llm_client = await resolve_llm_client("translation", _db)
 
             # Create adapter for Google Meet transcripts
             adapter = GoogleMeetChunkAdapter()

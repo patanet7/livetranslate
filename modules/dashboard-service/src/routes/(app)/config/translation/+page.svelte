@@ -288,7 +288,7 @@
 					<div class="mt-4 space-y-1">
 						<p class="text-xs text-muted-foreground">Available Backends</p>
 						<div class="flex flex-wrap gap-1.5">
-							{#each health.available_backends as backend}
+							{#each health.available_backends as backend (backend)}
 								<Badge variant="outline">{backend}</Badge>
 							{/each}
 						</div>
@@ -323,7 +323,7 @@
 							bind:value={selectedModelId}
 						>
 							<option value="" disabled>Select a model...</option>
-							{#each models as model}
+							{#each models as model (model.model)}
 								<option value={model.model}>
 									{model.display_name} ({model.backend})
 								</option>
@@ -402,7 +402,7 @@
 						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
 					>
 						{#if data.uiConfig?.languages}
-							{#each data.uiConfig.languages as lang}
+							{#each data.uiConfig.languages as lang (lang.code)}
 								<option
 									value={lang.code}
 									selected={data.translationConfig?.target_language === lang.code}

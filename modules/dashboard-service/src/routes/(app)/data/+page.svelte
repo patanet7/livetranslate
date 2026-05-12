@@ -472,7 +472,7 @@
 								</Table.Cell>
 								<Table.Cell class="text-sm">
 									{#if s.translations && s.translations.length > 0}
-										{#each s.translations as t}
+										{#each s.translations as t (t.target_language)}
 											<div>
 												<Badge variant="outline" class="text-xs mr-1">{t.target_language}</Badge>
 												{t.translated_text}

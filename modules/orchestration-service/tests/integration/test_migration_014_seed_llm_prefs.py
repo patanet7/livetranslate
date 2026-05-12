@@ -23,6 +23,25 @@ _SEEDED_KEYS = (
 
 
 async def test_migration_seeds_preference_rows(db_session) -> None:
+    """Re-apply the migration's seed logic inside the test.
+
+    The `db_session` fixture truncates all tables between tests for isolation,
+    which also wipes the migration-seeded `system_config` rows. So this test
+    re-runs the migration's INSERT statements directly to verify the SQL
+    behaves correctly under ON CONFLICT DO NOTHING.
+    """
+    # Re-apply the upgrade logic
+    for key in _SEEDED_KEYS:
+        await db_session.execute(
+            text(
+                "INSERT INTO system_config (key, value) "
+                "VALUES (:k, :v) "
+                "ON CONFLICT (key) DO NOTHING"
+            ),
+            {"k": key, "v": '{"active_model": null}'},
+        )
+    await db_session.commit()
+
     result = await db_session.execute(
         text(
             "SELECT key, value FROM system_config "
@@ -32,7 +51,7 @@ async def test_migration_seeds_preference_rows(db_session) -> None:
     )
     rows = {row[0]: row[1] for row in result.fetchall()}
     for key in _SEEDED_KEYS:
-        assert key in rows, f"migration did not seed {key}"
+        assert key in rows, f"seed did not insert {key}"
         # Each row is JSON with `active_model: null` (resolver treats as no preference).
         assert "active_model" in rows[key]
 

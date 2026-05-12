@@ -13,6 +13,12 @@ from livetranslate_common.errors.handlers import register_error_handlers
 from livetranslate_common.health import create_health_router
 from livetranslate_common.logging import get_logger, log_performance, setup_logging
 from livetranslate_common.middleware import RequestIDMiddleware, RequestLoggingMiddleware
+from livetranslate_common.tracing import (
+    TraceContext,
+    base_url_host,
+    make_request_id,
+    trace_request,
+)
 from livetranslate_common.models import (
     AudioChunk,
     BackendConfig,
@@ -56,6 +62,11 @@ __all__ = [
     "log_performance",
     "register_error_handlers",
     "setup_logging",
+    # tracing — standardized {domain}.{action}.{phase} events
+    "TraceContext",
+    "base_url_host",
+    "make_request_id",
+    "trace_request",
     # shared models — transcription
     "ModelInfo",
     "Segment",

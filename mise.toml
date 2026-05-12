@@ -1,0 +1,374 @@
+# ============================================================================
+# LiveTranslate mise configuration
+# ============================================================================
+#
+# mise (https://mise.jdx.dev) is the project's task runner. It replaces the
+# previous `just` workflow — the `justfile` is being retired in favor of
+# native mise tasks here.
+#
+# Usage:
+#   mise run dev                 Start the full stack locally
+#   mise run test                Run all tests (excludes integration/e2e)
+#   mise run test-orchestration  Orchestration unit tests
+#   mise run lint                Lint Python sources
+#   mise run fmt                 Format Python sources
+#   mise run typecheck           Run mypy
+#   mise run db-up               docker compose up postgres + redis
+#   mise run db-migrate          Run alembic migrations to head
+#   mise tasks                   List every task
+#
+# Tasks not yet ported (benchmark, fixture-recording, livedemo helpers, etc.)
+# still live in `justfile` during the transition. Run them via `just <name>`.
+
+# ----------------------------------------------------------------------------
+# Tool versions — mise installs/pins these per-project
+# ----------------------------------------------------------------------------
+[tools]
+python = "3.12"
+node = "20"
+uv = "latest"
+# `just` is still needed for the long-tail recipes that haven't been ported.
+just = "latest"
+
+# ----------------------------------------------------------------------------
+# Environment variables shared across tasks
+# ----------------------------------------------------------------------------
+[env]
+WHISPER_PORT = "8005"
+LLM_PORT = "8006"
+LLM_MODEL = "mlx-community/Qwen3-4B-4bit"
+LOG_LEVEL = "INFO"
+LOG_DIR = "/tmp/livetranslate/logs"
+
+# ----------------------------------------------------------------------------
+# Setup
+# ----------------------------------------------------------------------------
+[tasks.install]
+description = "Install all dependencies (Python + Node + Swift CLI)"
+run = """
+uv sync --all-packages --group dev
+cd modules/dashboard-service && npm install
+cd modules/meeting-bot-service && npm install
+mise run build-screencapture
+"""
+
+[tasks.build-screencapture]
+description = "Build the ScreenCaptureKit CLI (macOS only)"
+run = """
+set -eu
+if [ "$(uname)" != "Darwin" ]; then
+    echo "Skipping screencapture build (macOS only)"
+    exit 0
+fi
+echo "Building livetranslate-capture..."
+cd tools/screencapture && swift build -c release
+mkdir -p ../../bin
+cp .build/release/livetranslate-capture ../../bin/
+echo "Installed to bin/livetranslate-capture"
+"""
+
+# ----------------------------------------------------------------------------
+# Development — start services
+# ----------------------------------------------------------------------------
+[tasks.dev]
+description = "Start the full stack locally (split vLLM-MLX inference)"
+# Delegates to just for the heavy shell scripting (logs, signal-trapping, etc.).
+# Will be ported to a native mise task once the lifecycle is stabilized.
+run = "just dev"
+
+[tasks.dev-debug]
+description = "Same as `dev` but with LOG_LEVEL=DEBUG"
+run = "LOG_LEVEL=DEBUG just dev"
+
+[tasks.dev-ollama]
+description = "Start services using Ollama for the LLM"
+run = "just dev-ollama"
+
+[tasks.dev-remote-llm]
+description = "Dev stack with REMOTE LLM (skips local vllm-llm; reads LLM_BASE_URL from .env)"
+# Mirror of `just dev` but:
+# 1. Skips the local vllm-mlx LLM container (port 8006).
+# 2. Does NOT override LLM_BASE_URL — orchestration's resolver picks it up
+#    from .env via the step-4 env bootstrap (or step-2 ai_connections if set).
+# Still spins up vllm-mlx-stt for local Whisper transcription.
+run = """
+set -eu
+mkdir -p "$LOG_DIR"
+TS=$(date +%Y%m%d_%H%M%S)
+echo "Starting services (remote LLM mode)..."
+echo "  vllm-mlx STT:  http://localhost:$WHISPER_PORT  (local — required for Whisper)"
+echo "  LLM:           from .env LLM_BASE_URL (remote — no local vllm-llm)"
+echo "  Transcription: http://localhost:5001"
+echo "  Orchestration: http://localhost:3000"
+echo "  Dashboard:     http://localhost:5180"
+echo ""
+echo "Logs: $LOG_DIR/ (session: $TS)"
+echo "Use Ctrl+C to stop all."
+
+ln -sf "vllm-mlx-stt_${TS}.log" "$LOG_DIR/vllm-mlx-stt.log"
+ln -sf "transcription_${TS}.log" "$LOG_DIR/transcription.log"
+ln -sf "orchestration_${TS}.log" "$LOG_DIR/orchestration.log"
+ln -sf "dashboard_${TS}.log" "$LOG_DIR/dashboard.log"
+
+trap 'kill 0' EXIT INT TERM
+
+PYTHONUNBUFFERED=1 uv run vllm-mlx serve "$LLM_MODEL" --port "$WHISPER_PORT" 2>&1 \
+    | tee "$LOG_DIR/vllm-mlx-stt_${TS}.log" \
+    | awk '{print "[vllm-stt] " $0; fflush()}' &
+
+sleep 5
+
+VLLM_MLX_URL="http://localhost:${WHISPER_PORT}" LOG_LEVEL="$LOG_LEVEL" PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+    uv run python -u modules/transcription-service/src/main_local.py --model large-v3-turbo --backend vllm 2>&1 \
+    | tee "$LOG_DIR/transcription_${TS}.log" \
+    | awk '{print "[transcription] " $0; fflush()}' &
+
+sleep 3
+
+# CRITICAL: do NOT export LLM_BASE_URL here — let .env values reach the
+# resolver. Pydantic-settings picks up the .env automatically.
+TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+    DEFAULT_TARGET_LANGUAGE=zh LOG_LEVEL="$LOG_LEVEL" PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+    uv run python -u modules/orchestration-service/src/main_fastapi.py 2>&1 \
+    | tee "$LOG_DIR/orchestration_${TS}.log" \
+    | awk '{print "[orchestration] " $0; fflush()}' &
+
+sleep 2
+
+(cd modules/dashboard-service && npm run dev) 2>&1 \
+    | tee "$LOG_DIR/dashboard_${TS}.log" \
+    | awk '{print "[dashboard] " $0; fflush()}' &
+
+wait
+"""
+
+[tasks.dev-remote-inference]
+description = "Dev stack with REMOTE inference only (local transcription-service + orchestration; remote Whisper + LLM)"
+# This is the "chop/swap the backend" architecture:
+# - REMOTE: Whisper inference server (any /v1/audio/transcriptions endpoint)
+#           — vllm-mlx, vllm, whisper.cpp's server, etc. Set VLLM_MLX_URL in .env.
+# - REMOTE: LLM inference (any /v1/chat/completions endpoint). LLM_BASE_URL in .env.
+# - LOCAL:  transcription-service — VAD, chunking, hallucination filter, language
+#           detection, sentence segmentation. The "hard work" stays near the
+#           audio buffer; only inference is shipped off-box.
+# - LOCAL:  orchestration + dashboard.
+#
+# This matches the LLM split: heavy GPU compute remote, lightweight stateful
+# orchestration local. See backends/vllm_whisper.py:VLLMWhisperBackend.
+run = """
+set -eu
+mkdir -p "$LOG_DIR"
+TS=$(date +%Y%m%d_%H%M%S)
+echo "Starting services (remote inference mode)..."
+echo "  Whisper inference:   from .env VLLM_MLX_URL (remote)"
+echo "  LLM inference:       from .env LLM_BASE_URL (remote)"
+echo "  Transcription svc:   http://localhost:5001  (local — VAD/chunking/etc.)"
+echo "  Orchestration:       http://localhost:3000  (local)"
+echo "  Dashboard:           http://localhost:5180  (local)"
+echo ""
+echo "Logs: $LOG_DIR/ (session: $TS)"
+echo "Use Ctrl+C to stop all."
+
+ln -sf "transcription_${TS}.log" "$LOG_DIR/transcription.log"
+ln -sf "orchestration_${TS}.log" "$LOG_DIR/orchestration.log"
+ln -sf "dashboard_${TS}.log" "$LOG_DIR/dashboard.log"
+
+trap 'kill 0' EXIT INT TERM
+
+# transcription-service local — auto-detects vllm backend when VLLM_MLX_URL set.
+LOG_LEVEL="$LOG_LEVEL" PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+    uv run python -u modules/transcription-service/src/main_local.py \
+        --model large-v3-turbo --backend vllm 2>&1 \
+    | tee "$LOG_DIR/transcription_${TS}.log" \
+    | awk '{print "[transcription] " $0; fflush()}' &
+
+sleep 3
+
+# orchestration local — reads LLM_BASE_URL + TRANSCRIPTION_HOST from .env.
+TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+    DEFAULT_TARGET_LANGUAGE=zh LOG_LEVEL="$LOG_LEVEL" PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+    uv run python -u modules/orchestration-service/src/main_fastapi.py 2>&1 \
+    | tee "$LOG_DIR/orchestration_${TS}.log" \
+    | awk '{print "[orchestration] " $0; fflush()}' &
+
+sleep 2
+
+(cd modules/dashboard-service && npm run dev) 2>&1 \
+    | tee "$LOG_DIR/dashboard_${TS}.log" \
+    | awk '{print "[dashboard] " $0; fflush()}' &
+
+wait
+"""
+
+[tasks.dev-remote-all]
+description = "Dev stack with REMOTE transcription-service (rare — assumes the whole VAD/chunking pipeline is hosted remotely)"
+# Use this ONLY if you have transcription-service itself deployed on another
+# box. For "remote inference, local VAD/chunking" (the usual case), use
+# `dev-remote-inference` instead.
+run = """
+set -eu
+mkdir -p "$LOG_DIR"
+TS=$(date +%Y%m%d_%H%M%S)
+echo "Starting services (FULL remote mode — transcription-service is also remote)..."
+echo "  Whisper + transcription-service: from .env TRANSCRIPTION_HOST/PORT"
+echo "  LLM inference:                   from .env LLM_BASE_URL"
+echo "  Orchestration:                   http://localhost:3000"
+echo "  Dashboard:                       http://localhost:5180"
+echo ""
+echo "Logs: $LOG_DIR/ (session: $TS)"
+
+ln -sf "orchestration_${TS}.log" "$LOG_DIR/orchestration.log"
+ln -sf "dashboard_${TS}.log" "$LOG_DIR/dashboard.log"
+
+trap 'kill 0' EXIT INT TERM
+
+DEFAULT_TARGET_LANGUAGE=zh LOG_LEVEL="$LOG_LEVEL" PYTHONUNBUFFERED=1 FORCE_COLOR=1 \
+    uv run python -u modules/orchestration-service/src/main_fastapi.py 2>&1 \
+    | tee "$LOG_DIR/orchestration_${TS}.log" \
+    | awk '{print "[orchestration] " $0; fflush()}' &
+
+sleep 2
+
+(cd modules/dashboard-service && npm run dev) 2>&1 \
+    | tee "$LOG_DIR/dashboard_${TS}.log" \
+    | awk '{print "[dashboard] " $0; fflush()}' &
+
+wait
+"""
+
+[tasks.dev-stt]
+description = "Start only the vLLM-MLX STT worker"
+run = "uv run vllm-mlx serve $LLM_MODEL --port $WHISPER_PORT"
+
+[tasks.dev-dashboard]
+description = "Start only the SvelteKit dashboard"
+run = "cd modules/dashboard-service && npm run dev"
+
+[tasks.dev-orchestration]
+description = "Start only the orchestration service (assumes transcription + LLM already up)"
+run = """
+TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+    LLM_BASE_URL=http://localhost:$LLM_PORT/v1 LLM_MODEL=$LLM_MODEL \
+    LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
+    uv run python modules/orchestration-service/src/main_fastapi.py
+"""
+
+# ----------------------------------------------------------------------------
+# Tests
+# ----------------------------------------------------------------------------
+[tasks.test]
+description = "Run all tests (shared + orchestration unit + transcription)"
+run = """
+set -eu
+echo "=== Shared contracts ==="
+uv run pytest modules/shared/tests/ -v --timeout=30
+echo ""
+echo "=== Orchestration ==="
+mise run test-orchestration
+echo ""
+echo "=== Transcription ==="
+mise run test-transcription
+"""
+
+[tasks.test-shared]
+description = "Run shared contract tests"
+run = "uv run pytest modules/shared/tests/ -v --timeout=30"
+
+[tasks.test-orchestration]
+description = "Run orchestration unit tests (no integration/e2e)"
+run = "cd modules/orchestration-service && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30 -m 'not integration'"
+
+[tasks.test-orchestration-integration]
+description = "Run orchestration integration tests (needs `mise run dev`)"
+run = "just test-orchestration-integration"
+
+[tasks.test-transcription]
+description = "Run transcription unit tests"
+run = "uv run pytest modules/transcription-service/tests/test_registry.py modules/transcription-service/tests/test_backpressure.py -v --timeout=30"
+
+[tasks.test-llm]
+description = "Run LLM/translation consolidation test surface"
+run = """
+uv run pytest \
+    modules/shared/tests/test_models_llm.py \
+    modules/shared/tests/test_llm_qwen.py \
+    modules/orchestration-service/tests/unit/test_translation_config.py \
+    modules/orchestration-service/tests/unit/test_prompt.py \
+    modules/orchestration-service/tests/unit/test_translation_service.py \
+    modules/orchestration-service/tests/integration/test_fakes_smoke.py \
+    modules/orchestration-service/tests/integration/test_llm_client_integration.py \
+    modules/orchestration-service/tests/integration/test_llm_resolver.py \
+    modules/orchestration-service/tests/integration/test_translation_service_overrides.py \
+    modules/orchestration-service/tests/integration/test_legacy_env_vars_ignored.py \
+    modules/orchestration-service/tests/integration/test_bootstrap_seeding.py \
+    modules/orchestration-service/tests/integration/test_migration_014_seed_llm_prefs.py \
+    -v
+"""
+
+[tasks.test-playwright]
+description = "Run Playwright loopback-playback E2E"
+run = "cd modules/dashboard-service && npx playwright test tests/e2e/loopback-playback.spec.ts --headed"
+
+# ----------------------------------------------------------------------------
+# Quality gates
+# ----------------------------------------------------------------------------
+[tasks.lint]
+description = "Lint all Python sources with ruff"
+run = "uv run ruff check modules/"
+
+[tasks.fmt]
+description = "Format all Python sources with ruff"
+run = "uv run ruff format modules/"
+
+[tasks.typecheck]
+description = "Type-check orchestration + shared with mypy"
+run = "uv run mypy modules/orchestration-service/src/ modules/shared/src/"
+
+[tasks.check-dashboard]
+description = "svelte-check on the dashboard"
+run = "cd modules/dashboard-service && npx svelte-check --tsconfig ./tsconfig.json"
+
+[tasks.ci]
+description = "Lint + typecheck + tests (matches CI gates)"
+depends = ["lint", "typecheck", "test"]
+
+# ----------------------------------------------------------------------------
+# Database
+# ----------------------------------------------------------------------------
+[tasks.db-up]
+description = "Bring up PostgreSQL and Redis"
+run = """
+docker compose -f docker-compose.database.yml up -d postgres redis
+echo 'PostgreSQL: localhost:5432 | Redis: localhost:6379'
+"""
+
+[tasks.db-down]
+description = "Stop PostgreSQL and Redis"
+run = "docker compose -f docker-compose.database.yml down"
+
+[tasks.db-migrate]
+description = "Run Alembic migrations to head"
+run = """
+cd modules/orchestration-service && \
+    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/livetranslate \
+    uv run alembic upgrade head
+"""
+
+[tasks.db-shell]
+description = "Open the PostgreSQL shell against the local DB"
+run = "docker compose -f docker-compose.database.yml exec postgres psql -U postgres livetranslate"
+
+# ----------------------------------------------------------------------------
+# Long-tail recipes (still defined in justfile during the transition)
+# ----------------------------------------------------------------------------
+[tasks.benchmark-vac]
+description = "VAC transcription sweep — passes args through to just"
+run = "just benchmark-vac {{arg(name='args', var=true)}}"
+
+[tasks.benchmark-pipeline]
+description = "Full pipeline sweep — passes args through to just"
+run = "just benchmark-pipeline {{arg(name='args', var=true)}}"
+
+[tasks.create-e2e-fixtures]
+description = "Upsample 16kHz → 48kHz fixture WAVs"
+run = "just create-e2e-fixtures"

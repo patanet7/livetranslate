@@ -238,7 +238,7 @@
 	</form>
 
 	<div class="flex gap-1" role="group" aria-label="Filter meetings by status">
-		{#each ['all', 'live', 'completed'] as filter}
+		{#each ['all', 'live', 'completed'] as filter (filter)}
 			<Button
 				variant={statusFilter === filter ? 'default' : 'outline'}
 				size="sm"

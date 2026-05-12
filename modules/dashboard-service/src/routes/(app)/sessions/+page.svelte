@@ -465,7 +465,7 @@
 			<div class="space-y-2">
 				<Label>Speaker</Label>
 				<div class="flex gap-2">
-					{#each speakers as speaker}
+					{#each speakers as speaker (speaker.name)}
 						<Button
 							variant="outline"
 							size="sm"

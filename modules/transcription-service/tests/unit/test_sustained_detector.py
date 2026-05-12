@@ -216,23 +216,29 @@ class TestSustainedSwitchTriggers:
         # Initialize English
         detector.update({"en": 0.9, "zh": 0.1}, timestamp=0.0)
 
-        # Feed 6 consecutive frames of Chinese with sufficient margin
-        event = None
+        # Feed Chinese frames until switch fires. update() returns the event
+        # only on the firing frame; subsequent calls return None (the switch
+        # has already happened). Capture the event the first time it's not
+        # None and stop the loop — don't let later None returns overwrite it.
+        captured_event = None
+        last_frame_seen = 0
         for i in range(1, 8):
-            lid_probs = {"en": 0.2, "zh": 0.8}  # Margin = 0.6 > 0.2
-            event = detector.update(lid_probs, timestamp=i * 0.1)
+            lid_probs = {"en": 0.2, "zh": 0.8}  # margin = 0.6 > 0.2
+            result = detector.update(lid_probs, timestamp=i * 0.1)
+            last_frame_seen = i
 
             if i < 6:
-                assert event is None, f"Frame {i}: Should not switch yet"
+                assert result is None, f"Frame {i}: should not switch yet"
                 assert detector.candidate_language == "zh"
-            elif i == 6:
-                # At frame 6: duration = 0.5s (500ms) > 250ms, frames = 6 >= 6
-                # Should trigger switch
-                if event is None:
-                    # Might trigger at frame 7 due to timing
-                    continue
+            else:
+                if result is not None:
+                    captured_event = result
+                    break
 
-        assert event is not None, "Should trigger switch by frame 6 or 7"
+        event = captured_event
+        assert event is not None, (
+            f"Switch should trigger by frame 6 or 7 (last frame seen: {last_frame_seen})"
+        )
         assert isinstance(event, LanguageSwitchEvent)
         assert event.from_language == "en"
         assert event.to_language == "zh"

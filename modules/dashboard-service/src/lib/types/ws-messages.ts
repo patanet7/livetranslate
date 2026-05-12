@@ -1,5 +1,56 @@
 export const PROTOCOL_VERSION = 1;
 
+/** Per-session LLM sampling tunables — mirror of Python LLMParameterOverrides.
+ *
+ *  Two-state contract: every field is either a concrete value or `null`
+ *  (matching Python's `Optional[T]` semantics). `null` means "no override —
+ *  the server will use the resolved connection's default for this call".
+ *  Send a partial object with just the fields the user changed; merge happens
+ *  server-side on top of the previous SessionConfig.llm snapshot.
+ *  API key is intentionally NOT here — keys live on the server-side
+ *  ai_connections table and never traverse this WS channel.
+ */
+export interface LLMOverridesMessage {
+  connection_id: string | null;
+  model: string | null;
+  temperature: number | null;
+  max_tokens: number | null;
+  top_p: number | null;
+  top_k: number | null;
+  repetition_penalty: number | null;
+  presence_penalty: number | null;
+}
+
+/** Partial patch shape — every field optional, used for ConfigMessage deltas.
+ *
+ *  A delta only carries the fields the user touched. Sent on every Toolbar
+ *  input change. The full `LLMOverridesMessage` is reconstructed on the
+ *  server from the previous snapshot + this patch.
+ */
+export type LLMOverridesPatch = Partial<LLMOverridesMessage>;
+
+/** Per-session Whisper decoding tunables — mirror of Python WhisperParameterOverrides.
+ *
+ *  Same two-state contract as LLMOverridesMessage. Connection swap (via
+ *  `connection_id`) re-resolves the active backend; sampling fields apply to
+ *  subsequent transcription calls.
+ *  API key is intentionally NOT here — keys live on the server-side
+ *  whisper_connections table and never traverse this WS channel.
+ */
+export interface WhisperOverridesMessage {
+  connection_id: string | null;
+  model: string | null;
+  temperature: number | null;
+  beam_size: number | null;
+  no_speech_threshold: number | null;
+  compression_ratio_threshold: number | null;
+  language_hint: string | null;
+  initial_prompt: string | null;
+  timeout_s: number | null;
+}
+
+export type WhisperOverridesPatch = Partial<WhisperOverridesMessage>;
+
 // Client → Server
 export interface StartSessionMessage {
   type: 'start_session';
@@ -8,6 +59,8 @@ export interface StartSessionMessage {
   encoding?: string; // default "float32" for browser Float32Array
   device_id?: string;
   source?: 'mic' | 'screencapture'; // Audio source type
+  llm?: LLMOverridesPatch;
+  whisper?: WhisperOverridesPatch;
 }
 
 export interface EndSessionMessage {
@@ -31,6 +84,8 @@ export interface ConfigMessage {
   interpreter_languages?: [string, string] | null;
   initial_prompt?: string;
   glossary_terms?: string[];
+  llm?: LLMOverridesPatch;
+  whisper?: WhisperOverridesPatch;
 }
 
 export interface EndMessage {

@@ -131,7 +131,7 @@
 				{#if data.session.speakers_detected.length > 0}
 					<div class="pt-2 border-t">
 						<p class="text-xs text-muted-foreground mb-1">Detected speakers:</p>
-						{#each data.session.speakers_detected as speaker}
+						{#each data.session.speakers_detected as speaker (speaker)}
 							<span class="text-xs bg-accent px-1.5 py-0.5 rounded mr-1">{speaker}</span>
 						{/each}
 					</div>

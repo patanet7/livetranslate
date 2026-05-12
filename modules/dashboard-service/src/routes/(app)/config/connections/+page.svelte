@@ -231,7 +231,7 @@
 						Aggregated Models ({aggregatedModels.length})
 					</p>
 					<div class="flex flex-wrap gap-1.5">
-						{#each aggregatedModels as model}
+						{#each aggregatedModels as model (model.id)}
 							<Badge variant="secondary" class="text-xs">{model.id}</Badge>
 						{/each}
 					</div>
@@ -281,7 +281,7 @@
 		</Card.Header>
 		<Card.Content>
 			<div class="space-y-4">
-				{#each ['chat', 'translation', 'intelligence'] as feature}
+				{#each ['chat', 'translation', 'intelligence'] as feature (feature)}
 					{@const pref = preferences[feature] ?? {
 						active_model: '',
 						fallback_model: '',
@@ -311,7 +311,7 @@
 									}}
 								>
 									<option value="">None</option>
-									{#each aggregatedModels as model}
+									{#each aggregatedModels as model (model.id)}
 										<option value={model.id}>{model.id} ({model.engine})</option>
 									{/each}
 								</select>
@@ -336,7 +336,7 @@
 									}}
 								>
 									<option value="">None</option>
-									{#each aggregatedModels as model}
+									{#each aggregatedModels as model (model.id)}
 										<option value={model.id}>{model.id} ({model.engine})</option>
 									{/each}
 								</select>

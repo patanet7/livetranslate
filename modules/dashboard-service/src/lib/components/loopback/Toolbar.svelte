@@ -32,7 +32,36 @@
 		onStartMeeting?: () => void;
 		onEndMeeting?: () => void;
 		/** I1: Callback to send config changes to the server via WebSocket */
-		onConfigChange?: (config: { model?: string; language?: string | null; target_language?: string; interpreter_languages?: [string, string] | null }) => void;
+		onConfigChange?: (config: {
+			model?: string;
+			language?: string | null;
+			target_language?: string;
+			interpreter_languages?: [string, string] | null;
+			/** Per-session LLM tunables — temperature, max_tokens, etc.
+			 *  See `LLMOverridesMessage` in $lib/types/ws-messages. */
+			llm?: {
+				connection_id?: string | null;
+				model?: string | null;
+				temperature?: number | null;
+				max_tokens?: number | null;
+				top_p?: number | null;
+				top_k?: number | null;
+				repetition_penalty?: number | null;
+				presence_penalty?: number | null;
+			};
+			/** Per-session Whisper decoding tunables — beam_size, language_hint, etc.
+			 *  See `WhisperOverridesMessage` in $lib/types/ws-messages. */
+			whisper?: {
+				connection_id?: string | null;
+				model?: string | null;
+				temperature?: number | null;
+				beam_size?: number | null;
+				no_speech_threshold?: number | null;
+				compression_ratio_threshold?: number | null;
+				language_hint?: string | null;
+				initial_prompt?: string | null;
+			};
+		}) => void;
 		onStartDemo?: () => void;
 		onStopDemo?: () => void;
 		isDemoRunning?: boolean;
@@ -217,6 +246,63 @@
 		if (isInterpreterMode && captionStore.isCapturing) {
 			onConfigChange?.({ language: undefined, interpreter_languages: [interpreterLangAValue, interpreterLangBValue] });
 		}
+	}
+
+	/** LLM tunables — bound to advanced disclosure section. Persisted via
+	 *  captionStore.updateLLMOverrides which writes to localStorage and the
+	 *  reactive `llm` slice. When capturing, every change pushes the patch
+	 *  through ConfigMessage.llm so the orchestration session-config picks
+	 *  up the override for subsequent translations. */
+	function handleLLMOverride(patch: {
+		temperature?: number | null;
+		maxTokens?: number | null;
+		topP?: number | null;
+		topK?: number | null;
+		repetitionPenalty?: number | null;
+		presencePenalty?: number | null;
+		connectionId?: string | null;
+		model?: string | null;
+	}): void {
+		captionStore.updateLLMOverrides(patch);
+		if (!captionStore.isCapturing) return;
+		const wsPatch: NonNullable<Parameters<NonNullable<typeof onConfigChange>>[0]['llm']> = {};
+		if (patch.temperature !== undefined) wsPatch.temperature = patch.temperature;
+		if (patch.maxTokens !== undefined) wsPatch.max_tokens = patch.maxTokens;
+		if (patch.topP !== undefined) wsPatch.top_p = patch.topP;
+		if (patch.topK !== undefined) wsPatch.top_k = patch.topK;
+		if (patch.repetitionPenalty !== undefined) wsPatch.repetition_penalty = patch.repetitionPenalty;
+		if (patch.presencePenalty !== undefined) wsPatch.presence_penalty = patch.presencePenalty;
+		if (patch.connectionId !== undefined) wsPatch.connection_id = patch.connectionId;
+		if (patch.model !== undefined) wsPatch.model = patch.model;
+		onConfigChange?.({ llm: wsPatch });
+	}
+
+	/** Whisper tunables — mirror of handleLLMOverride for the transcription side.
+	 *  Persists to localStorage via captionStore.updateWhisperOverrides and, when
+	 *  capturing, pushes the patch through ConfigMessage.whisper so the orchestration
+	 *  session-config carries the override for subsequent transcribe calls. */
+	function handleWhisperOverride(patch: {
+		temperature?: number | null;
+		beamSize?: number | null;
+		noSpeechThreshold?: number | null;
+		compressionRatioThreshold?: number | null;
+		languageHint?: string | null;
+		initialPrompt?: string | null;
+		connectionId?: string | null;
+		model?: string | null;
+	}): void {
+		captionStore.updateWhisperOverrides(patch);
+		if (!captionStore.isCapturing) return;
+		const wsPatch: NonNullable<Parameters<NonNullable<typeof onConfigChange>>[0]['whisper']> = {};
+		if (patch.temperature !== undefined) wsPatch.temperature = patch.temperature;
+		if (patch.beamSize !== undefined) wsPatch.beam_size = patch.beamSize;
+		if (patch.noSpeechThreshold !== undefined) wsPatch.no_speech_threshold = patch.noSpeechThreshold;
+		if (patch.compressionRatioThreshold !== undefined) wsPatch.compression_ratio_threshold = patch.compressionRatioThreshold;
+		if (patch.languageHint !== undefined) wsPatch.language_hint = patch.languageHint;
+		if (patch.initialPrompt !== undefined) wsPatch.initial_prompt = patch.initialPrompt;
+		if (patch.connectionId !== undefined) wsPatch.connection_id = patch.connectionId;
+		if (patch.model !== undefined) wsPatch.model = patch.model;
+		onConfigChange?.({ whisper: wsPatch });
 	}
 
 	function handleDisplayModeChange(mode: DisplayMode): void {
@@ -435,6 +521,227 @@
 		</Select.Root>
 	</div>
 
+	<!-- LLM Sampling Tunables (per-session overrides) -->
+	<details class="toolbar-llm-tunables">
+		<summary class="toolbar-llm-summary">
+			<span class="toolbar-label">LLM Sampling</span>
+			<span class="toolbar-llm-hint">tune temperature, tokens, etc.</span>
+		</summary>
+		<div class="toolbar-llm-grid">
+			<label class="toolbar-llm-field">
+				<span>Temperature</span>
+				<input
+					type="number"
+					min="0" max="2" step="0.05"
+					placeholder="0.3"
+					value={captionStore.llm.temperature ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleLLMOverride({ temperature: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Max tokens</span>
+				<input
+					type="number"
+					min="1" max="4096" step="16"
+					placeholder="1024"
+					value={captionStore.llm.maxTokens ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleLLMOverride({ maxTokens: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Top P</span>
+				<input
+					type="number"
+					min="0" max="1" step="0.05"
+					placeholder="0.8"
+					value={captionStore.llm.topP ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleLLMOverride({ topP: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Top K</span>
+				<input
+					type="number"
+					min="0" max="200" step="1"
+					placeholder="20"
+					value={captionStore.llm.topK ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleLLMOverride({ topK: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Rep. penalty</span>
+				<input
+					type="number"
+					min="0" max="2" step="0.05"
+					placeholder="1.05"
+					value={captionStore.llm.repetitionPenalty ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleLLMOverride({ repetitionPenalty: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Pres. penalty</span>
+				<input
+					type="number"
+					min="-2" max="2" step="0.05"
+					placeholder="1.5"
+					value={captionStore.llm.presencePenalty ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleLLMOverride({ presencePenalty: v });
+					}}
+				/>
+			</label>
+		</div>
+		<button
+			type="button"
+			class="toolbar-llm-reset"
+			onclick={() => {
+				captionStore.resetLLMOverrides();
+				if (captionStore.isCapturing) {
+					onConfigChange?.({
+						llm: {
+							temperature: null, max_tokens: null,
+							top_p: null, top_k: null,
+							repetition_penalty: null, presence_penalty: null,
+						},
+					});
+				}
+			}}
+		>Reset to backend defaults</button>
+	</details>
+
+	<!-- Whisper Decoding Tunables (per-session overrides) -->
+	<details class="toolbar-llm-tunables">
+		<summary class="toolbar-llm-summary">
+			<span class="toolbar-label">Whisper</span>
+			<span class="toolbar-llm-hint">beam, prompt, language hint…</span>
+		</summary>
+		<div class="toolbar-llm-grid">
+			<label class="toolbar-llm-field">
+				<span>Beam size</span>
+				<input
+					type="number"
+					min="1" max="10" step="1"
+					placeholder="1"
+					value={captionStore.whisper.beamSize ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleWhisperOverride({ beamSize: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Temperature</span>
+				<input
+					type="number"
+					min="0" max="1" step="0.05"
+					placeholder="0.0"
+					value={captionStore.whisper.temperature ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleWhisperOverride({ temperature: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>No-speech thresh.</span>
+				<input
+					type="number"
+					min="0" max="1" step="0.05"
+					placeholder="0.6"
+					value={captionStore.whisper.noSpeechThreshold ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleWhisperOverride({ noSpeechThreshold: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Compression thresh.</span>
+				<input
+					type="number"
+					min="1" max="5" step="0.1"
+					placeholder="2.4"
+					value={captionStore.whisper.compressionRatioThreshold ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						const v = raw === '' ? null : Number(raw);
+						handleWhisperOverride({ compressionRatioThreshold: v });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field">
+				<span>Language hint</span>
+				<input
+					type="text"
+					maxlength="8"
+					placeholder="auto"
+					value={captionStore.whisper.languageHint ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value.trim();
+						handleWhisperOverride({ languageHint: raw === '' ? null : raw });
+					}}
+				/>
+			</label>
+			<label class="toolbar-llm-field toolbar-llm-field-wide">
+				<span>Initial prompt</span>
+				<input
+					type="text"
+					maxlength="220"
+					placeholder="(none)"
+					value={captionStore.whisper.initialPrompt ?? ''}
+					oninput={(e) => {
+						const raw = (e.target as HTMLInputElement).value;
+						handleWhisperOverride({ initialPrompt: raw === '' ? null : raw });
+					}}
+				/>
+			</label>
+		</div>
+		<button
+			type="button"
+			class="toolbar-llm-reset"
+			onclick={() => {
+				captionStore.resetWhisperOverrides();
+				if (captionStore.isCapturing) {
+					onConfigChange?.({
+						whisper: {
+							temperature: null,
+							beam_size: null,
+							no_speech_threshold: null,
+							compression_ratio_threshold: null,
+							language_hint: null,
+							initial_prompt: null,
+						},
+					});
+				}
+			}}
+		>Reset to backend defaults</button>
+	</details>
+
 	{/if}
 
 	<!-- Display Mode (always visible) -->
@@ -586,6 +893,91 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.375rem;
+	}
+
+	/* LLM sampling tunables — collapsed disclosure to keep the toolbar light.
+	   Inputs are number-typed so the browser provides spinner UX; the visual
+	   weight stays minimal so the section doesn't dominate when expanded. */
+	.toolbar-llm-tunables {
+		flex: 0 0 100%;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
+		padding: 0.5rem 0.75rem;
+		border: 1px dashed var(--rule);
+		background: var(--paper-tint, var(--paper-cream));
+	}
+	.toolbar-llm-summary {
+		display: flex;
+		align-items: baseline;
+		gap: 0.625rem;
+		cursor: pointer;
+		list-style: none;
+		font-variant-caps: small-caps;
+		letter-spacing: 0.04em;
+	}
+	.toolbar-llm-summary::-webkit-details-marker {
+		display: none;
+	}
+	.toolbar-llm-summary::before {
+		content: '▸';
+		color: var(--ink-faint);
+		transition: transform 160ms ease;
+		display: inline-block;
+		font-size: 0.7rem;
+	}
+	.toolbar-llm-tunables[open] .toolbar-llm-summary::before {
+		transform: rotate(90deg);
+	}
+	.toolbar-llm-hint {
+		color: var(--ink-faint);
+		font-size: 0.7rem;
+		font-variant-caps: normal;
+		letter-spacing: 0;
+	}
+	.toolbar-llm-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: 0.5rem 0.875rem;
+	}
+	.toolbar-llm-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		font-size: 0.7rem;
+		color: var(--ink-soft);
+	}
+	.toolbar-llm-field-wide {
+		grid-column: 1 / -1;
+	}
+	.toolbar-llm-field input {
+		width: 100%;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid var(--rule);
+		background: var(--paper);
+		color: var(--ink);
+		font-family: inherit;
+		font-size: 0.8rem;
+	}
+	.toolbar-llm-field input:focus {
+		outline: 1px solid var(--ink-faint);
+		outline-offset: 0;
+	}
+	.toolbar-llm-reset {
+		align-self: flex-start;
+		padding: 0.2rem 0.5rem;
+		border: 1px solid var(--rule);
+		background: transparent;
+		color: var(--ink-soft);
+		font-size: 0.7rem;
+		font-variant-caps: small-caps;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.toolbar-llm-reset:hover {
+		color: var(--ink);
+		border-color: var(--ink-soft);
 	}
 
 	.toolbar-label {

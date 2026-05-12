@@ -11,6 +11,12 @@ Requirements:
 - No false positives (removing valid tokens)
 - Works with both draft and final outputs
 - Latency overhead < 2ms
+
+NOTE (2026-05-12): Misclassified as a unit test — actually a behavioral test
+that requires a running transcription-service at SERVICE_URL plus WAV fixtures
+in tests/unit/audio/. Skipped at the module level until either:
+  1. The fixtures are checked in, or
+  2. The test is migrated to tests/behavioral/ with proper service guards.
 """
 
 import base64
@@ -20,12 +26,22 @@ import time
 import wave
 
 import numpy as np
+import pytest
 import socketio
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 SERVICE_URL = "http://localhost:5001"
+
+_FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "audio")
+pytestmark = pytest.mark.skipif(
+    not os.path.isdir(_FIXTURE_DIR),
+    reason=(
+        "behavioral test misplaced in tests/unit/ — needs running service "
+        "at SERVICE_URL plus WAV fixtures in tests/unit/audio/"
+    ),
+)
 
 
 def load_wav_file(filepath):

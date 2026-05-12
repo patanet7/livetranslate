@@ -19,7 +19,7 @@
 />
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-  {#each sections as section}
+  {#each sections as section (section.href)}
     <a href={section.href} class="block">
       <Card.Root class="hover:border-primary transition-colors h-full">
         <Card.Header>

@@ -7,6 +7,13 @@ from livetranslate_common.models.llm import (
     LLMEngine,
     LLMParameterOverrides,
 )
+from livetranslate_common.models.whisper import (
+    WHISPER_LANGUAGES,
+    ComputeType,
+    WhisperConnection,
+    WhisperEngine,
+    WhisperParameterOverrides,
+)
 from livetranslate_common.models.translation import (
     TranslationContext,
     TranslationRequest,
@@ -45,6 +52,12 @@ __all__ = [
     "LLMConnection",
     "LLMEngine",
     "LLMParameterOverrides",
+    # whisper
+    "WHISPER_LANGUAGES",
+    "ComputeType",
+    "WhisperConnection",
+    "WhisperEngine",
+    "WhisperParameterOverrides",
     # translation
     "TranslationContext",
     "TranslationRequest",

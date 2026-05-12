@@ -151,7 +151,7 @@
 						<div>
 							<span class="text-muted-foreground">Speakers</span>
 							<div class="flex flex-wrap gap-1 mt-1">
-								{#each data.session.speakers_detected as speaker}
+								{#each data.session.speakers_detected as speaker (speaker)}
 									<Badge variant="outline" class="text-xs">{speaker}</Badge>
 								{/each}
 							</div>

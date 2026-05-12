@@ -654,13 +654,15 @@ async def _process_uploaded_file(
                 domain=request_data.get("domain", "general"),
             )
 
-            # Get translation client for pipeline
-            import os
+            # Resolve LLM client via the canonical resolver — replaces a raw
+            # os.getenv("TRANSLATION_SERVICE_URL") + inline LLMClient(proxy_mode=True)
+            # path. The "translation" purpose key drives selection from
+            # system_config + ai_connections (with env fallback).
+            from database.database import get_database_manager
+            from services.llm_resolver import resolve_llm_client
 
-            from clients.llm_client import LLMClient
-
-            translation_base_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
-            llm_client = LLMClient(base_url=translation_base_url, proxy_mode=True)
+            async with get_database_manager().get_session() as _db:
+                llm_client = await resolve_llm_client("translation", _db)
 
             # Create pipeline coordinator
             coordinator = TranscriptionPipelineCoordinator(

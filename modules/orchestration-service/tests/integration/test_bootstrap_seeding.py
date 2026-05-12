@@ -15,6 +15,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 async def test_seeds_when_env_set_and_db_empty(db_session, monkeypatch) -> None:
+    # Migration 012 seeds default ai_connections rows; clear them to simulate
+    # a true first-run install.
+    await db_session.execute(text("DELETE FROM ai_connections"))
+    await db_session.commit()
     monkeypatch.setenv("LLM_BASE_URL", "http://test-host:8089/v1")
     monkeypatch.setenv("LLM_MODEL", "test-model")
     monkeypatch.setenv("LLM_API_KEY", "dummy-key")
@@ -55,6 +59,8 @@ async def test_no_seed_when_db_nonempty(db_session, monkeypatch) -> None:
 
 
 async def test_no_seed_when_env_missing(db_session, monkeypatch) -> None:
+    await db_session.execute(text("DELETE FROM ai_connections"))
+    await db_session.commit()
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)

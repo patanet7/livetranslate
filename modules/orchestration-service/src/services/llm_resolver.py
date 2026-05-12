@@ -32,6 +32,7 @@ from livetranslate_common.models.llm import (
     LLMEngine,
     LLMParameterOverrides,
 )
+from livetranslate_common.tracing import base_url_host
 
 logger = get_logger()
 
@@ -319,23 +320,45 @@ async def resolve_llm_connection(
         5. hardcoded ollama localhost default (ERROR)
     """
     resolved: LLMConnection | None = None
+    source: str = "step5"
     try:
         resolved = await _step1_explicit_connection_id(db, overrides)
+        if resolved is not None:
+            source = "step1"
         if resolved is None:
             resolved = await _step2_purpose_preference(db, purpose)
+            if resolved is not None:
+                source = "step2"
         if resolved is None:
             resolved = await _step3_default_enabled_connection(db)
+            if resolved is not None:
+                source = "step3"
     except Exception as e:
         # Any DB error: degrade to env-var path. Don't take down the request.
         logger.warning("llm_resolver_db_error", error=str(e))
 
     if resolved is None:
         resolved = _step4_env_bootstrap()
+        if resolved is not None:
+            source = "step4"
     if resolved is None:
         resolved = _step5_hardcoded_default()
+        source = "step5"
 
     if overrides is not None:
         resolved = resolved.merge(overrides)
+
+    logger.info(
+        "llm.connection.resolved",
+        purpose=purpose,
+        source=source,
+        connection_id=resolved.connection_id,
+        engine=resolved.engine,
+        base_url_host=base_url_host(resolved.base_url),
+        model=resolved.model,
+        has_api_key=bool(resolved.api_key),
+        had_overrides=overrides is not None,
+    )
     return resolved
 
 

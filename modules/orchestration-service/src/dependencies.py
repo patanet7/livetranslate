@@ -269,111 +269,59 @@ def get_glossary_pipeline_adapter():
 # ============================================================================
 
 
-def get_fireflies_llm_client():
+async def get_fireflies_llm_client():
+    """Create an LLM client for the Fireflies translation pipeline.
+
+    Resolved per-call via the canonical purpose-keyed resolver. The
+    "fireflies" purpose lets the dashboard target a different model than
+    live translation if desired (via system_config['fireflies_model_preference']).
+    Returns a fresh `livetranslate_common.llm.client.LLMClient`.
     """
-    Create LLM client for Fireflies translation pipeline.
+    from services.llm_resolver import resolve_llm_client
 
-    NOT cached — each session may use different models/settings.
-    Reuses the same config pattern as get_meeting_intelligence_service().
+    db_manager = get_database_manager()
+    async with db_manager.get_session() as session:
+        return await resolve_llm_client("fireflies", session)
+
+
+async def get_meeting_intelligence_service():
+    """Get the MeetingIntelligenceService instance.
+
+    No longer `@lru_cache`'d — the underlying LLM connection is resolved
+    per-request from the DB so dashboard preference changes take effect
+    without restart. The MeetingIntelligenceService itself is still a
+    singleton (its non-LLM state is reusable); only the translation_client
+    is refreshed each call.
     """
-    from clients.llm_client import create_llm_client
-    from config import get_settings
-
-    intel_settings = get_settings().intelligence
-
-    if intel_settings.direct_llm_enabled:
-        client = create_llm_client(
-            base_url=intel_settings.direct_llm_base_url,
-            api_key=intel_settings.direct_llm_api_key,
-            model=intel_settings.direct_llm_model,
-            max_tokens=intel_settings.default_max_tokens,
-            temperature=intel_settings.default_temperature,
-            proxy_mode=False,
-        )
-        logger.info(
-            f"LLMClient (direct) created for Fireflies pipeline "
-            f"(model={intel_settings.direct_llm_model}, "
-            f"url={intel_settings.direct_llm_base_url})"
-        )
-    else:
-        translation_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
-        client = create_llm_client(
-            base_url=translation_url,
-            default_backend=intel_settings.default_llm_backend,
-            proxy_mode=True,
-        )
-        logger.info(
-            f"LLMClient (proxy) created for Fireflies pipeline "
-            f"(backend={intel_settings.default_llm_backend})"
-        )
-
-    return client
-
-
-@lru_cache
-def get_meeting_intelligence_service():
-    """Get singleton MeetingIntelligenceService instance."""
     global _meeting_intelligence
-    if _meeting_intelligence is None:
-        logger.info("Initializing MeetingIntelligenceService singleton")
+    from config import get_settings
+    from services.llm_resolver import resolve_llm_client
+    from services.meeting_intelligence import MeetingIntelligenceService
 
-        from config import get_settings
-        from services.meeting_intelligence import MeetingIntelligenceService
+    settings = get_settings()
+    intel_settings = settings.intelligence
 
-        settings = get_settings()
-        intel_settings = settings.intelligence
+    db_manager = get_database_manager()
 
-        # Get database session factory
-        db_manager = get_database_manager()
-        db_session_factory = db_manager.get_session
-
-        # Choose LLM client based on config
+    try:
+        async with db_manager.get_session() as session:
+            translation_client = await resolve_llm_client("intelligence", session)
+    except Exception as e:  # noqa: BLE001 — never block intelligence on resolver hiccups
+        logger.warning("intelligence_llm_resolve_failed", error=str(e))
         translation_client = None
 
-        if intel_settings.direct_llm_enabled:
-            # Direct LLM client (bypasses Translation Service)
-            try:
-                from clients.llm_client import create_llm_client
-
-                translation_client = create_llm_client(
-                    base_url=intel_settings.direct_llm_base_url,
-                    api_key=intel_settings.direct_llm_api_key,
-                    model=intel_settings.direct_llm_model,
-                    max_tokens=intel_settings.default_max_tokens,
-                    temperature=intel_settings.default_temperature,
-                    proxy_mode=False,
-                )
-                logger.info(
-                    f"LLMClient (direct) created for intelligence "
-                    f"(model={intel_settings.direct_llm_model}, "
-                    f"url={intel_settings.direct_llm_base_url})"
-                )
-            except Exception as e:
-                logger.warning(f"LLMClient (direct) unavailable for intelligence: {e}")
-        else:
-            # LLMClient in proxy mode (via Translation Service)
-            try:
-                from clients.llm_client import create_llm_client
-
-                translation_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
-                translation_client = create_llm_client(
-                    base_url=translation_url,
-                    default_backend=intel_settings.default_llm_backend,
-                    proxy_mode=True,
-                )
-                logger.info(
-                    f"LLMClient (proxy) created for intelligence "
-                    f"(backend={intel_settings.default_llm_backend})"
-                )
-            except Exception as e:
-                logger.warning(f"LLMClient (proxy) unavailable for intelligence: {e}")
-
+    if _meeting_intelligence is None:
+        logger.info("Initializing MeetingIntelligenceService singleton")
         _meeting_intelligence = MeetingIntelligenceService(
-            db_session_factory=db_session_factory,
+            db_session_factory=db_manager.get_session,
             translation_client=translation_client,
             settings=intel_settings,
         )
-        logger.info("MeetingIntelligenceService initialized successfully")
+    else:
+        # Refresh the client on the existing singleton — connection prefs may
+        # have changed since last call. The service holds a reference to the
+        # client, so update in place.
+        _meeting_intelligence.translation_client = translation_client
     return _meeting_intelligence
 
 
@@ -407,87 +355,48 @@ def get_audio_service_client() -> AudioServiceClient:
 
 @lru_cache
 def get_translation_service_client() -> TranslationService:
-    """Get singleton TranslationService instance (replaces legacy TranslationServiceClient)."""
+    """Get singleton TranslationService instance.
+
+    Used at startup when the DB isn't yet available — pulls connection info
+    straight from env vars via the resolver's step-4 bootstrap path. Once
+    the lifespan finishes, `initialize_translation_service_client()` rebuilds
+    the singleton with the DB-resolved connection.
+    """
     global _translation_service_client
     if _translation_service_client is None:
-        logger.info("Initializing TranslationService singleton")
-        _translation_service_client = TranslationService(TranslationConfig.from_env())
-        logger.info("TranslationService initialized successfully")
+        logger.info("Initializing TranslationService singleton (env bootstrap)")
+        from services.llm_resolver import _step4_env_bootstrap, _step5_hardcoded_default
+
+        connection = _step4_env_bootstrap() or _step5_hardcoded_default()
+        _translation_service_client = TranslationService(connection, TranslationConfig.from_env())
+        logger.info(
+            "TranslationService initialized",
+            base_url=connection.base_url,
+            model=connection.model,
+        )
     return _translation_service_client
 
 
-async def _resolve_translation_config() -> TranslationConfig:
-    """Resolve translation model settings from ai_connections, with env fallback."""
-    base_config = TranslationConfig.from_env()
-
-    try:
-        from database.ai_connection import AIConnection
-        from database.models import SystemConfig
-
-        db_manager = get_database_manager()
-        async with db_manager.get_session() as session:
-            result = await session.execute(
-                select(SystemConfig).where(SystemConfig.key == "translation_model_preference")
-            )
-            pref_row = result.scalar_one_or_none()
-            if pref_row is None or not pref_row.value:
-                return base_config
-
-            pref_data = pref_row.value
-            if isinstance(pref_data, str):
-                pref_data = json.loads(pref_data)
-
-            active_model = pref_data.get("active_model", "")
-            if not active_model or "/" not in active_model:
-                return base_config
-
-            prefix, model_name = active_model.split("/", 1)
-            conn_result = await session.execute(
-                select(AIConnection)
-                .where(AIConnection.prefix == prefix, AIConnection.enabled.is_(True))
-                .order_by(AIConnection.priority.asc(), AIConnection.name.asc())
-            )
-            connection = conn_result.scalars().first()
-            if connection is None:
-                logger.warning("translation_connection_not_found", prefix=prefix)
-                return base_config
-
-            base_url = connection.url.rstrip("/")
-            if connection.engine in {"ollama", "openai_compatible", "openai"} and not base_url.endswith(
-                "/v1"
-            ):
-                base_url = f"{base_url}/v1"
-
-            timeout_s = max(1, int(round(connection.timeout_ms / 1000))) if connection.timeout_ms else base_config.timeout_s
-            resolved = base_config.model_copy(
-                update={
-                    "base_url": base_url,
-                    "model": model_name,
-                    "temperature": pref_data.get("temperature", base_config.temperature),
-                    "max_tokens": pref_data.get("max_tokens", base_config.max_tokens),
-                    "timeout_s": timeout_s,
-                }
-            )
-            logger.info(
-                "translation_config_resolved_from_connections",
-                prefix=prefix,
-                model=model_name,
-                base_url=base_url,
-            )
-            return resolved
-    except (SQLAlchemyError, json.JSONDecodeError, ValueError) as exc:
-        logger.warning("translation_config_resolve_failed", error=str(exc))
-
-    return base_config
-
-
 async def initialize_translation_service_client() -> TranslationService:
-    """Initialize the shared translation service using DB-backed preferences when available."""
+    """Initialize the shared translation service from the DB-backed resolver.
+
+    Called from FastAPI lifespan after the DB is up. Replaces the previous
+    `_resolve_translation_config` helper that hand-rolled the prefix-join SQL.
+    """
     global _translation_service_client
-    if _translation_service_client is None:
-        logger.info("Initializing TranslationService singleton")
-        _translation_service_client = TranslationService(await _resolve_translation_config())
-        logger.info("TranslationService initialized successfully")
+    logger.info("Initializing TranslationService singleton (DB resolve)")
+    from services.llm_resolver import resolve_llm_connection
+
+    db_manager = get_database_manager()
+    async with db_manager.get_session() as session:
+        connection = await resolve_llm_connection("translation", session)
+    _translation_service_client = TranslationService(connection, TranslationConfig.from_env())
+    logger.info(
+        "TranslationService initialized",
+        base_url=connection.base_url,
+        model=connection.model,
+        connection_id=connection.connection_id,
+    )
     return _translation_service_client
 
 
@@ -956,7 +865,9 @@ def reset_dependencies():
     get_rate_limiter.cache_clear()
     get_security_utils.cache_clear()
     get_event_publisher.cache_clear()
-    get_meeting_intelligence_service.cache_clear()
+    # get_meeting_intelligence_service is no longer @lru_cache'd (now async,
+    # resolves LLM connection per-call). The module-level _meeting_intelligence
+    # singleton is reset above.
 
     # Reset internal service singletons (to handle event loop changes)
     try:

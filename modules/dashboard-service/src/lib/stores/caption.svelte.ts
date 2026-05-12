@@ -49,6 +49,63 @@ export type CaptionEvent =
 const MAX_CAPTIONS = 5000;
 const STORAGE_KEY = 'livetranslate:caption-config';
 
+/** Per-session LLM sampling tunables. Sent to the orchestration service in
+ *  `ConfigMessage.llm` / `StartSessionMessage.llm` so the LLM client applies
+ *  them as overrides on top of the resolved connection.
+ *
+ *  API key is intentionally NOT here — keys live on the server-side
+ *  `ai_connections` table and never traverse the WS or localStorage.
+ */
+export interface LLMOverrides {
+  connectionId: string | null;
+  model: string | null;
+  temperature: number | null;
+  maxTokens: number | null;
+  topP: number | null;
+  topK: number | null;
+  repetitionPenalty: number | null;
+  presencePenalty: number | null;
+}
+
+const DEFAULT_LLM_OVERRIDES: LLMOverrides = {
+  connectionId: null,
+  model: null,
+  temperature: null,
+  maxTokens: null,
+  topP: null,
+  topK: null,
+  repetitionPenalty: null,
+  presencePenalty: null,
+};
+
+/**
+ * Per-session Whisper decoding overrides — mirror of Python
+ * WhisperParameterOverrides. Persisted via localStorage and forwarded
+ * over the WS `ConfigMessage.whisper` field. API key intentionally
+ * NOT here — keys live on the server-side whisper_connections table.
+ */
+export interface WhisperOverrides {
+  connectionId: string | null;
+  model: string | null;
+  temperature: number | null;
+  beamSize: number | null;
+  noSpeechThreshold: number | null;
+  compressionRatioThreshold: number | null;
+  languageHint: string | null;
+  initialPrompt: string | null;
+}
+
+const DEFAULT_WHISPER_OVERRIDES: WhisperOverrides = {
+  connectionId: null,
+  model: null,
+  temperature: null,
+  beamSize: null,
+  noSpeechThreshold: null,
+  compressionRatioThreshold: null,
+  languageHint: null,
+  initialPrompt: null,
+};
+
 interface PersistedConfig {
   sourceLanguage: string | null;
   targetLanguage: string;
@@ -56,6 +113,8 @@ interface PersistedConfig {
   captionSource: CaptionSource;
   interpreterLangA: string;
   interpreterLangB: string;
+  llm: LLMOverrides;
+  whisper: WhisperOverrides;
 }
 
 function createCaptionStore() {
@@ -72,6 +131,8 @@ function createCaptionStore() {
   let detectedLanguage = $state<string | null>(null);
   let interpreterLangA = $state('zh');
   let interpreterLangB = $state('en');
+  let llm = $state<LLMOverrides>({ ...DEFAULT_LLM_OVERRIDES });
+  let whisper = $state<WhisperOverrides>({ ...DEFAULT_WHISPER_OVERRIDES });
   let transcriptionStatus = $state<'up' | 'down'>('down');
   let translationStatus = $state<'up' | 'down'>('down');
   let isCapturing = $state(false);
@@ -116,6 +177,8 @@ function createCaptionStore() {
         captionSource,
         interpreterLangA,
         interpreterLangB,
+        llm,
+        whisper,
       }));
     } catch { /* ignore */ }
   }
@@ -131,7 +194,35 @@ function createCaptionStore() {
       if (saved.captionSource !== undefined) captionSource = saved.captionSource;
       if (saved.interpreterLangA !== undefined) interpreterLangA = saved.interpreterLangA;
       if (saved.interpreterLangB !== undefined) interpreterLangB = saved.interpreterLangB;
+      if (saved.llm !== undefined && saved.llm !== null) {
+        // Old payloads pre-Phase-10 won't have `llm` — start from defaults and
+        // overlay whatever the user stored. Forward-compat with new fields.
+        llm = { ...DEFAULT_LLM_OVERRIDES, ...saved.llm };
+      }
+      if (saved.whisper !== undefined && saved.whisper !== null) {
+        whisper = { ...DEFAULT_WHISPER_OVERRIDES, ...saved.whisper };
+      }
     } catch { /* ignore */ }
+  }
+
+  function updateLLMOverrides(patch: Partial<LLMOverrides>): void {
+    llm = { ...llm, ...patch };
+    persistConfig();
+  }
+
+  function updateWhisperOverrides(patch: Partial<WhisperOverrides>): void {
+    whisper = { ...whisper, ...patch };
+    persistConfig();
+  }
+
+  function resetWhisperOverrides(): void {
+    whisper = { ...DEFAULT_WHISPER_OVERRIDES };
+    persistConfig();
+  }
+
+  function resetLLMOverrides(): void {
+    llm = { ...DEFAULT_LLM_OVERRIDES };
+    persistConfig();
   }
 
   // Restore on creation
@@ -376,6 +467,12 @@ function createCaptionStore() {
     get isMeetingActive() { return isMeetingActive; },
     get meetingSessionId() { return meetingSessionId; },
     get meetingStartedAt() { return meetingStartedAt; },
+    get llm() { return llm; },
+    updateLLMOverrides,
+    resetLLMOverrides,
+    get whisper() { return whisper; },
+    updateWhisperOverrides,
+    resetWhisperOverrides,
     getSpeakerColor,
     ingestSegment,
     ingestTranslation,

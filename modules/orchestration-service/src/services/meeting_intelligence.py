@@ -22,8 +22,8 @@ from string import Template
 from typing import Any
 
 import yaml
-from clients.llm_client import LLMClient
 from clients.protocol import LLMClientProtocol
+from livetranslate_common.llm.client import LLMClient
 from config import MeetingIntelligenceSettings
 from database.models import (
     AgentConversation,

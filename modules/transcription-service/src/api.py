@@ -174,8 +174,16 @@ def _register_backend_factories(manager: BackendManager, registry: ModelRegistry
       whisper:
         module: backends.whisper
         class: WhisperBackend
+
+    The vllm backend gets a `WhisperConnection` injected — built from env vars
+    (VLLM_MLX_URL, VLLM_MLX_API_KEY, VLLM_MLX_MODEL) + the registry's compute_type.
+    Other backends (mlx, faster-whisper) get the legacy positional kwargs since
+    they're in-process and don't need URL/auth.
     """
     import importlib
+    import os
+
+    from livetranslate_common.models.whisper import WhisperConnection
 
     for backend_name in registry._data.get("backends", {}):
         info = registry.get_backend_module(backend_name)
@@ -186,8 +194,31 @@ def _register_backend_factories(manager: BackendManager, registry: ModelRegistry
             mod = importlib.import_module(module_path)
             cls = getattr(mod, class_name)
 
-            def make_factory(klass):
+            def make_factory(klass, backend_key=backend_name):
                 def factory(config: "BackendConfig"):
+                    # vllm: construct a WhisperConnection from env. This is
+                    # the canonical contract — auth header, URL, api_key,
+                    # decoding tunables all flow through one immutable object.
+                    if backend_key == "vllm" or klass.__name__ == "VLLMWhisperBackend":
+                        compute_type = config.compute_type
+                        if compute_type not in {
+                            "float16", "float32", "int8", "int8_float16"
+                        }:
+                            compute_type = "float16"  # registry contract is looser
+                        connection = WhisperConnection(
+                            engine="openai_compatible",
+                            base_url=os.getenv("VLLM_MLX_URL", "http://localhost:8000"),
+                            model=config.model,
+                            api_key=(
+                                os.getenv("VLLM_MLX_API_KEY")
+                                or os.getenv("LLM_API_KEY")
+                                or ""
+                            ),
+                            compute_type=compute_type,
+                            timeout_s=30.0,
+                        )
+                        return klass(connection=connection)
+                    # Local backends — no URL/auth, legacy kwargs are fine
                     return klass(
                         model_name=config.model,
                         compute_type=config.compute_type,

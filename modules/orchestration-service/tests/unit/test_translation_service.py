@@ -1,134 +1,50 @@
-"""Tests for TranslationService — combines LLM client, context, and backpressure.
+"""TranslationService — backpressure and per-direction context.
 
-Integration tests hit the local vllm-mlx LLM server.
-Override via LLM_BASE_URL / LLM_MODEL env vars.
-NO MOCKING — all tests are behavioral/integration tests per project rules.
-Mark with @pytest.mark.integration for CI filtering.
+After the consolidation, endpoint identity lives on `LLMConnection`. These
+tests construct a connection pointed at an unreachable URL so the queue /
+context behavior can be exercised without depending on any real LLM. The
+"hits a real backend" tests moved to `tests/integration/test_translation_*`.
 """
+
+from __future__ import annotations
+
 import asyncio
 
 import pytest
 
-from translation.service import TranslationService
+from livetranslate_common.models import TranslationRequest
+from livetranslate_common.models.llm import LLMConnection
 from translation.config import TranslationConfig
-from livetranslate_common.models import TranslationRequest, TranslationResponse
+from translation.service import TranslationService
 
 
-@pytest.fixture
-def config(llm_config):
-    llm_config.context_window_size = 3
-    llm_config.max_queue_depth = 5
-    llm_config.timeout_s = 10
-    return llm_config
-
-
-@pytest.mark.integration
-class TestTranslationServiceIntegration:
-    @pytest.mark.asyncio
-    async def test_translate_adds_to_context(self, config):
-        service = TranslationService(config)
-        try:
-            request = TranslationRequest(
-                text="你好世界",
-                source_language="zh",
-                target_language="en",
-                context=[],
-            )
-            response = await service.translate(request)
-
-            assert response.translated_text is not None
-            assert len(response.translated_text) > 0
-            assert response.model_used == config.model
-            assert response.latency_ms >= 0
-
-            # Context should now contain this pair (keyed by direction)
-            ctx = service.get_context("zh", "en")
-            assert len(ctx) == 1
-            assert ctx[0].text == "你好世界"
-            assert ctx[0].translation == response.translated_text
-        finally:
-            await service.close()
-
-    @pytest.mark.asyncio
-    async def test_context_improves_consistency(self, config):
-        """Translate two related sentences — context should help pronoun resolution."""
-        service = TranslationService(config)
-        try:
-            req1 = TranslationRequest(
-                text="张经理来了",
-                source_language="zh",
-                target_language="en",
-                context=[],
-            )
-            resp1 = await service.translate(req1)
-            assert resp1.translated_text is not None
-
-            req2 = TranslationRequest(
-                text="他说你好",
-                source_language="zh",
-                target_language="en",
-                context=service.get_context("zh", "en"),
-            )
-            resp2 = await service.translate(req2)
-            assert resp2.translated_text is not None
-
-            ctx = service.get_context("zh", "en")
-            assert len(ctx) == 2
-        finally:
-            await service.close()
-
-    @pytest.mark.asyncio
-    async def test_failed_translation_not_in_context(self, config):
-        """Use a bad URL to trigger a real failure — context must stay empty."""
-        bad_config = TranslationConfig(
-            base_url="http://localhost:1",
-            model="nonexistent-model",
-            context_window_size=3,
-            max_queue_depth=5,
-            timeout_s=2,
-        )
-        service = TranslationService(bad_config)
-        try:
-            request = TranslationRequest(
-                text="失败的句子",
-                source_language="zh",
-                target_language="en",
-                context=[],
-            )
-            with pytest.raises(RuntimeError):
-                await service.translate(request)
-
-            assert len(service.get_context("zh", "en")) == 0
-        finally:
-            await service.close()
+def _unreachable_connection() -> LLMConnection:
+    return LLMConnection(
+        engine="openai_compatible",
+        base_url="http://127.0.0.1:1/v1",
+        model="nonexistent",
+        max_retries=0,
+        timeout_s=1.0,
+    )
 
 
 class TestBackpressure:
     @pytest.mark.asyncio
-    async def test_queue_rejects_newest_when_full(self):
-        """When queue is full, newest request should be rejected.
+    async def test_queue_rejects_newest_when_full(self) -> None:
+        """When the queue is full, newest enqueue rejects immediately.
 
-        Strategy: fill the queue via concurrent tasks before the event loop
-        can drain it. We schedule all tasks atomically (no awaits between
-        create_task calls), then yield once with asyncio.sleep(0) so the
-        coroutines run up to their first suspension point. At that moment
-        items 1+ find the queue full and raise immediately.
+        Schedule three tasks atomically, yield once so coroutines reach their
+        first suspension point. The first claims the single slot, the second
+        and third see queue.full() and raise RuntimeError before yielding.
         """
-        # Use a bad URL — queued items will fail, but we only care about
-        # synchronous rejection before any LLM call is made.
-        bad_config = TranslationConfig(
-            base_url="http://localhost:1",
-            model="nonexistent",
-            max_queue_depth=1,
-            timeout_s=1,
-        )
-        service = TranslationService(bad_config)
+        behavioral = TranslationConfig(max_queue_depth=1)
+        service = TranslationService(_unreachable_connection(), behavioral)
         try:
             tasks = [
                 asyncio.create_task(
                     service.enqueue_translation(
                         TranslationRequest(
-                            text=f"翻译句子{i}",
+                            text=f"句子{i}",
                             source_language="zh",
                             target_language="en",
                         )
@@ -136,16 +52,10 @@ class TestBackpressure:
                 )
                 for i in range(3)
             ]
-            # Yield once — all three coroutines run to their first await.
-            # Tasks 1 and 2 hit _queue.full() == True and raise RuntimeError
-            # before yielding, so they complete with an exception on this tick.
             await asyncio.sleep(0)
-
-            # Cancel any tasks still waiting (they would block on the LLM)
             for t in tasks:
                 if not t.done():
                     t.cancel()
-
             results = await asyncio.gather(*tasks, return_exceptions=True)
             rejected = [
                 r for r in results
@@ -155,67 +65,41 @@ class TestBackpressure:
         finally:
             await service.close()
 
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_queue_completes_all_when_not_full(self, config):
-        """Queue fewer items than max depth — all should complete.
-
-        Runs sequentially because vllm-mlx crashes on concurrent Metal GPU
-        requests (see justfile: split inference to avoid GPU crash).
-        """
-        config.max_queue_depth = 5
-        service = TranslationService(config)
-        try:
-            completed = []
-            for i in range(2):
-                result = await service.enqueue_translation(
-                    TranslationRequest(
-                        text=f"句子{i}",
-                        source_language="zh",
-                        target_language="en",
-                    )
-                )
-                if isinstance(result, TranslationResponse):
-                    completed.append(result)
-            assert len(completed) == 2
-        finally:
-            await service.close()
-
 
 class TestPerDirectionContext:
     @pytest.mark.asyncio
-    async def test_per_direction_context_isolation(self, config):
-        """Different language directions should have isolated context windows."""
-        bad_config = TranslationConfig(
-            base_url="http://localhost:1",
-            model="test",
-            context_window_size=3,
-            max_queue_depth=5,
-            timeout_s=1,
-        )
-        service = TranslationService(bad_config)
+    async def test_per_direction_context_isolation(self) -> None:
+        """Different language directions keep isolated rolling context windows."""
+        service = TranslationService(_unreachable_connection(), TranslationConfig())
         try:
-            # Manually add context for two directions
             service.context_store.add("en", "zh", "Hello", "你好")
             service.context_store.add("zh", "en", "再见", "Goodbye")
 
-            en_zh_ctx = service.get_context("en", "zh")
-            zh_en_ctx = service.get_context("zh", "en")
-            empty_ctx = service.get_context("ja", "en")
+            en_zh = service.get_context("en", "zh")
+            zh_en = service.get_context("zh", "en")
+            ja_en = service.get_context("ja", "en")
 
-            assert len(en_zh_ctx) == 1
-            assert en_zh_ctx[0].text == "Hello"
-            assert len(zh_en_ctx) == 1
-            assert zh_en_ctx[0].text == "再见"
-            assert len(empty_ctx) == 0
+            assert [c.text for c in en_zh] == ["Hello"]
+            assert [c.text for c in zh_en] == ["再见"]
+            assert ja_en == []
 
-            # Clear one direction
             service.clear_context("en", "zh")
-            assert len(service.get_context("en", "zh")) == 0
-            assert len(service.get_context("zh", "en")) == 1  # other direction untouched
+            assert service.get_context("en", "zh") == []
+            # other direction untouched
+            assert len(service.get_context("zh", "en")) == 1
 
-            # Clear all
             service.clear_context()
-            assert len(service.get_context("zh", "en")) == 0
+            assert service.get_context("zh", "en") == []
+        finally:
+            await service.close()
+
+    @pytest.mark.asyncio
+    async def test_base_connection_exposed(self) -> None:
+        """TranslationService exposes its base connection as a read-only property."""
+        conn = _unreachable_connection()
+        service = TranslationService(conn, TranslationConfig())
+        try:
+            assert service.base_connection is conn
+            assert service.base_connection.model == "nonexistent"
         finally:
             await service.close()
