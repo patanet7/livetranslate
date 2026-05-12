@@ -1,0 +1,43 @@
+# Ground-truth language labels for each captured fixture trace.
+#
+# Each fixture has a list of segments. For single-language audio, one
+# segment spanning the full duration. For transitions, list each language
+# span in chronological order with the correct boundaries.
+#
+# Times are in milliseconds. The replay scoring uses these to compute:
+#   - time_to_correct_lang_ms: when the detector first matches the truth
+#   - false_switches: switches that don't correspond to a real transition
+#   - switch_latency_ms_median: how long after a real transition the
+#     detector caught up
+
+fixtures:
+  # ------ Existing zh-only fixtures (from dashboard-service/tests/fixtures) ------
+
+  zh_short_60s:
+    description: "60s Chinese audio — short stable-state test"
+    source_wav: modules/dashboard-service/tests/fixtures/lang_detect_zh_short_48k.wav
+    segments:
+      - {t_ms_start: 0, t_ms_end: 60000, language: zh}
+
+  zh_section_180s:
+    description: "180s Chinese audio — medium stable-state"
+    source_wav: modules/dashboard-service/tests/fixtures/lang_detect_zh_section_48k.wav
+    segments:
+      - {t_ms_start: 0, t_ms_end: 180000, language: zh}
+
+  zh_full_290s:
+    description: "290s Chinese audio — full meeting segment"
+    source_wav: modules/dashboard-service/tests/fixtures/lang_detect_zh_full_48k.wav
+    segments:
+      - {t_ms_start: 0, t_ms_end: 290000, language: zh}
+
+  # ------ Add transition / mixed fixtures here as they're recorded ------
+  #
+  # Example shape for the en→zh transition we want to test:
+  #
+  # en_to_zh_120s:
+  #   description: "60s English then 60s Chinese — interpreter-mode switch test"
+  #   source_wav: <path to recorded WAV>
+  #   segments:
+  #     - {t_ms_start: 0,     t_ms_end: 60000,  language: en}
+  #     - {t_ms_start: 60000, t_ms_end: 120000, language: zh}

@@ -1,0 +1,44 @@
+# Starter sweep config — produces the baseline report.
+#
+# The param_grid is a Cartesian product. Adjust ranges to taste; each
+# additional value multiplies the run count. Replay is <1s per run, so
+# even a few thousand combos is fine.
+
+ground_truth: modules/transcription-service/benchmarks/lang_detect/fixtures/ground_truth.yaml
+
+fixtures:
+  - id: zh_short_60s
+    trace: modules/transcription-service/benchmarks/lang_detect/fixtures/zh_short_60s.jsonl
+  - id: zh_section_180s
+    trace: modules/transcription-service/benchmarks/lang_detect/fixtures/zh_section_180s.jsonl
+  - id: zh_full_290s
+    trace: modules/transcription-service/benchmarks/lang_detect/fixtures/zh_full_290s.jsonl
+
+param_grid:
+  # Production current: 0.2 / 4 / 10000
+  # Unit-test fast:     0.2 / 6 / 250
+  confidence_margin:            [0.1, 0.2, 0.3]
+  min_dwell_frames:             [2, 3, 4, 6]
+  min_dwell_ms:                 [250, 1000, 3000, 10000]
+
+  # Proposed fix #1: skip detect_initial when first-chunk LID confidence is low.
+  # 0.0 = current behavior (always accept first guess).
+  initial_confidence_threshold: [0.0, 0.5, 0.7]
+
+  # Proposed fix #2: use transcript script as a tiebreaker.
+  script_tiebreaker_enabled:        [false, true]
+  script_tiebreaker_min_ratio:      [0.3]
+  script_tiebreaker_max_confidence: [0.7]
+
+# Sort order for ranked TSV (left-to-right priority, ascending; bools as
+# integers where True=0 ranks better).
+#
+#   flap_switches    — minimize first (the WORST failure: breaking a good state)
+#   wrong_initial    — prefer correct first lock-on (False > True)
+#   frames_with_wrong_lang — minimize downstream impact
+#   time_to_correct_lang_ms — and finally, lock on fast
+sort_by:
+  - flap_switches
+  - wrong_initial
+  - frames_with_wrong_lang
+  - time_to_correct_lang_ms
