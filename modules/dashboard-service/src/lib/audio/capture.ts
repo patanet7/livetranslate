@@ -79,13 +79,25 @@ export class AudioCapture {
           },
         };
 
-        const [micStream, systemStream] = await Promise.all([
+        // Promise.allSettled (not all): if one stream succeeds and the other
+        // rejects, we explicitly stop the resolved stream's tracks so the
+        // mic-indicator light doesn't stay on. Promise.all would discard the
+        // resolved stream and leak the active tracks.
+        const [micResult, systemResult] = await Promise.allSettled([
           navigator.mediaDevices.getUserMedia(micConstraints),
           navigator.mediaDevices.getUserMedia(systemConstraints),
         ]);
+        if (micResult.status === 'rejected' || systemResult.status === 'rejected') {
+          if (micResult.status === 'fulfilled') micResult.value.getTracks().forEach((t) => t.stop());
+          if (systemResult.status === 'fulfilled') systemResult.value.getTracks().forEach((t) => t.stop());
+          const reasons: string[] = [];
+          if (micResult.status === 'rejected') reasons.push(`mic: ${String(micResult.reason)}`);
+          if (systemResult.status === 'rejected') reasons.push(`system: ${String(systemResult.reason)}`);
+          throw new Error(`Failed to acquire audio streams (${reasons.join('; ')})`);
+        }
 
-        this.stream = micStream;
-        this._systemStream = systemStream;
+        this.stream = micResult.value;
+        this._systemStream = systemResult.value;
         this.context = new AudioContext();
 
         // C1 fix: Use per-source GainNodes at 0.7 feeding a DynamicsCompressor.
@@ -93,8 +105,8 @@ export class AudioCapture {
         // halving the amplitude when only one source is active — degrading Whisper
         // accuracy on quiet speech. Per-source gain + compressor handles clipping
         // adaptively while preserving signal integrity.
-        const micSource = this.context.createMediaStreamSource(micStream);
-        const systemSource = this.context.createMediaStreamSource(systemStream);
+        const micSource = this.context.createMediaStreamSource(this.stream);
+        const systemSource = this.context.createMediaStreamSource(this._systemStream);
         const micGain = this.context.createGain();
         micGain.gain.value = 0.7;
         const systemGain = this.context.createGain();
@@ -106,8 +118,8 @@ export class AudioCapture {
         systemSource.connect(systemGain).connect(compressor);
 
         // I3: Log actual sample rates for drift debugging in long sessions
-        const micTrack = micStream.getAudioTracks()[0];
-        const systemTrack = systemStream.getAudioTracks()[0];
+        const micTrack = this.stream.getAudioTracks()[0];
+        const systemTrack = this._systemStream.getAudioTracks()[0];
         console.info('Mic sample rate:', micTrack.getSettings().sampleRate);
         console.info('System sample rate:', systemTrack.getSettings().sampleRate);
 
@@ -154,10 +166,30 @@ export class AudioCapture {
 
       this._isCapturing = true;
     } catch (err) {
+      // If we got past `getUserMedia` but failed later (e.g. audioWorklet
+      // addModule 404s, worklet construction throws), partial resources are
+      // attached to `this.*`. Release them before re-throwing — otherwise the
+      // mic-indicator light stays on and the AudioContext leaks.
+      this._releasePartialResources();
       const error = err instanceof Error ? err : new Error(String(err));
       options.onError(error);
       throw error; // Re-throw so callers can await and know capture failed
     }
+  }
+
+  /** Best-effort release of any resources attached during a partial start().
+   *  Safe to call multiple times; errors are swallowed because we're already
+   *  in an error path and reporting a release failure would mask the original. */
+  private _releasePartialResources(): void {
+    try { this.workletNode?.disconnect(); } catch { /* ignore */ }
+    try { this.stream?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+    try { this._systemStream?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+    // AudioContext.close() is async but we're in a sync cleanup path; fire and forget.
+    this.context?.close().catch(() => { /* ignore */ });
+    this.workletNode = null;
+    this.stream = null;
+    this._systemStream = null;
+    this.context = null;
   }
 
   async stop(): Promise<void> {

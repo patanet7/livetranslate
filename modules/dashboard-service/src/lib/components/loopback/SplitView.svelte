@@ -12,10 +12,8 @@
 <script lang="ts">
   import { captionStore, type UnifiedCaption as CaptionEntry } from "$lib/stores/caption.svelte";
   import { paragraphTranslation, translationPhase } from "./paragraph-helpers";
+  import { scrollIntoViewOnGrow } from "./scroll-attachments.svelte";
   import TranslationText from "./TranslationText.svelte";
-
-  let captionsEndOriginal: HTMLElement | undefined;
-  let captionsEndTranslation: HTMLElement | undefined;
 
   const PARAGRAPH_GAP_MS = 10000;
 
@@ -54,15 +52,7 @@
     return paragraphs[idx].speaker !== paragraphs[idx - 1].speaker;
   }
 
-  let prevCaptionCount = 0;
-  $effect(() => {
-    const count = captionStore.captions.length;
-    if (count > prevCaptionCount) {
-      prevCaptionCount = count;
-      captionsEndOriginal?.scrollIntoView({ behavior: "smooth" });
-      captionsEndTranslation?.scrollIntoView({ behavior: "smooth" });
-    }
-  });
+  // Autoscroll handled by scrollIntoViewOnGrow attachment on each end-ref div.
 
   function isCjk(lang: string): boolean {
     return ["zh", "ja", "ko"].includes(lang);
@@ -131,7 +121,7 @@
         <p class="prose original">{captionStore.interimText}</p>
       </article>
     {/if}
-    <div bind:this={captionsEndOriginal}></div>
+    <div {@attach scrollIntoViewOnGrow(() => captionStore.captions.length)}></div>
   </section>
 
   <!-- Centre gutter — visual rule between pages -->
@@ -165,7 +155,7 @@
         </p>
       </article>
     {/each}
-    <div bind:this={captionsEndTranslation}></div>
+    <div {@attach scrollIntoViewOnGrow(() => captionStore.captions.length)}></div>
   </section>
 </div>
 

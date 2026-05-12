@@ -11,9 +11,8 @@
 <script lang="ts">
   import { captionStore, type UnifiedCaption as CaptionEntry } from "$lib/stores/caption.svelte";
   import { paragraphTranslation, translationPhase } from "./paragraph-helpers";
+  import { scrollIntoViewOnGrow } from "./scroll-attachments.svelte";
   import TranslationText from "./TranslationText.svelte";
-
-  let endRef: HTMLElement | undefined;
 
   const PARAGRAPH_GAP_MS = 10000;
 
@@ -56,14 +55,7 @@
     return paragraphs[idx].speaker !== paragraphs[idx - 1].speaker;
   }
 
-  let prevLength = 0;
-  $effect(() => {
-    const len = captionStore.captions.length;
-    if (len > prevLength) {
-      prevLength = len;
-      endRef?.scrollIntoView({ behavior: "smooth" });
-    }
-  });
+  // Autoscroll handled by scrollIntoViewOnGrow attachment on the end-ref div.
 
   function formatTime(ts: number): string {
     const d = new Date(ts);
@@ -139,7 +131,7 @@
     </article>
   {/if}
 
-  <div bind:this={endRef}></div>
+  <div {@attach scrollIntoViewOnGrow(() => captionStore.captions.length)}></div>
 </div>
 
 <style>

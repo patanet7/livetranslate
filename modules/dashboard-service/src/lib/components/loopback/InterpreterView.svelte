@@ -1,10 +1,8 @@
 <script lang="ts">
   import { captionStore, type UnifiedCaption as CaptionEntry } from '$lib/stores/caption.svelte';
   import { paragraphTranslation, translationPhase } from './paragraph-helpers';
+  import { scrollIntoViewOnGrow } from './scroll-attachments.svelte';
   import TranslationText from './TranslationText.svelte';
-
-  let captionsEndA: HTMLElement | undefined;
-  let captionsEndB: HTMLElement | undefined;
 
   /** Gap threshold to start a new paragraph (matches SplitView). */
   const PARAGRAPH_GAP_MS = 10000;
@@ -57,16 +55,7 @@
     return result;
   });
 
-  // Scroll on new captions
-  let prevCaptionCount = 0;
-  $effect(() => {
-    const count = captionStore.captions.length;
-    if (count > prevCaptionCount) {
-      prevCaptionCount = count;
-      captionsEndA?.scrollIntoView({ behavior: 'smooth' });
-      captionsEndB?.scrollIntoView({ behavior: 'smooth' });
-    }
-  });
+  // Autoscroll handled by scrollIntoViewOnGrow attachment on each panel's end-ref div.
 
   /** CJK languages don't use spaces between words. */
   function isCjk(lang: string): boolean {
@@ -124,7 +113,7 @@
           {/if}
         </div>
       {/each}
-      <div bind:this={captionsEndA}></div>
+      <div {@attach scrollIntoViewOnGrow(() => captionStore.captions.length)}></div>
     </div>
   </div>
 
@@ -168,7 +157,7 @@
           {/if}
         </div>
       {/each}
-      <div bind:this={captionsEndB}></div>
+      <div {@attach scrollIntoViewOnGrow(() => captionStore.captions.length)}></div>
     </div>
   </div>
 </div>

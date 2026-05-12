@@ -2,6 +2,7 @@ import { captionStore } from '$lib/stores/caption.svelte';
 import { WS_BASE } from '$lib/config';
 import type { ServerMessage } from '$lib/types/ws-messages';
 import type { CaptionEvent } from '$lib/stores/caption.svelte';
+import { LoopbackWebSocket, type ConnectionState as WSState } from './websocket';
 
 export interface SourceConfig {
   sourceLanguage: string | null;
@@ -27,11 +28,17 @@ export interface SourceAdapter {
 }
 
 /**
- * Loopback adapter - connects to /ws/loopback for browser mic or screencapture.
+ * Loopback adapter — connects to /ws/loopback for browser mic or screencapture.
+ *
+ * Delegates to LoopbackWebSocket for transport, gaining auto-reconnect with
+ * exponential backoff, 1 MB send-buffer backpressure, and defensive buffer
+ * slicing on sendAudio. Previously this class hand-rolled a raw WebSocket
+ * and lost all of those properties on every regression of this code path.
  */
 export class LoopbackAdapter implements SourceAdapter {
-  private ws: WebSocket | null = null;
+  private ws: LoopbackWebSocket | null = null;
   private source: 'mic' | 'screencapture';
+  private startSessionPayload: { sample_rate: number; channels: number; device_id?: string } | null = null;
   private onLevel?: (rms: number) => void;
   private onMeetingStarted?: (sessionId: string, startedAt: string) => void;
   private onChunkCount?: (count: number) => void;
@@ -44,56 +51,55 @@ export class LoopbackAdapter implements SourceAdapter {
     this.onLevel = config.onLevel;
     this.onMeetingStarted = config.onMeetingStarted;
     this.onChunkCount = config.onChunkCount;
+    this.startSessionPayload = {
+      sample_rate: config.sampleRate ?? 48000,
+      channels: config.channels ?? 1,
+      device_id: config.deviceId,
+    };
+
     return new Promise((resolve, reject) => {
-      const url = `${WS_BASE}/ws/loopback`;
-      this.ws = new WebSocket(url);
       let settled = false;
 
-      this.ws.onopen = () => {
-        captionStore.connectionState = 'connecting';
-        this.ws?.send(JSON.stringify({
-          type: 'start_session',
-          sample_rate: config.sampleRate ?? 48000,
-          channels: config.channels ?? 1,
-          device_id: config.deviceId,
-          source: this.source,
-        }));
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data as string) as ServerMessage;
+      const ws = new LoopbackWebSocket({
+        url: `${WS_BASE}/ws/loopback`,
+        onMessage: (msg) => {
           this.handleMessage(
             msg,
-            () => {
-              if (!settled) {
-                settled = true;
-                resolve();
-              }
-            },
-            (err) => {
-              if (!settled) {
-                settled = true;
-                reject(err);
-              }
-            }
+            () => { if (!settled) { settled = true; resolve(); } },
+            (err) => { if (!settled) { settled = true; reject(err); } },
           );
-        } catch (e) {
-          captionStore.lastError = `Invalid JSON from server: ${e}`;
-        }
-      };
+        },
+        onStateChange: (state: WSState) => {
+          // Mirror the transport state onto the caption store. The "connected"
+          // transition is also fired here, but we drive connect()'s resolve
+          // off the actual ConnectedMessage in handleMessage so callers know
+          // the server-side session is ready, not just the socket.
+          captionStore.connectionState = state;
+        },
+        onError: () => {
+          captionStore.connectionState = 'error';
+          if (!settled) { settled = true; reject(new Error('WebSocket connection failed')); }
+        },
+        onReconnect: () => {
+          // After auto-reconnect, the server has a fresh socket with no session
+          // context. Re-send start_session so transcription resumes.
+          if (this.startSessionPayload) {
+            ws.startSession(
+              this.startSessionPayload.sample_rate,
+              this.startSessionPayload.channels,
+              this.startSessionPayload.device_id,
+            );
+          }
+        },
+      });
+      this.ws = ws;
+      ws.connect();
 
-      this.ws.onerror = () => {
-        captionStore.connectionState = 'error';
-        if (!settled) {
-          settled = true;
-          reject(new Error('WebSocket connection failed'));
-        }
-      };
-
-      this.ws.onclose = () => {
-        captionStore.connectionState = 'disconnected';
-      };
+      // Send start_session as soon as the socket reaches 'connecting' isn't
+      // sufficient — we have to wait for the server to send ConnectedMessage
+      // first (which sets state to 'connected'). LoopbackWebSocket already
+      // routes that as an onMessage with type='connected'; handleMessage will
+      // then call ws.startSession.
     });
   }
 
@@ -104,7 +110,15 @@ export class LoopbackAdapter implements SourceAdapter {
   ): void {
     switch (msg.type) {
       case 'connected':
-        captionStore.connectionState = 'connected';
+        // Server is ready for this session — send start_session now, then
+        // resolve the connect() promise.
+        if (this.ws && this.startSessionPayload) {
+          this.ws.startSession(
+            this.startSessionPayload.sample_rate,
+            this.startSessionPayload.channels,
+            this.startSessionPayload.device_id,
+          );
+        }
         resolve?.();
         break;
       case 'segment':
@@ -155,25 +169,22 @@ export class LoopbackAdapter implements SourceAdapter {
   }
 
   disconnect(): void {
-    if (this.ws) {
-      if (this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'end_session' }));
-      }
-      this.ws.close();
-      this.ws = null;
-    }
+    // drainAndDisconnect is fire-and-forget here: SourceAdapter.disconnect()
+    // is sync in the interface, and stopCapture() in the page already handles
+    // the elapsed-timer wind-down. Letting the server drain in-flight final
+    // translations is a nice-to-have, not a correctness requirement.
+    this.ws?.drainAndDisconnect().catch(() => { /* ignore */ });
+    this.ws = null;
+    this.startSessionPayload = null;
   }
 
   sendConfig(config: Record<string, unknown>): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'config', ...config }));
-    }
+    this.ws?.sendMessage({ type: 'config', ...config } as never);
   }
 
   sendAudio(data: Float32Array): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(data.buffer);
-    }
+    // LoopbackWebSocket does the defensive buffer slice + backpressure check.
+    this.ws?.sendAudio(data);
   }
 }
 

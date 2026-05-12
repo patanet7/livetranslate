@@ -1,13 +1,20 @@
 /**
- * Tests for loopback store translation lifecycle.
+ * Tests for caption store translation lifecycle.
  *
  * Covers: translationState field, last-writer-wins guards,
- * chunk-on-draft clear, segment replacement preserves translation.
+ * chunk-on-draft clear, segment replacement preserves translation,
+ * localStorage persistence.
+ *
+ * Migrated from loopback-store.test.ts when loopback.svelte.ts was
+ * superseded by caption.svelte.ts (single store for both loopback and
+ * Fireflies sources). API names changed: addSegment → ingestSegment,
+ * addTranslation → ingestTranslation, appendTranslationChunk → ingestTranslationChunk.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { SegmentMessage, TranslationMessage, TranslationChunkMessage } from '$lib/types/ws-messages';
 
-// Helper: minimal SegmentMessage
+const STORAGE_KEY = 'livetranslate:caption-config';
+
 function makeSegment(overrides: Partial<SegmentMessage> = {}): SegmentMessage {
 	return {
 		type: 'segment',
@@ -50,30 +57,27 @@ function makeChunk(overrides: Partial<TranslationChunkMessage> = {}): Translatio
 	};
 }
 
-describe('Loopback Store — Translation Lifecycle', () => {
-	let store: typeof import('$lib/stores/loopback.svelte').loopbackStore;
+describe('Caption Store — Translation Lifecycle', () => {
+	let store: typeof import('$lib/stores/caption.svelte').captionStore;
 
 	beforeEach(async () => {
-		// Dynamic import to get fresh store instance
-		const mod = await import('$lib/stores/loopback.svelte');
-		// createLoopbackStore is not exported — use loopbackStore singleton
-		// and clear it between tests
-		store = mod.loopbackStore;
+		const mod = await import('$lib/stores/caption.svelte');
+		store = mod.captionStore;
 		store.clear();
 	});
 
-	it('addTranslation with is_draft=true sets translationState to draft', () => {
-		store.addSegment(makeSegment({ segment_id: 1, is_draft: true }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough draft' }));
+	it('ingestTranslation with is_draft=true sets translationState to draft', () => {
+		store.ingestSegment(makeSegment({ segment_id: 1, is_draft: true }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough draft' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('rough draft');
 		expect(caption.translationState).toBe('draft');
 	});
 
-	it('addTranslation with is_draft=false sets translationState to complete', () => {
-		store.addSegment(makeSegment({ segment_id: 1, is_draft: false }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final translation' }));
+	it('ingestTranslation with is_draft=false sets translationState to complete', () => {
+		store.ingestSegment(makeSegment({ segment_id: 1, is_draft: false }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final translation' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('final translation');
@@ -81,11 +85,11 @@ describe('Loopback Store — Translation Lifecycle', () => {
 	});
 
 	it('last-writer-wins: final blocks subsequent draft', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
 		// Final arrives first
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final' }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final' }));
 		// Late draft arrives — should be ignored
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'late draft' }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'late draft' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('final');
@@ -93,34 +97,34 @@ describe('Loopback Store — Translation Lifecycle', () => {
 	});
 
 	it('last-writer-wins: complete blocks all updates', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'done' }));
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'done' }));
 
 		// Another final — should be ignored
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'duplicate' }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'duplicate' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('done');
 	});
 
 	it('draft can be overwritten by final', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough' }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'polished' }));
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough' }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'polished' }));
 
 		const caption = store.captions[0];
 		expect(caption.translation).toBe('polished');
 		expect(caption.translationState).toBe('complete');
 	});
 
-	it('appendTranslationChunk clears draft text on first streaming chunk', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
+	it('ingestTranslationChunk clears draft text on first streaming chunk', () => {
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
 		// Draft translation arrives
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough draft' }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough draft' }));
 		expect(store.captions[0].translationState).toBe('draft');
 
 		// First streaming chunk — should CLEAR draft text, then append
-		store.appendTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hello' }));
+		store.ingestTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hello' }));
 
 		const caption = store.captions[0];
 		// Should be 'Hello', NOT 'rough draftHello'
@@ -128,23 +132,23 @@ describe('Loopback Store — Translation Lifecycle', () => {
 		expect(caption.translationState).toBe('streaming');
 	});
 
-	it('appendTranslationChunk ignores after complete', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final' }));
+	it('ingestTranslationChunk ignores after complete', () => {
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'final' }));
 
 		// Late chunk — should be ignored
-		store.appendTranslationChunk(makeChunk({ transcript_id: 1, delta: ' extra' }));
+		store.ingestTranslationChunk(makeChunk({ transcript_id: 1, delta: ' extra' }));
 
 		expect(store.captions[0].translation).toBe('final');
 	});
 
-	it('addSegment draft→final preserves existing draft translation', () => {
+	it('ingestSegment draft→final preserves existing draft translation', () => {
 		// Draft segment arrives with draft translation
-		store.addSegment(makeSegment({ segment_id: 1, is_draft: true }));
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough' }));
+		store.ingestSegment(makeSegment({ segment_id: 1, is_draft: true }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: true, text: 'rough' }));
 
 		// Final segment replaces draft — should preserve translation
-		store.addSegment(makeSegment({ segment_id: 1, is_draft: false, is_final: false }));
+		store.ingestSegment(makeSegment({ segment_id: 1, is_draft: false, is_final: false }));
 
 		const caption = store.captions[0];
 		expect(caption.isDraft).toBe(false);
@@ -152,27 +156,39 @@ describe('Loopback Store — Translation Lifecycle', () => {
 	});
 
 	it('new segment starts with translationState pending', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
 		expect(store.captions[0].translationState).toBe('pending');
 	});
 
 	it('streaming transitions: pending → streaming → complete', () => {
-		store.addSegment(makeSegment({ segment_id: 1 }));
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
 		expect(store.captions[0].translationState).toBe('pending');
 
-		store.appendTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hel' }));
+		store.ingestTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hel' }));
 		expect(store.captions[0].translationState).toBe('streaming');
 
-		store.addTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'Hello' }));
+		store.ingestTranslation(makeTranslation({ transcript_id: 1, is_draft: false, text: 'Hello' }));
 		expect(store.captions[0].translationState).toBe('complete');
+	});
+
+	// Regression coverage for the in-place mutation rewrite (#10):
+	// streaming chunks must mutate the same caption object, not allocate new ones.
+	it('ingestTranslationChunk mutates the same caption object (in-place)', () => {
+		store.ingestSegment(makeSegment({ segment_id: 1 }));
+		const before = store.captions[0];
+		store.ingestTranslationChunk(makeChunk({ transcript_id: 1, delta: 'Hel' }));
+		const after = store.captions[0];
+		// Object identity must be preserved — derivations that hold a
+		// reference to the old object should still see the mutation.
+		expect(after).toBe(before);
+		expect(after.translation).toBe('Hel');
 	});
 });
 
-describe('Loopback Store — localStorage Persistence', () => {
-	let store: typeof import('$lib/stores/loopback.svelte').loopbackStore;
+describe('Caption Store — localStorage Persistence', () => {
+	let store: typeof import('$lib/stores/caption.svelte').captionStore;
 	const storage = new Map<string, string>();
 
-	// Mock localStorage for Node environment
 	beforeEach(async () => {
 		storage.clear();
 		const mockStorage = {
@@ -185,29 +201,29 @@ describe('Loopback Store — localStorage Persistence', () => {
 		};
 		Object.defineProperty(globalThis, 'localStorage', { value: mockStorage, writable: true, configurable: true });
 
-		const mod = await import('$lib/stores/loopback.svelte');
-		store = mod.loopbackStore;
+		const mod = await import('$lib/stores/caption.svelte');
+		store = mod.captionStore;
 		store.clear();
 	});
 
 	it('persists targetLanguage to localStorage on change', () => {
 		store.targetLanguage = 'ja';
 
-		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		const saved = JSON.parse(storage.get(STORAGE_KEY) || '{}');
 		expect(saved.targetLanguage).toBe('ja');
 	});
 
 	it('persists sourceLanguage to localStorage on change', () => {
 		store.sourceLanguage = 'en';
 
-		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		const saved = JSON.parse(storage.get(STORAGE_KEY) || '{}');
 		expect(saved.sourceLanguage).toBe('en');
 	});
 
 	it('persists displayMode to localStorage on change', () => {
 		store.displayMode = 'transcript';
 
-		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		const saved = JSON.parse(storage.get(STORAGE_KEY) || '{}');
 		expect(saved.displayMode).toBe('transcript');
 	});
 
@@ -215,14 +231,13 @@ describe('Loopback Store — localStorage Persistence', () => {
 		store.interpreterLangA = 'ja';
 		store.interpreterLangB = 'en';
 
-		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		const saved = JSON.parse(storage.get(STORAGE_KEY) || '{}');
 		expect(saved.interpreterLangA).toBe('ja');
 		expect(saved.interpreterLangB).toBe('en');
 	});
 
 	it('restores settings from localStorage on load', () => {
-		// Pre-populate localStorage
-		storage.set('livetranslate:loopback-config', JSON.stringify({
+		storage.set(STORAGE_KEY, JSON.stringify({
 			sourceLanguage: 'en',
 			targetLanguage: 'ja',
 			displayMode: 'transcript',
@@ -230,7 +245,7 @@ describe('Loopback Store — localStorage Persistence', () => {
 			interpreterLangB: 'en',
 		}));
 
-		store.restoreFromLocalStorage();
+		store.restoreConfig();
 
 		expect(store.sourceLanguage).toBe('en');
 		expect(store.targetLanguage).toBe('ja');
@@ -240,15 +255,13 @@ describe('Loopback Store — localStorage Persistence', () => {
 	});
 
 	it('gracefully handles missing localStorage', () => {
-		// No localStorage entry — restoreFromLocalStorage should not throw
-		store.restoreFromLocalStorage();
+		store.restoreConfig();
 		expect(store.targetLanguage).toBeDefined();
 	});
 
 	it('gracefully handles corrupted localStorage', () => {
-		storage.set('livetranslate:loopback-config', 'not-json{{{');
-		// Should not throw
-		store.restoreFromLocalStorage();
+		storage.set(STORAGE_KEY, 'not-json{{{');
+		store.restoreConfig();
 		expect(store.targetLanguage).toBeDefined();
 	});
 
@@ -256,7 +269,7 @@ describe('Loopback Store — localStorage Persistence', () => {
 		store.targetLanguage = 'ja';
 		store.connectionState = 'connected';
 
-		const saved = JSON.parse(storage.get('livetranslate:loopback-config') || '{}');
+		const saved = JSON.parse(storage.get(STORAGE_KEY) || '{}');
 		expect(saved.connectionState).toBeUndefined();
 		expect(saved.captions).toBeUndefined();
 		expect(saved.isCapturing).toBeUndefined();

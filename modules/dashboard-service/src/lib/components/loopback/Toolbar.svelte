@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
@@ -95,6 +94,7 @@
 
 	const DISPLAY_MODES: { value: DisplayMode; label: string }[] = [
 		{ value: 'split', label: 'Split' },
+		{ value: 'wire', label: 'Wire' },
 		{ value: 'subtitle', label: 'Subtitle' },
 		{ value: 'transcript', label: 'Transcript' },
 		{ value: 'interpreter', label: 'Interpreter' },
@@ -126,8 +126,28 @@
 		return `${Math.floor(hours / 24)}d ago`;
 	}
 
-	$effect(() => {
-		if (captionStore.captionSource !== 'fireflies') return;
+	// Local select values mirror the store. Kept separate so dropdown UI
+	// settles independently of the store, but writes are event-driven (no
+	// $effect-watch pattern) — see handle* functions below.
+	let sourceLanguageValue = $state(captionStore.sourceLanguage ?? 'auto');
+	let targetLanguageValue = $state(captionStore.targetLanguage);
+	let modelOverride = $state('auto');
+	let interpreterLangAValue = $state(captionStore.interpreterLangA);
+	let interpreterLangBValue = $state(captionStore.interpreterLangB);
+
+	let isInterpreterMode = $derived(captionStore.displayMode === 'interpreter');
+
+	// Event-driven side effects. Replaces a previous set of $effect blocks
+	// that watched these values via prev* state variables — the autofixer
+	// flagged that pattern as state-writes-inside-$effect, and the cost
+	// compounded with the captionStore reactivity surface (Toolbar reads
+	// chunksSent every audio frame).
+	//
+	// All handlers run synchronously from a user interaction (radio change /
+	// select change / button click), so the side effect happens once per
+	// user action, with no reactive cascade.
+
+	function loadFirefliesMeetings(): void {
 		loadingMeetings = true;
 		fetch('/api/fireflies/sessions/active')
 			.then(r => r.ok ? r.json() as Promise<{ meetings?: FirefliesMeeting[]; auto_select_id?: string }> : Promise.reject(r.status))
@@ -140,104 +160,75 @@
 			})
 			.catch(() => { meetings = []; })
 			.finally(() => { loadingMeetings = false; });
-	});
+	}
 
-	// Local select values bound to store
-	let sourceLanguageValue = $state(captionStore.sourceLanguage ?? 'auto');
-	let targetLanguageValue = $state(captionStore.targetLanguage);
-	let modelOverride = $state('auto');
-	let interpreterLangAValue = $state(captionStore.interpreterLangA);
-	let interpreterLangBValue = $state(captionStore.interpreterLangB);
+	function handleCaptionSourceChange(source: 'local' | 'screencapture' | 'fireflies'): void {
+		captionStore.captionSource = source;
+		if (source === 'fireflies') {
+			loadFirefliesMeetings();
+		}
+	}
 
-	// Whether interpreter mode is active (derived for template conditionals)
-	let isInterpreterMode = $derived(captionStore.displayMode === 'interpreter');
-
-	// Track previous values to avoid writing to the store on initial render.
-	// Effects run immediately during component initialization and writing to
-	// the shared store can cause reactive cascades that break hydration.
-	let prevSourceLang = $state(untrack(() => sourceLanguageValue));
-	let prevTargetLang = $state(untrack(() => targetLanguageValue));
-	let prevModel = $state(untrack(() => modelOverride));
-
-	// Sync source language changes to store and notify server
-	$effect(() => {
-		const val = sourceLanguageValue;
-		if (val === prevSourceLang) return;
-		prevSourceLang = val;
+	function handleSourceLanguageChange(val: string): void {
+		sourceLanguageValue = val;
 		const lang = val === 'auto' ? null : val;
 		captionStore.sourceLanguage = lang;
-		// I2: Send config change to server if capturing.
-		// Send null too — resets server to auto-detect when switching back from explicit language.
+		// I2: send null too so server clears any forced language and returns to auto-detect.
 		if (captionStore.isCapturing) {
 			onConfigChange?.({ language: lang });
 		}
-	});
+	}
 
-	// Sync target language changes to store and notify server
-	$effect(() => {
-		const val = targetLanguageValue;
-		if (val === prevTargetLang) return;
-		prevTargetLang = val;
+	function handleTargetLanguageChange(val: string): void {
+		targetLanguageValue = val;
 		captionStore.targetLanguage = val;
 		if (captionStore.isCapturing) {
 			onConfigChange?.({ target_language: val });
 		}
-	});
+	}
 
-	// I1: Send model override to server when changed during active session
-	$effect(() => {
-		const val = modelOverride;
-		if (val === prevModel) return;
-		prevModel = val;
+	function handleModelChange(val: string): void {
+		modelOverride = val;
 		if (captionStore.isCapturing && val !== 'auto') {
 			onConfigChange?.({ model: val });
 		}
-	});
+	}
 
-	// Sync interpreter language A/B to store and send config when changed
-	let prevInterpA = $state(untrack(() => interpreterLangAValue));
-	let prevInterpB = $state(untrack(() => interpreterLangBValue));
-
-	$effect(() => {
-		const a = interpreterLangAValue;
-		const b = interpreterLangBValue;
-		if (a === prevInterpA && b === prevInterpB) return;
-		// Swap guard: if user picks same language for both, swap them
-		if (a === b) {
-			if (a !== prevInterpA) {
-				// A was changed to match B — swap B to old A
-				interpreterLangBValue = prevInterpA;
-			} else {
-				// B was changed to match A — swap A to old B
-				interpreterLangAValue = prevInterpB;
-			}
-			return; // the swap will re-trigger this effect
+	function handleInterpreterAChange(val: string): void {
+		// Swap guard: if user picks same as B, swap B to the old A.
+		if (val === interpreterLangBValue) {
+			interpreterLangBValue = interpreterLangAValue;
+			captionStore.interpreterLangB = interpreterLangAValue;
 		}
-		prevInterpA = a;
-		prevInterpB = b;
-		captionStore.interpreterLangA = a;
-		captionStore.interpreterLangB = b;
+		interpreterLangAValue = val;
+		captionStore.interpreterLangA = val;
 		if (isInterpreterMode && captionStore.isCapturing) {
-			onConfigChange?.({ language: undefined, interpreter_languages: [a, b] });
+			onConfigChange?.({ language: undefined, interpreter_languages: [interpreterLangAValue, interpreterLangBValue] });
 		}
-	});
+	}
 
-	// When entering/leaving interpreter mode, send appropriate config
-	let prevDisplayMode = $state(untrack(() => captionStore.displayMode));
-	$effect(() => {
-		const mode = captionStore.displayMode;
-		if (mode === prevDisplayMode) return;
-		const wasInterpreter = prevDisplayMode === 'interpreter';
-		prevDisplayMode = mode;
+	function handleInterpreterBChange(val: string): void {
+		if (val === interpreterLangAValue) {
+			interpreterLangAValue = interpreterLangBValue;
+			captionStore.interpreterLangA = interpreterLangBValue;
+		}
+		interpreterLangBValue = val;
+		captionStore.interpreterLangB = val;
+		if (isInterpreterMode && captionStore.isCapturing) {
+			onConfigChange?.({ language: undefined, interpreter_languages: [interpreterLangAValue, interpreterLangBValue] });
+		}
+	}
+
+	function handleDisplayModeChange(mode: DisplayMode): void {
+		const wasInterpreter = captionStore.displayMode === 'interpreter';
+		captionStore.displayMode = mode;
 		if (!captionStore.isCapturing) return;
 		if (mode === 'interpreter') {
-			// Entering interpreter mode — send interpreter_languages, force auto-detect
 			onConfigChange?.({ language: undefined, interpreter_languages: [interpreterLangAValue, interpreterLangBValue] });
 		} else if (wasInterpreter) {
-			// Leaving interpreter mode — clear interpreter state, restore target language
 			onConfigChange?.({ interpreter_languages: null, target_language: captionStore.targetLanguage });
 		}
-	});
+	}
 
 	function statusColor(status: 'up' | 'down'): string {
 		// Editorial palette: sage = healthy, oxblood = down
@@ -275,7 +266,7 @@
 					name="caption-source"
 					value="local"
 					checked={captionStore.captionSource === 'local'}
-					onchange={() => { captionStore.captionSource = 'local'; }}
+					onchange={() => handleCaptionSourceChange('local')}
 					disabled={captionStore.isCapturing}
 				/>
 				<span>Mic</span>
@@ -286,7 +277,7 @@
 					name="caption-source"
 					value="screencapture"
 					checked={captionStore.captionSource === 'screencapture'}
-					onchange={() => { captionStore.captionSource = 'screencapture'; }}
+					onchange={() => handleCaptionSourceChange('screencapture')}
 					disabled={captionStore.isCapturing || !screenCaptureAvailable}
 				/>
 				<span>System Audio</span>
@@ -298,7 +289,7 @@
 					name="caption-source"
 					value="fireflies"
 					checked={captionStore.captionSource === 'fireflies'}
-					onchange={() => { captionStore.captionSource = 'fireflies'; }}
+					onchange={() => handleCaptionSourceChange('fireflies')}
 					disabled={captionStore.isCapturing}
 				/>
 				<span>Fireflies</span>
@@ -371,7 +362,7 @@
 		<!-- Interpreter: Language A -->
 		<div class="toolbar-group">
 			<span class="toolbar-label">Language A</span>
-			<Select.Root type="single" bind:value={interpreterLangAValue}>
+			<Select.Root type="single" value={interpreterLangAValue} onValueChange={(v) => { if (v) handleInterpreterAChange(v); }}>
 				<Select.Trigger class="toolbar-select">
 					{TARGET_LANGUAGES.find((l) => l.value === interpreterLangAValue)?.label ?? interpreterLangAValue}
 				</Select.Trigger>
@@ -386,7 +377,7 @@
 		<!-- Interpreter: Language B -->
 		<div class="toolbar-group">
 			<span class="toolbar-label">Language B</span>
-			<Select.Root type="single" bind:value={interpreterLangBValue}>
+			<Select.Root type="single" value={interpreterLangBValue} onValueChange={(v) => { if (v) handleInterpreterBChange(v); }}>
 				<Select.Trigger class="toolbar-select">
 					{TARGET_LANGUAGES.find((l) => l.value === interpreterLangBValue)?.label ?? interpreterLangBValue}
 				</Select.Trigger>
@@ -401,7 +392,7 @@
 		<!-- Source Language -->
 		<div class="toolbar-group">
 			<span class="toolbar-label">Source</span>
-			<Select.Root type="single" bind:value={sourceLanguageValue}>
+			<Select.Root type="single" value={sourceLanguageValue} onValueChange={(v) => { if (v) handleSourceLanguageChange(v); }}>
 				<Select.Trigger class="toolbar-select">
 					{SOURCE_LANGUAGES.find((l) => l.value === sourceLanguageValue)?.label ?? 'Auto Detect'}
 				</Select.Trigger>
@@ -416,7 +407,7 @@
 		<!-- Target Language -->
 		<div class="toolbar-group">
 			<span class="toolbar-label">Target</span>
-			<Select.Root type="single" bind:value={targetLanguageValue}>
+			<Select.Root type="single" value={targetLanguageValue} onValueChange={(v) => { if (v) handleTargetLanguageChange(v); }}>
 				<Select.Trigger class="toolbar-select">
 					{TARGET_LANGUAGES.find((l) => l.value === targetLanguageValue)?.label ?? 'English'}
 				</Select.Trigger>
@@ -432,7 +423,7 @@
 	<!-- Model Override -->
 	<div class="toolbar-group">
 		<span class="toolbar-label">Model</span>
-		<Select.Root type="single" bind:value={modelOverride}>
+		<Select.Root type="single" value={modelOverride} onValueChange={(v) => { if (v) handleModelChange(v); }}>
 			<Select.Trigger class="toolbar-select">
 				{MODELS.find((m) => m.value === modelOverride)?.label ?? 'Auto'}
 			</Select.Trigger>
@@ -457,7 +448,7 @@
 					class:active={captionStore.displayMode === mode.value}
 					role="radio"
 					aria-checked={captionStore.displayMode === mode.value}
-					onclick={() => { captionStore.displayMode = mode.value; }}
+					onclick={() => handleDisplayModeChange(mode.value)}
 				>{mode.label}</button>
 			{/each}
 		</div>

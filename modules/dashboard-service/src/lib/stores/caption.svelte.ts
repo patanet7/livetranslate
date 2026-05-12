@@ -1,8 +1,10 @@
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+
 import { SPEAKER_COLORS } from '$lib/theme';
 import type { SegmentMessage, TranslationMessage, TranslationChunkMessage } from '$lib/types/ws-messages';
 
 export type CaptionSource = 'local' | 'screencapture' | 'fireflies';
-export type DisplayMode = 'split' | 'subtitle' | 'interpreter' | 'transcript';
+export type DisplayMode = 'split' | 'subtitle' | 'interpreter' | 'transcript' | 'wire';
 export type TranslationState = 'pending' | 'draft' | 'streaming' | 'complete';
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -83,8 +85,19 @@ function createCaptionStore() {
   let meetingSessionId = $state<string | null>(null);
   let meetingStartedAt = $state<string | null>(null);
 
-  const speakerColorMap = new Map<string, string>();
-  const seenCaptionIds = new Set<string>();
+  // SvelteMap/SvelteSet (vs plain Map/Set): mutations trigger Svelte 5
+  // reactivity for consumers that read these collections. Without this,
+  // a new speaker → new colour assignment wouldn't propagate until the
+  // captions array reassignment incidentally re-ran derived state.
+  const speakerColorMap = new SvelteMap<string, string>();
+  const seenCaptionIds = new SvelteSet<string>();
+
+  // O(1) lookup index for captions by id. Replaces captions.findIndex(...)
+  // in the hot ingest paths. Kept in sync with the captions array — every
+  // push / shift / replacement updates this map. Internal book-keeping
+  // (never exposed); plain Map is fine here since nothing reads it from
+  // inside a reactive context.
+  const captionIndex = new Map<string, number>();
 
   function getSpeakerColor(speaker: string | null): string {
     if (!speaker) return SPEAKER_COLORS[0];
@@ -132,30 +145,45 @@ function createCaptionStore() {
 
     // Prefix ID for source isolation
     const id = `lb_${msg.segment_id}`;
-    const existingIdx = captions.findIndex(c => c.id === id);
+    const existingIdx = captionIndex.get(id);
+    const incomingDraft = msg.is_draft ?? false;
+    const stableText = msg.stable_text ?? msg.text;
+    const unstableText = msg.unstable_text ?? '';
+    const text = [msg.stable_text, msg.unstable_text].filter(Boolean).join(' ') || msg.text;
 
-    const caption: UnifiedCaption = {
-      id,
-      text: [msg.stable_text, msg.unstable_text].filter(Boolean).join(' ') || msg.text,
-      stableText: msg.stable_text ?? msg.text,
-      unstableText: msg.unstable_text ?? '',
-      translation: existingIdx >= 0 ? captions[existingIdx].translation : null,
-      translationState: existingIdx >= 0 ? captions[existingIdx].translationState : 'pending',
-      speaker: msg.speaker_id,
-      speakerColor: getSpeakerColor(msg.speaker_id),
-      language: msg.language,
-      confidence: msg.confidence,
-      timestamp: existingIdx >= 0 ? captions[existingIdx].timestamp : Date.now(),
-      isFinal: msg.is_final,
-      isDraft: msg.is_draft ?? false,
-    };
-
-    if (existingIdx >= 0) {
+    if (existingIdx !== undefined) {
+      // Update existing caption in place. Mutating individual fields keeps
+      // object identity and reactive scope tight: consumers that read e.g.
+      // `cap.translation` don't re-run on a stable-text update.
       const existing = captions[existingIdx];
-      if (!existing.isDraft && caption.isDraft) return; // Don't overwrite final with draft
-      captions = captions.map((c, i) => i === existingIdx ? caption : c);
+      if (!existing.isDraft && incomingDraft) return; // Don't overwrite final with draft
+      existing.text = text;
+      existing.stableText = stableText;
+      existing.unstableText = unstableText;
+      existing.speaker = msg.speaker_id;
+      existing.speakerColor = getSpeakerColor(msg.speaker_id);
+      existing.language = msg.language;
+      existing.confidence = msg.confidence;
+      existing.isFinal = msg.is_final;
+      existing.isDraft = incomingDraft;
+      // translation / translationState / timestamp preserved across updates
     } else {
-      captions = [...captions.slice(-(MAX_CAPTIONS - 1)), caption];
+      const caption: UnifiedCaption = {
+        id,
+        text,
+        stableText,
+        unstableText,
+        translation: null,
+        translationState: 'pending',
+        speaker: msg.speaker_id,
+        speakerColor: getSpeakerColor(msg.speaker_id),
+        language: msg.language,
+        confidence: msg.confidence,
+        timestamp: Date.now(),
+        isFinal: msg.is_final,
+        isDraft: incomingDraft,
+      };
+      appendCappedCaption(caption);
     }
 
     if (msg.is_final) {
@@ -167,29 +195,56 @@ function createCaptionStore() {
     }
   }
 
+  /** Append a caption, evicting from the front if MAX_CAPTIONS is exceeded.
+   *  Keeps captionIndex in sync. Uses push/shift on the reactive array — both
+   *  are observed by Svelte 5 deep proxying. */
+  function appendCappedCaption(caption: UnifiedCaption): void {
+    captions.push(caption);
+    captionIndex.set(caption.id, captions.length - 1);
+    if (captions.length > MAX_CAPTIONS) {
+      // Eviction is rare (only when n > 5000) — pay the reindex cost then.
+      const removed = captions.shift();
+      if (removed) captionIndex.delete(removed.id);
+      for (let i = 0; i < captions.length; i++) {
+        captionIndex.set(captions[i].id, i);
+      }
+    }
+  }
+
   function ingestTranslation(msg: TranslationMessage): void {
     if (typeof msg.text !== 'string') return;
     translationsReceived++;
 
     const id = `lb_${msg.transcript_id}`;
-    const idx = captions.findIndex(c => c.id === id);
-    if (idx < 0) return;
+    const idx = captionIndex.get(id);
+    if (idx === undefined) return;
 
+    const c = captions[idx];
     const isDraft = msg.is_draft ?? false;
-    if (captions[idx].translationState === 'complete') return;
-    if (isDraft && captions[idx].translationState !== 'pending' && captions[idx].translationState !== 'draft') return;
+    if (c.translationState === 'complete') return;
+    if (isDraft && c.translationState !== 'pending' && c.translationState !== 'draft') return;
 
-    captions = captions.map((c, i) => i === idx ? { ...c, translation: msg.text, translationState: isDraft ? 'draft' : 'complete' } : c);
+    c.translation = msg.text;
+    c.translationState = isDraft ? 'draft' : 'complete';
   }
 
+  // The streaming-chunk path is the burst hotspot — under load a single
+  // translation arrives as 20-30 chunks within a few hundred ms. Two
+  // property writes per chunk, instead of an O(n) array.map allocation,
+  // is the difference between smooth UI and visible lockup at session scale.
   function ingestTranslationChunk(msg: TranslationChunkMessage): void {
     const id = `lb_${msg.transcript_id}`;
-    const idx = captions.findIndex(c => c.id === id);
-    if (idx < 0) return;
-    if (captions[idx].translationState === 'complete') return;
+    const idx = captionIndex.get(id);
+    if (idx === undefined) return;
 
-    const base = captions[idx].translationState === 'draft' ? '' : (captions[idx].translation ?? '');
-    captions = captions.map((c, i) => i === idx ? { ...c, translation: base + msg.delta, translationState: 'streaming' } : c);
+    const c = captions[idx];
+    if (c.translationState === 'complete') return;
+
+    // Draft → streaming: discard the draft text and start fresh from the
+    // first streaming chunk (the streaming pass replaces the draft entirely).
+    const base = c.translationState === 'draft' ? '' : (c.translation ?? '');
+    c.translation = base + msg.delta;
+    c.translationState = 'streaming';
   }
 
   function ingestCaptionEvent(event: CaptionEvent): void {
@@ -201,33 +256,45 @@ function createCaptionStore() {
       if (event.event === 'caption_added' && seenCaptionIds.has(id)) return;
       seenCaptionIds.add(id);
 
-      const existingIdx = captions.findIndex(c => c.id === id);
+      const existingIdx = captionIndex.get(id);
+      const stableText = cap.original_text || cap.text;
+      const translation = cap.translated_text !== cap.original_text ? cap.translated_text : null;
+      const translationState: TranslationState = cap.translated_text ? 'complete' : 'pending';
 
-      const caption: UnifiedCaption = {
-        id,
-        text: cap.original_text || cap.text,
-        stableText: cap.original_text || cap.text,
-        unstableText: '',
-        translation: cap.translated_text !== cap.original_text ? cap.translated_text : null,
-        translationState: cap.translated_text ? 'complete' : 'pending',
-        speaker: cap.speaker_name,
-        speakerColor: cap.speaker_color || getSpeakerColor(cap.speaker_name),
-        language: cap.target_language || 'auto',
-        confidence: cap.confidence,
-        timestamp: cap.receivedAt || Date.now(),
-        isFinal: true,
-        isDraft: false,
-      };
-
-      if (existingIdx >= 0) {
-        captions = captions.map((c, i) => i === existingIdx ? caption : c);
+      if (existingIdx !== undefined) {
+        const existing = captions[existingIdx];
+        existing.text = stableText;
+        existing.stableText = stableText;
+        existing.translation = translation;
+        existing.translationState = translationState;
+        existing.speaker = cap.speaker_name;
+        existing.speakerColor = cap.speaker_color || getSpeakerColor(cap.speaker_name);
+        existing.language = cap.target_language || 'auto';
+        existing.confidence = cap.confidence;
+        // timestamp / isFinal / isDraft preserved
       } else {
-        captions = [...captions.slice(-(MAX_CAPTIONS - 1)), caption];
+        const caption: UnifiedCaption = {
+          id,
+          text: stableText,
+          stableText,
+          unstableText: '',
+          translation,
+          translationState,
+          speaker: cap.speaker_name,
+          speakerColor: cap.speaker_color || getSpeakerColor(cap.speaker_name),
+          language: cap.target_language || 'auto',
+          confidence: cap.confidence,
+          timestamp: cap.receivedAt || Date.now(),
+          isFinal: true,
+          isDraft: false,
+        };
+        appendCappedCaption(caption);
         segmentsReceived++;
         if (caption.translation) translationsReceived++;
       }
     } else if (event.event === 'session_cleared') {
-      captions = [];
+      captions.length = 0;
+      captionIndex.clear();
       seenCaptionIds.clear();
     }
     // caption_expired: keep for history
@@ -253,7 +320,11 @@ function createCaptionStore() {
   }
 
   function clear(): void {
-    captions = [];
+    // Mutate the reactive array in place rather than reassigning. Same
+    // observable result, no fresh allocation, and consistent with the
+    // ingest paths that now mutate fields in place.
+    captions.length = 0;
+    captionIndex.clear();
     interimText = '';
     interimConfidence = 0;
     chunksSent = 0;
