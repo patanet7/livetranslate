@@ -13,6 +13,7 @@
   import SubtitleView from '$lib/components/loopback/SubtitleView.svelte';
   import TranscriptView from '$lib/components/loopback/TranscriptView.svelte';
   import InterpreterView from '$lib/components/loopback/InterpreterView.svelte';
+  import WireView from '$lib/components/loopback/WireView.svelte';
   import EarwyrmMini from '$lib/components/brand/EarwyrmMini.svelte';
 
   let devices = $state<MediaDeviceInfo[]>([]);
@@ -404,6 +405,8 @@
       <SubtitleView />
     {:else if captionStore.displayMode === 'interpreter'}
       <InterpreterView />
+    {:else if captionStore.displayMode === 'wire'}
+      <WireView />
     {:else}
       <TranscriptView />
     {/if}

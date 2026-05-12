@@ -1,9 +1,10 @@
 // Capture before/after screenshots of every dashboard surface.
 // Usage (run from modules/dashboard-service/):
-//   node scripts/screenshot.mjs before
-//   node scripts/screenshot.mjs after
+//   node scripts/screenshot.mjs before               # dark (default)
+//   node scripts/screenshot.mjs after                # dark
+//   node scripts/screenshot.mjs after light          # daytime/print mode
 //
-// Outputs to <repo-root>/design/<phase>/ at viewport 1440x900.
+// Outputs to <repo-root>/design/<phase>[-<theme>]/ at viewport 1440x900.
 // The dashboard must be running on http://localhost:5180.
 // Pages render their chrome even without backend services up — empty
 // data states are an acceptable baseline for the design comparison.
@@ -13,8 +14,10 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const phase = process.argv[2] ?? "before";
+const theme = process.argv[3] ?? "dark"; // "dark" (default) | "light"
 const repoRoot = resolve(import.meta.dirname, "../../..");
-const outDir = resolve(repoRoot, `design/${phase}`);
+const dirSuffix = theme === "dark" ? phase : `${phase}-${theme}`;
+const outDir = resolve(repoRoot, `design/${dirSuffix}`);
 await mkdir(outDir, { recursive: true });
 
 const ROUTES = [
@@ -46,11 +49,19 @@ for (const [name, route] of ROUTES) {
     // Wait for Google Fonts (Fraunces / Newsreader / JetBrains Mono) so
     // headlines render in the editorial faces, not a fallback.
     await page.evaluate(() => document.fonts.ready);
+    // Theme override — app.html hardcodes class="dark" so light mode
+    // requires a runtime swap on the <html> element. Done after fonts
+    // are ready so the swap doesn't fight FOUC mitigation.
+    if (theme === "light") {
+      await page.evaluate(() => {
+        document.documentElement.classList.remove("dark");
+      });
+    }
     // Settle the staggered editorial reveal (D6.2): max delay 480ms
     // + 380ms transition + rule-draw 540ms@320ms delay = 860ms ceiling.
     await page.waitForTimeout(1100);
     await page.screenshot({ path: `${outDir}/${name}.png`, fullPage: true });
-    console.log(`✓ ${name.padEnd(18)} ${route}`);
+    console.log(`✓ ${name.padEnd(18)} ${route}  [${theme}]`);
   } catch (err) {
     console.log(`✗ ${name.padEnd(18)} ${route}  (${err.message.split("\n")[0]})`);
   }
